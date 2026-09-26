@@ -186,15 +186,33 @@ class HasOpenCorrectionFilter(admin.SimpleListFilter):
         return queryset
 
 
+class CustomCourseFilter(admin.SimpleListFilter):
+    title = "course selection type"
+    parameter_name = "course_type"
+
+    def lookups(self, request, model_admin):
+        return (
+            ("custom", "✍️ Self-Inputted Course (Reach out)"),
+            ("catalog", "Standard Partner Catalog"),
+        )
+
+    def queryset(self, request, queryset):
+        if self.value() == "custom":
+            return queryset.filter(is_custom_course=True)
+        if self.value() == "catalog":
+            return queryset.filter(is_custom_course=False)
+        return queryset
+
+
 @admin.register(Application)
 class ApplicationAdmin(admin.ModelAdmin):
     list_display = (
         "reference",
         "full_name",
+        "course_selection_badge",
         "correction_badge",
         "verification_badge",
         "destination_country",
-        "institution",
         "stage_badge",
         "status_badge",
         "visa_badge",
@@ -202,6 +220,7 @@ class ApplicationAdmin(admin.ModelAdmin):
         "submitted_at",
     )
     list_filter = (
+        CustomCourseFilter,
         HasOpenCorrectionFilter,
         VerificationStatusFilter,
         "verification_status",
@@ -216,7 +235,13 @@ class ApplicationAdmin(admin.ModelAdmin):
         HasLetterFilter,
         FiledByFilter,
     )
-    search_fields = ("reference", "full_name", "email", "institution__name")
+    search_fields = (
+        "reference",
+        "full_name",
+        "email",
+        "institution__name",
+        "custom_course_name",
+    )
     autocomplete_fields = ("institution", "applicant")
     filter_horizontal = ("programs",)
     date_hierarchy = "submitted_at"
@@ -225,6 +250,9 @@ class ApplicationAdmin(admin.ModelAdmin):
     inlines = (StageInline, LetterInline, DocumentInline, CorrectionInline, NotificationInline)
     readonly_fields = (
         "reference",
+        "custom_course_alert",
+        "is_custom_course",
+        "custom_course_name",
         "verified_at",
         "verified_by",
         "submitted_at",
@@ -283,7 +311,17 @@ class ApplicationAdmin(admin.ModelAdmin):
                 )
             },
         ),
-        ("Programme", {"fields": ("institution", "programs")}),
+        (
+            "Programme & Course Choice",
+            {
+                "fields": (
+                    "custom_course_alert",
+                    ("is_custom_course", "custom_course_name"),
+                    "institution",
+                    "programs",
+                )
+            },
+        ),
         ("Internal", {"fields": ("notes", "submitted_at", "created_at", "updated_at")}),
     )
 
@@ -383,6 +421,47 @@ class ApplicationAdmin(admin.ModelAdmin):
             background,
             colour,
             text,
+        )
+
+    @admin.display(description="Course / Programme")
+    def course_selection_badge(self, obj):
+        if obj.is_custom_course:
+            return format_html(
+                '<div style="max-width:240px;">'
+                '<span style="display:inline-block;padding:2px 8px;background:#fef3c7;color:#92400e;border:1px solid #fde68a;border-radius:999px;font-weight:700;font-size:11px;margin-bottom:3px;">✍️ Custom Request</span>'
+                '<div style="font-weight:700;font-size:12px;color:#1e293b;line-height:1.3;">{}</div>'
+                '</div>',
+                obj.custom_course_name or "Custom course",
+            )
+        if obj.institution:
+            return format_html(
+                '<div style="font-weight:600;font-size:12px;color:#1e293b;line-height:1.3;">{}</div>',
+                obj.institution.name,
+            )
+        return format_html('<span style="color:#94a3b8;font-size:11px;">Not specified</span>')
+
+    @admin.display(description="Applicant Request Notice")
+    def custom_course_alert(self, obj):
+        if not obj.is_custom_course:
+            return format_html('<span style="color:#64748b;">Standard university catalog application.</span>')
+        return format_html(
+            '<div style="background:#fffbeb;border:2px solid #f59e0b;padding:12px 16px;border-radius:8px;color:#92400e;font-size:13px;line-height:1.5;">'
+            '<strong style="font-size:14px;color:#b45309;">✍️ Applicant Inputted Their Own Course:</strong><br/>'
+            'Desired Programme: <strong style="color:#9a3412;font-size:14px;">{}</strong><br/>'
+            'Destination: <strong>{}</strong><br/>'
+            '<p style="margin:8px 0 0 0;color:#78350f;">'
+            '<em>No upfront payment was charged for this application. '
+            'Admissions staff should reach out directly to the applicant to match them with institutions:</em><br/>'
+            '📧 Email: <a href="mailto:{}" style="color:#2563eb;text-decoration:underline;font-weight:700;">{}</a> &nbsp;|&nbsp; '
+            '📞 Phone: <a href="tel:{}" style="color:#2563eb;text-decoration:underline;font-weight:700;">{}</a>'
+            '</p>'
+            '</div>',
+            obj.custom_course_name or "N/A",
+            obj.destination_country.name if obj.destination_country else "N/A",
+            obj.email,
+            obj.email,
+            obj.phone or "N/A",
+            obj.phone or "N/A",
         )
 
     @admin.display(description="Correction Requests")

@@ -137,6 +137,8 @@ class ApplicationSerializer(serializers.ModelSerializer):
             "grade_gpa",
             "institution",
             "programs",
+            "is_custom_course",
+            "custom_course_name",
             "status",
             "visa_status",
             "transferred_to_visa_support",
@@ -199,9 +201,15 @@ class ApplicationCreateSerializer(serializers.Serializer):
     year_graduated = serializers.IntegerField(min_value=1960, max_value=2035)
     grade_gpa = serializers.CharField(max_length=120)
 
-    institution = serializers.CharField(help_text="Institution slug.")
+    institution = serializers.CharField(
+        help_text="Institution slug.", required=False, allow_blank=True, default=""
+    )
     program_ids = serializers.ListField(
-        child=serializers.IntegerField(), allow_empty=False, max_length=2
+        child=serializers.IntegerField(), required=False, default=list
+    )
+    is_custom_course = serializers.BooleanField(required=False, default=False)
+    custom_course_name = serializers.CharField(
+        required=False, allow_blank=True, default=""
     )
 
     gateway = serializers.CharField(max_length=40, required=False, default="Paystack")
@@ -214,22 +222,46 @@ class ApplicationCreateSerializer(serializers.Serializer):
         return country
 
     def validate_destination_country(self, value):
-        country = DestinationCountry.objects.filter(
-            name__iexact=value, is_active=True
-        ).first()
+        name = str(value or "").strip()
+        if not name:
+            raise serializers.ValidationError("Choose a destination country.")
+        country = DestinationCountry.objects.filter(name__iexact=name).first()
         if country is None:
-            raise serializers.ValidationError("Choose a destination country from the list.")
+            code = "".join(c for c in name if c.isalnum())[:3].upper() or "DST"
+            country = DestinationCountry.objects.create(
+                name=name,
+                code=code,
+                currency="USD",
+                currency_symbol="$",
+                is_active=True,
+            )
         return country
 
     def validate_institution(self, value):
+        if not value:
+            return None
         institution = Institution.objects.filter(slug=value, is_active=True).first()
         if institution is None:
             raise serializers.ValidationError("Choose a partner institution.")
         return institution
 
     def validate(self, attrs):
-        institution = attrs["institution"]
-        programs = list(Program.objects.filter(id__in=attrs["program_ids"]))
+        is_custom = attrs.get("is_custom_course", False)
+        if is_custom:
+            custom_name = attrs.get("custom_course_name", "").strip()
+            if not custom_name:
+                raise serializers.ValidationError(
+                    {"custom_course_name": "Please specify the course you want to study."}
+                )
+            attrs["institution"] = None
+            attrs["programs"] = []
+            return attrs
+
+        institution = attrs.get("institution")
+        if not institution:
+            raise serializers.ValidationError({"institution": "Choose a partner institution."})
+        program_ids = attrs.get("program_ids", [])
+        programs = list(Program.objects.filter(id__in=program_ids))
         if not programs:
             raise serializers.ValidationError(
                 {"program_ids": "Select at least one course."}
@@ -254,6 +286,10 @@ class ApplicationCreateSerializer(serializers.Serializer):
     def create(self, validated_data):
         user = self.context["request"].user
         agent_profile = getattr(user, "agent_profile", None)
+        is_custom = validated_data.get("is_custom_course", False)
+        custom_name = (
+            validated_data.get("custom_course_name", "").strip() if is_custom else ""
+        )
 
         application = Application.objects.create(
             applicant=validated_data.pop("applicant", user),
@@ -268,15 +304,24 @@ class ApplicationCreateSerializer(serializers.Serializer):
             qualification=validated_data["qualification"],
             year_graduated=validated_data["year_graduated"],
             grade_gpa=validated_data["grade_gpa"],
-            institution=validated_data["institution"],
+            institution=validated_data.get("institution"),
+            is_custom_course=is_custom,
+            custom_course_name=custom_name,
             notes=validated_data.get("notes", ""),
             status=Application.Status.SUBMITTED,
         )
-        application.programs.set(validated_data["programs"])
+        if not is_custom and validated_data.get("programs"):
+            application.programs.set(validated_data["programs"])
         application.build_default_stages()
+
+        target_name = custom_name or (
+            application.institution.name
+            if application.institution
+            else application.destination_country.name
+        )
         Notification.objects.create(
             application=application,
-            text=f"Application submitted to {application.institution.name}.",
+            text=f"Application submitted for {target_name}.",
             send_email=False,
         )
         return application

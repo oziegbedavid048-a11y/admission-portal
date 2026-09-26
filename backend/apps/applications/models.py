@@ -81,6 +81,16 @@ class Application(models.Model):
         blank=True,
     )
     programs = models.ManyToManyField(Program, related_name="applications", blank=True)
+    is_custom_course = models.BooleanField(
+        default=False,
+        help_text="True if applicant entered their desired course manually instead of picking from catalog.",
+    )
+    custom_course_name = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        help_text="The course / program title typed directly by the applicant.",
+    )
 
     # Pipeline
     status = models.CharField(

@@ -32,17 +32,34 @@ export default function ProvisioningModal({ open, details, onContinue }) {
           <span className="cred-val">{details.reference}</span>
         </div>
         <div className="cred-row">
-          <span className="cred-label">Email</span>
+          <span className="cred-label">Email / Login ID</span>
           <span className="cred-val">{details.email}</span>
         </div>
+        {details.generatedPassword ? (
+          <div className="cred-row" style={{ background: '#eff6ff', padding: '8px 12px', borderRadius: '6px', marginTop: '8px' }}>
+            <span className="cred-label" style={{ fontWeight: 700, color: '#1d4ed8' }}>Temporary Password</span>
+            <span className="cred-val" style={{ fontFamily: 'monospace', fontWeight: 800, fontSize: '0.95rem', color: '#1e3a8a' }}>
+              {details.generatedPassword}
+            </span>
+          </div>
+        ) : null}
       </div>
+
+      {details.isCustomCourse ? (
+        <div className="callout callout-info" style={{ marginTop: 14, marginBottom: 14 }}>
+          <Icon name="cap" size={20} className="callout-icon" strokeWidth={2} />
+          <div className="callout-content" style={{ fontSize: '0.8125rem' }}>
+            <strong>Custom Course Request Received:</strong> Our global admissions team will review your chosen course (<strong>{details.customCourseName}</strong>) in <strong>{details.destinationCountry}</strong> and reach out to you directly to guide you through university options.
+          </div>
+        </div>
+      ) : null}
 
       <div className="callout callout-success" style={{ marginBottom: 0 }}>
         <Icon name="checkCircle" size={20} className="callout-icon" strokeWidth={2} />
         <div className="callout-content" style={{ fontSize: '0.8125rem' }}>
           {details.accountCreated
-            ? 'Your password has been emailed to you. Check your inbox to sign in, and change it from your profile whenever you like.'
-            : 'Track every stage of your application from your dashboard.'}
+            ? 'Your account has been created and your password has also been sent to your email. You can change your password anytime from your profile.'
+            : 'Track every stage of your application from your student dashboard.'}
         </div>
       </div>
     </Modal>

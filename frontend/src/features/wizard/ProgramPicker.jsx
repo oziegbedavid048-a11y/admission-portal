@@ -3,19 +3,12 @@ import Icon from '../../lib/icons';
 import { formatMoney, formatTuition } from '../../lib/format';
 
 /**
- * Step 3: one school, then up to two of its courses.
+ * Step 3: one school, then up to two of its courses, OR manual custom course entry.
  *
- * Two plain select fields, one at a time. The school field is the only thing on
- * screen until a school is chosen; it then collapses to a single line and the
- * course field takes its place. Nothing else is shown, because everything else
- * is either a decision the applicant has already made or a detail they can read
- * on the course they picked.
- *
- * Courses are grouped into native optgroups by level rather than made into a
- * separate step, which keeps the ordering without adding a third field.
- *
- * The applicant wizard and the partner portal both use this, which is why the
- * selection lives in the parent rather than here.
+ * If a country has no catalog institutions listed, or if the applicant cannot
+ * find their intended course in the partner list, they can type their course
+ * directly. Custom courses waive application payment at checkout and trigger direct
+ * admissions desk follow-up.
  */
 
 const MAX_COURSES = 2;
@@ -34,13 +27,11 @@ export default function ProgramPicker({
   institutions,
   loading,
   countryName,
-  selection,
+  selection = {},
   onChange,
   onNotify,
 }) {
   const courseFieldRef = useRef(null);
-  // The school field stays open until a school is picked, and reopens only when
-  // the applicant asks to change it.
   const [schoolOpen, setSchoolOpen] = useState(!selection.institution);
 
   const safeInstitutions = Array.isArray(institutions) ? institutions : [];
@@ -67,17 +58,25 @@ export default function ProgramPicker({
   const chosen = selection.programs || [];
   const isChosen = (program) => chosen.some((item) => item.id === program.id);
   const atLimit = chosen.length >= MAX_COURSES;
+  const isCustomMode = !safeInstitutions.length || Boolean(selection?.is_custom_course);
 
   const pickInstitution = (slug) => {
     if (!slug) {
-      onChange({ institution: null, level: null, programs: [] });
+      onChange({ ...selection, institution: null, level: null, programs: [], is_custom_course: false });
       return;
     }
     if (slug === selection.institution) {
       setSchoolOpen(false);
       return;
     }
-    onChange({ institution: slug, level: null, programs: [] });
+    onChange({
+      ...selection,
+      institution: slug,
+      level: null,
+      programs: [],
+      is_custom_course: false,
+      custom_course: '',
+    });
     setSchoolOpen(false);
     window.setTimeout(
       () => courseFieldRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }),
@@ -91,7 +90,7 @@ export default function ProgramPicker({
       onNotify?.(`You can pick at most ${MAX_COURSES} courses per institution.`, 'warning');
       return;
     }
-    onChange({ ...selection, programs: [...chosen, program] });
+    onChange({ ...selection, programs: [...chosen, program], is_custom_course: false });
   };
 
   const removeProgram = (program) => {
@@ -114,18 +113,123 @@ export default function ProgramPicker({
     );
   }
 
-  if (!safeInstitutions.length) {
+  // ── Manual / Custom Course Mode ──
+  if (isCustomMode) {
     return (
-      <div className="callout callout-info">
-        <Icon name="info" size={20} className="callout-icon" strokeWidth={2} />
-        <div className="callout-content">
-          No partner institutions are listed for {countryName} yet. Choose another
-          destination in step 1.
+      <div className="picker">
+        {safeInstitutions.length > 0 ? (
+          <div style={{ marginBottom: 14 }}>
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              onClick={() =>
+                onChange({
+                  ...selection,
+                  is_custom_course: false,
+                  custom_course: '',
+                })
+              }
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                fontSize: '0.85rem',
+                color: 'var(--brand-700)',
+                fontWeight: 600,
+                padding: '6px 12px',
+              }}
+            >
+              <Icon name="arrowLeft" size={14} strokeWidth={2} />
+              Switch back to {countryName} partner universities ({safeInstitutions.length})
+            </button>
+          </div>
+        ) : null}
+
+        <div
+          style={{
+            background: 'var(--slate-50, #f8fafc)',
+            border: '1.5px solid var(--slate-200, #e2e8f0)',
+            borderRadius: '12px',
+            padding: '24px',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px', marginBottom: '18px' }}>
+            <div
+              style={{
+                background: '#eff6ff',
+                color: '#2563eb',
+                width: '42px',
+                height: '42px',
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}
+            >
+              <Icon name="cap" size={22} strokeWidth={2} />
+            </div>
+            <div>
+              <h4 style={{ margin: '0 0 4px', fontSize: '1.05rem', color: 'var(--slate-900)', fontWeight: 700 }}>
+                Specify your desired course in {countryName}
+              </h4>
+              <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--slate-600)', lineHeight: 1.5 }}>
+                {safeInstitutions.length === 0
+                  ? `There are no pre-cataloged partner universities for ${countryName} yet. Type your desired course or degree programme below to continue. Our admissions desk will review your submission and contact you directly.`
+                  : 'Cannot find your desired university or course in the catalog? Enter the course you want to study below and our team will assist you.'}
+              </p>
+            </div>
+          </div>
+
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label" htmlFor="custom-course-input" style={{ fontWeight: 600 }}>
+              Course / Degree Programme <span className="req">*</span>
+            </label>
+            <input
+              id="custom-course-input"
+              type="text"
+              className="form-control"
+              placeholder="e.g. MSc Artificial Intelligence, BSc Nursing, MBA, LLB Law..."
+              value={selection.custom_course || ''}
+              onChange={(e) =>
+                onChange({
+                  ...selection,
+                  institution: '',
+                  level: null,
+                  programs: [],
+                  is_custom_course: true,
+                  custom_course: e.target.value,
+                })
+              }
+              autoFocus
+            />
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                marginTop: '12px',
+                padding: '10px 14px',
+                background: '#f0fdf4',
+                border: '1px solid #bbf7d0',
+                borderRadius: '8px',
+                fontSize: '0.8125rem',
+                color: '#166534',
+                fontWeight: 600,
+              }}
+            >
+              <Icon name="checkCircle" size={16} strokeWidth={2.2} />
+              <span>
+                Zero application fee: No payment is required for custom course submissions. You will receive your login details immediately upon completing registration.
+              </span>
+            </div>
+          </div>
         </div>
       </div>
     );
   }
 
+  // ── Standard Catalog Mode ──
   return (
     <div className="picker">
       {schoolOpen || !institution ? (
@@ -239,6 +343,42 @@ export default function ProgramPicker({
           ) : null}
         </div>
       ) : null}
+
+      <div
+        style={{
+          marginTop: 20,
+          paddingTop: 16,
+          borderTop: '1px dashed var(--slate-200, #e2e8f0)',
+          textAlign: 'center',
+        }}
+      >
+        <span style={{ fontSize: '0.875rem', color: 'var(--slate-500)' }}>
+          Can't find your desired institution or course?{' '}
+        </span>
+        <button
+          type="button"
+          className="btn btn-link"
+          style={{
+            fontSize: '0.875rem',
+            fontWeight: 700,
+            color: 'var(--brand-700)',
+            padding: 0,
+            textDecoration: 'underline',
+            cursor: 'pointer',
+          }}
+          onClick={() =>
+            onChange({
+              institution: '',
+              level: null,
+              programs: [],
+              is_custom_course: true,
+              custom_course: selection.custom_course || '',
+            })
+          }
+        >
+          Type your course manually
+        </button>
+      </div>
     </div>
   );
 }

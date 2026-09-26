@@ -8,6 +8,7 @@ import { errorMessage } from '../../api/client';
 import { applications, catalog, partners, payments } from '../../api/endpoints';
 import { useToast } from '../../context/ToastContext';
 import { useCatalog, useInstitutions } from '../../hooks/useCatalog';
+import { ALL_WORLD_COUNTRIES } from '../../lib/countries';
 import ProgramPicker from '../wizard/ProgramPicker';
 import { useAgent } from './AgentContext';
 
@@ -34,6 +35,8 @@ const BLANK = {
   institution: '',
   level: null,
   programs: [],
+  is_custom_course: false,
+  custom_course: '',
   notes: '',
 };
 
@@ -59,9 +62,13 @@ export default function AgentNewStudent() {
   const { originNames, destinations } = useCatalog();
   const { institutions, loading: institutionsLoading } = useInstitutions(form.destinationCountry);
 
+  const safeInstitutions = Array.isArray(institutions) ? institutions : [];
   const institution = useMemo(
-    () => institutions.find((item) => item.slug === form.institution) || null,
-    [institutions, form.institution],
+    () => safeInstitutions.find((item) => item.slug === form.institution) || null,
+    [safeInstitutions, form.institution],
+  );
+  const isCustomCourse = Boolean(
+    form.is_custom_course || (safeInstitutions.length === 0 && !institutionsLoading)
   );
 
   const update = (patch) => setForm((current) => ({ ...current, ...patch }));
@@ -116,8 +123,14 @@ export default function AgentNewStudent() {
       if (!form.gradeGpa.trim()) return toast.warning('Enter their grade or GPA.') || false;
     }
     if (which === 3) {
-      if (!form.institution) return toast.warning('Choose a partner institution.') || false;
-      if (!form.programs.length) return toast.warning('Choose at least one course.') || false;
+      if (isCustomCourse) {
+        if (!form.custom_course?.trim()) {
+          return toast.warning('Enter the student’s desired course or programme.') || false;
+        }
+      } else {
+        if (!form.institution) return toast.warning('Choose a partner institution or type course manually.') || false;
+        if (!form.programs.length) return toast.warning('Choose at least one course.') || false;
+      }
     }
     return true;
   };
@@ -149,8 +162,10 @@ export default function AgentNewStudent() {
         qualification: form.qualification,
         year_graduated: Number(form.yearGraduated),
         grade_gpa: form.gradeGpa.trim(),
-        institution: form.institution,
-        program_ids: form.programs.map((program) => program.id),
+        institution: isCustomCourse ? '' : form.institution,
+        program_ids: isCustomCourse ? [] : form.programs.map((program) => program.id),
+        is_custom_course: isCustomCourse,
+        custom_course_name: isCustomCourse ? form.custom_course.trim() : '',
         notes: form.notes.trim(),
       });
 
@@ -180,18 +195,20 @@ export default function AgentNewStudent() {
       // fee does, so the fee is settled here and the commission lands with it.
       let commission = 0;
       let feePaid = false;
-      try {
-        const { data: checkout } = await payments.checkout(data.reference, gateway);
-        commission = Number(checkout.commission_paid) || 0;
-        feePaid = true;
-        if (checkout.wallet) setWallet(checkout.wallet);
-      } catch (error) {
-        toast.warning(
-          errorMessage(
-            error,
-            'The student is registered but the fee did not go through. Pay it from Students to earn your commission.',
-          ),
-        );
+      if (!isCustomCourse) {
+        try {
+          const { data: checkout } = await payments.checkout(data.reference, gateway);
+          commission = Number(checkout.commission_paid) || 0;
+          feePaid = true;
+          if (checkout.wallet) setWallet(checkout.wallet);
+        } catch (error) {
+          toast.warning(
+            errorMessage(
+              error,
+              'The student is registered but the fee did not go through. Pay it from Students to earn your commission.',
+            ),
+          );
+        }
       }
 
       setCreated({ ...data, commission, feePaid });
@@ -309,28 +326,25 @@ export default function AgentNewStudent() {
             </div>
 
             <div className="agent-form-group">
-              <label className="agent-form-label" htmlFor="st-dest">
+              <label className="agent-form-label" id="st-dest-label">
                 Destination country *
               </label>
-              <select
-                id="st-dest"
-                className="agent-form-select"
+              <SearchableSelect
+                options={ALL_WORLD_COUNTRIES}
                 value={form.destinationCountry}
-                onChange={(event) =>
+                onChange={(value) =>
                   update({
-                    destinationCountry: event.target.value,
+                    destinationCountry: value,
                     institution: '',
                     level: null,
                     programs: [],
+                    is_custom_course: false,
+                    custom_course: '',
                   })
                 }
-              >
-                {destinations.map((destination) => (
-                  <option key={destination.id} value={destination.name}>
-                    {destination.name}
-                  </option>
-                ))}
-              </select>
+                placeholder="Search any destination country..."
+                labelledBy="st-dest-label"
+              />
             </div>
 
             <div className="ag-wizard-footer">
@@ -447,6 +461,8 @@ export default function AgentNewStudent() {
                   institution: form.institution,
                   level: form.level,
                   programs: form.programs,
+                  is_custom_course: form.is_custom_course,
+                  custom_course: form.custom_course,
                 }}
                 onChange={(next) => update(next)}
                 onNotify={(message, type) => toast.toast(message, type)}

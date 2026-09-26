@@ -71,7 +71,9 @@ def quote_for(application):
     origin = application.origin_country
     institution = application.institution
 
-    if institution is not None and institution.application_fee == 0:
+    if getattr(application, "is_custom_course", False) or (
+        institution is not None and institution.application_fee == 0
+    ):
         return {
             "currency": origin.currency,
             "symbol": origin.symbol,
@@ -193,9 +195,14 @@ class CheckoutView(APIView):
 
         if quote["waived"]:
             payment.mark_waived()
+            reason = (
+                "Application fee waived for custom course review."
+                if getattr(application, "is_custom_course", False)
+                else "Application fee waived by the partner institution."
+            )
             services.notify(
                 application,
-                "Application fee waived by the partner institution.",
+                reason,
                 send_email=False,
             )
             application = visible_applications(request.user).get(pk=application.pk)

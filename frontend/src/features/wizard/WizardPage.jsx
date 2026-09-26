@@ -10,6 +10,7 @@ import { errorMessage } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { useCatalog, useInstitutions } from '../../hooks/useCatalog';
+import { ALL_WORLD_COUNTRIES } from '../../lib/countries';
 import PaymentGatewayModal from './PaymentGatewayModal';
 import ProgramPicker from './ProgramPicker';
 import ProvisioningModal from './ProvisioningModal';
@@ -38,6 +39,8 @@ const BLANK = {
   institution: '',
   level: null,
   programs: [],
+  is_custom_course: false,
+  custom_course: '',
 };
 
 /** A password a person can read out over the phone without ambiguity. */
@@ -119,7 +122,11 @@ export default function WizardPage({ onOpenLogin }) {
     [safeInstitutions, form.institution],
   );
 
-  const feeWaived = institution ? institution.is_fee_free : false;
+  const isCustomCourse = Boolean(
+    form.is_custom_course || (safeInstitutions.length === 0 && !institutionsLoading)
+  );
+
+  const feeWaived = isCustomCourse || (institution ? institution.is_fee_free : false);
 
   // Refresh the fee whenever the applicant's currency could have changed.
   useEffect(() => {
@@ -173,13 +180,20 @@ export default function WizardPage({ onOpenLogin }) {
     }
 
     if (which === 3) {
-      if (!form.institution) {
-        toast.warning('Choose one partner institution.');
-        return false;
-      }
-      if (!form.programs.length) {
-        toast.warning('Choose at least one course.');
-        return false;
+      if (isCustomCourse) {
+        if (!form.custom_course?.trim()) {
+          toast.warning('Please enter the course or degree programme you wish to study.');
+          return false;
+        }
+      } else {
+        if (!form.institution) {
+          toast.warning('Choose one partner institution, or enter your course manually.');
+          return false;
+        }
+        if (!form.programs.length) {
+          toast.warning('Choose at least one course.');
+          return false;
+        }
       }
     }
 
@@ -277,8 +291,10 @@ export default function WizardPage({ onOpenLogin }) {
         qualification: form.qualification,
         year_graduated: Number(form.yearGraduated),
         grade_gpa: form.gradeGpa.trim(),
-        institution: form.institution,
-        program_ids: form.programs.map((program) => program.id),
+        institution: isCustomCourse ? '' : form.institution,
+        program_ids: isCustomCourse ? [] : form.programs.map((program) => program.id),
+        is_custom_course: isCustomCourse,
+        custom_course_name: isCustomCourse ? form.custom_course.trim() : '',
       });
 
       await uploadDocuments(application.reference);
@@ -289,7 +305,7 @@ export default function WizardPage({ onOpenLogin }) {
 
       // A configured provider hands back somewhere to go and pay. Leaving for it
       // is the last step, so the draft is already cleared and the account made.
-      if (settlement?.authorization_url) {
+      if (!isCustomCourse && settlement?.authorization_url) {
         window.location.assign(settlement.authorization_url);
         return;
       }
@@ -299,8 +315,12 @@ export default function WizardPage({ onOpenLogin }) {
         email: application.email,
         fullName: application.full_name,
         accountCreated: Boolean(generatedPassword),
-        feeOutstanding: !settlement?.waived,
+        feeOutstanding: !isCustomCourse && !settlement?.waived,
         transferAccount: settlement?.transfer_account || null,
+        isCustomCourse: isCustomCourse,
+        customCourseName: isCustomCourse ? form.custom_course.trim() : '',
+        destinationCountry: form.destinationCountry,
+        generatedPassword: generatedPassword,
       });
     } catch (error) {
       toast.error(errorMessage(error, 'Could not submit your application.'));
@@ -312,7 +332,7 @@ export default function WizardPage({ onOpenLogin }) {
 
   const onSubmitClick = () => {
     if (!validate(4)) return;
-    if (feeWaived) {
+    if (isCustomCourse || feeWaived) {
       submit();
       return;
     }
@@ -392,28 +412,25 @@ export default function WizardPage({ onOpenLogin }) {
               </div>
 
               <div className={groupClass('destinationCountry')} style={{ marginTop: 12 }}>
-                <label className="form-label" htmlFor="destinationCountry">
+                <label className="form-label" id="destination-label">
                   Destination country <span className="req">*</span>
                 </label>
-                <select
-                  id="destinationCountry"
-                  className="form-control"
+                <SearchableSelect
+                  options={ALL_WORLD_COUNTRIES}
                   value={form.destinationCountry}
-                  onChange={(event) =>
+                  onChange={(value) =>
                     update({
-                      destinationCountry: event.target.value,
+                      destinationCountry: value,
                       institution: '',
                       level: null,
                       programs: [],
+                      is_custom_course: false,
+                      custom_course: '',
                     })
                   }
-                >
-                  {(Array.isArray(destinations) ? destinations : []).map((destination) => (
-                    <option key={destination.id || destination.name} value={destination.name}>
-                      {destination.name}
-                    </option>
-                  ))}
-                </select>
+                  placeholder="Search destination country in the world..."
+                  labelledBy="destination-label"
+                />
                 {errorNode('destinationCountry')}
               </div>
 
@@ -509,6 +526,8 @@ export default function WizardPage({ onOpenLogin }) {
                     institution: form.institution,
                     level: form.level,
                     programs: form.programs,
+                    is_custom_course: form.is_custom_course,
+                    custom_course: form.custom_course,
                   }}
                   onChange={(next) => update(next)}
                   onNotify={(message, type) => toast.toast(message, type)}
@@ -603,62 +622,103 @@ export default function WizardPage({ onOpenLogin }) {
           {step === 5 ? (
             <div className="wizard-card">
               <div className="step-header">
-                <h3>Review and pay</h3>
-                <p>Nothing is submitted until this is settled.</p>
+                <h3>{isCustomCourse ? 'Review your application' : 'Review and pay'}</h3>
+                <p>
+                  {isCustomCourse
+                    ? 'No upfront fee required. Complete your registration to receive your student portal login.'
+                    : 'Nothing is submitted until this is settled.'}
+                </p>
               </div>
 
-              <div className="summary-invoice">
-                <div className="invoice-header">
-                  {institution ? institution.name : 'Your institution'}
-                </div>
-                <div className="invoice-row">
-                  <span>Application fee</span>
-                  <span style={{ fontWeight: 600 }}>
-                    {quote ? formatMoney(quote.amount, quote.currency) : 'Calculating'}
-                  </span>
-                </div>
-                <div className="invoice-row">
-                  <span>Gateway processing</span>
-                  <span style={{ fontWeight: 600 }}>
-                    {quote ? formatMoney(quote.processing_fee, quote.currency) : 'Calculating'}
-                  </span>
-                </div>
-                <div className="invoice-row total">
-                  <span>Total</span>
-                  <span style={{ color: 'var(--brand-700)' }}>
-                    {quote ? formatMoney(quote.total, quote.currency) : 'Calculating'}
-                  </span>
-                </div>
-                {quote && !quote.waived && quote.currency !== 'NGN' ? (
-                  <p className="quote-fx-note">
-                    {/* The card is debited in Naira, so the statement shows this
-                        figure rather than the converted one above it. */}
-                    Debited as ₦
-                    {Number(
-                      quote.total_charged_ngn ??
-                        Number(quote.amount_ngn) + Number(quote.processing_fee_ngn || 0),
-                    ).toLocaleString('en-NG')}{' '}
-                    at an indicative rate of {quote.rate} per {quote.currency}.
-                  </p>
-                ) : null}
-              </div>
-
-              {feeWaived ? (
-                <div className="callout callout-success">
-                  <Icon name="checkCircle" size={20} className="callout-icon" strokeWidth={2} />
-                  <div className="callout-content">
-                    <strong>Fee waived.</strong> {institution?.name} is a fee-free partner,
-                    so your file goes straight through.
+              {isCustomCourse ? (
+                <>
+                  <div className="summary-invoice" style={{ borderLeft: '4px solid var(--brand-600, #2563eb)' }}>
+                    <div className="invoice-header">
+                      Custom Course Application · {form.destinationCountry}
+                    </div>
+                    <div className="invoice-row">
+                      <span>Destination country</span>
+                      <span style={{ fontWeight: 600 }}>{form.destinationCountry}</span>
+                    </div>
+                    <div className="invoice-row">
+                      <span>Desired course / programme</span>
+                      <span style={{ fontWeight: 700, color: 'var(--brand-700, #1d4ed8)' }}>
+                        {form.custom_course || 'Custom Course'}
+                      </span>
+                    </div>
+                    <div className="invoice-row">
+                      <span>Applicant</span>
+                      <span style={{ fontWeight: 600 }}>{form.fullName}</span>
+                    </div>
+                    <div className="invoice-row total">
+                      <span>Application fee</span>
+                      <span style={{ color: '#16a34a', fontWeight: 800 }}>
+                        FREE (Direct Admissions Review)
+                      </span>
+                    </div>
                   </div>
-                </div>
+
+                  <div className="callout callout-success">
+                    <Icon name="checkCircle" size={20} className="callout-icon" strokeWidth={2} />
+                    <div className="callout-content">
+                      <strong>Zero application fee required today!</strong> Because you specified your own course, no payment is required. Once you submit, our global admissions desk will review your details and contact you directly to match you with universities.
+                    </div>
+                  </div>
+                </>
               ) : (
-                <div className="callout callout-info">
-                  <Icon name="lock" size={20} className="callout-icon" strokeWidth={2} />
-                  <div className="callout-content">
-                    Your file is submitted first. How the fee is collected is shown
-                    on the next screen, and your card details never reach us.
+                <>
+                  <div className="summary-invoice">
+                    <div className="invoice-header">
+                      {institution ? institution.name : 'Your institution'}
+                    </div>
+                    <div className="invoice-row">
+                      <span>Application fee</span>
+                      <span style={{ fontWeight: 600 }}>
+                        {quote ? formatMoney(quote.amount, quote.currency) : 'Calculating'}
+                      </span>
+                    </div>
+                    <div className="invoice-row">
+                      <span>Gateway processing</span>
+                      <span style={{ fontWeight: 600 }}>
+                        {quote ? formatMoney(quote.processing_fee, quote.currency) : 'Calculating'}
+                      </span>
+                    </div>
+                    <div className="invoice-row total">
+                      <span>Total</span>
+                      <span style={{ color: 'var(--brand-700)' }}>
+                        {quote ? formatMoney(quote.total, quote.currency) : 'Calculating'}
+                      </span>
+                    </div>
+                    {quote && !quote.waived && quote.currency !== 'NGN' ? (
+                      <p className="quote-fx-note">
+                        Debited as ₦
+                        {Number(
+                          quote.total_charged_ngn ??
+                            Number(quote.amount_ngn) + Number(quote.processing_fee_ngn || 0),
+                        ).toLocaleString('en-NG')}{' '}
+                        at an indicative rate of {quote.rate} per {quote.currency}.
+                      </p>
+                    ) : null}
                   </div>
-                </div>
+
+                  {feeWaived ? (
+                    <div className="callout callout-success">
+                      <Icon name="checkCircle" size={20} className="callout-icon" strokeWidth={2} />
+                      <div className="callout-content">
+                        <strong>Fee waived.</strong> {institution?.name} is a fee-free partner,
+                        so your file goes straight through.
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="callout callout-info">
+                      <Icon name="lock" size={20} className="callout-icon" strokeWidth={2} />
+                      <div className="callout-content">
+                        Your file is submitted first. How the fee is collected is shown
+                        on the next screen, and your card details never reach us.
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
 
               <div className="wizard-footer">
@@ -673,9 +733,11 @@ export default function WizardPage({ onOpenLogin }) {
                   disabled={submitting}
                 >
                   {submitting ? <span className="spinner-sm" aria-hidden="true" /> : null}
-                  {feeWaived
-                    ? 'Submit application'
-                    : `Submit and pay ${quote ? formatMoney(quote.total, quote.currency) : ''}`}
+                  {isCustomCourse
+                    ? 'Complete registration & receive login'
+                    : feeWaived
+                      ? 'Submit application'
+                      : `Submit and pay ${quote ? formatMoney(quote.total, quote.currency) : ''}`}
                 </button>
               </div>
             </div>
