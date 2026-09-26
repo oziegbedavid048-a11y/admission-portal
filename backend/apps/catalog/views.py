@@ -5,7 +5,8 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 
-from apps.applications.constants import APPLICATION_FEE_NGN, PROCESSING_FEE
+from apps.applications.constants import APPLICATION_FEE_NGN
+from apps.payments.fees import processing_fee_ngn
 
 from .models import DestinationCountry, FaqItem, Institution, OriginCountry, Program
 from .fx import get_rates
@@ -80,11 +81,14 @@ def fee_quote(request):
                 "symbol": "₦",
                 "amount": float(APPLICATION_FEE_NGN),
                 "amount_ngn": float(APPLICATION_FEE_NGN),
-                "processing_fee": float(PROCESSING_FEE),
+                "processing_fee": float(processing_fee_ngn(APPLICATION_FEE_NGN)),
                 "rate": 1.0,
             }
         )
 
+    # The gateway's cut is worked out in Naira and then converted, exactly as the
+    # fee is, so the preview adds up to the same number the card is debited.
+    fee_ngn = processing_fee_ngn(APPLICATION_FEE_NGN)
     amount = origin.convert_from_ngn(APPLICATION_FEE_NGN)
     return Response(
         {
@@ -93,7 +97,8 @@ def fee_quote(request):
             "symbol": origin.symbol,
             "amount": float(amount),
             "amount_ngn": float(APPLICATION_FEE_NGN),
-            "processing_fee": float(PROCESSING_FEE),
+            "processing_fee": float(origin.convert_from_ngn(fee_ngn)),
+            "processing_fee_ngn": float(fee_ngn),
             "rate": float(origin.ngn_per_unit),
         }
     )

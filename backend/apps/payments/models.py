@@ -47,9 +47,24 @@ class Payment(models.Model):
     )
 
     # The same charge in Naira, kept so the books reconcile whatever the
-    # display currency and whatever the rate did afterwards.
+    # display currency and whatever the rate did afterwards. This is the
+    # application fee alone.
     amount_ngn = models.DecimalField(max_digits=12, decimal_places=2)
+    # The gateway's own cut, in Naira. Held separately from `processing_fee`,
+    # which is the same figure converted for display, so the amount the card is
+    # debited is never derived from a converted number.
+    processing_fee_ngn = models.DecimalField(
+        max_digits=10, decimal_places=2, default=Decimal("0.00")
+    )
     fx_rate = models.DecimalField(max_digits=12, decimal_places=4, default=Decimal("1"))
+
+    # The reference the gateway knows this attempt by.
+    #
+    # Separate from `reference` because Paystack refuses a reference it has seen
+    # before. A first attempt that is abandoned or declined has already burned
+    # ours, so a retry needs a new one while the payment, the receipt and the
+    # application all keep pointing at the same row.
+    gateway_reference = models.CharField(max_length=64, blank=True, db_index=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     paid_at = models.DateTimeField(null=True, blank=True)
@@ -69,7 +84,30 @@ class Payment(models.Model):
 
     @property
     def total(self):
+        """What the applicant sees, in their own currency."""
         return self.amount + self.processing_fee
+
+    @property
+    def total_ngn(self):
+        """What the card is actually debited. The gateway is asked for this."""
+        return self.amount_ngn + self.processing_fee_ngn
+
+    def new_gateway_reference(self):
+        """A reference this attempt can be initialised with.
+
+        Suffixed rather than random so a settlement report still reads back to
+        the payment it belongs to.
+        """
+        attempt = 1
+        if self.gateway_reference and "-A" in self.gateway_reference:
+            try:
+                attempt = int(self.gateway_reference.rsplit("-A", 1)[1]) + 1
+            except ValueError:
+                attempt = 2
+        elif self.gateway_reference:
+            attempt = 2
+        self.gateway_reference = f"{self.reference}-A{attempt}"
+        return self.gateway_reference
 
     @property
     def display_total(self):
@@ -88,6 +126,7 @@ class Payment(models.Model):
         self.gateway = self.Gateway.WAIVER
         self.amount = Decimal("0.00")
         self.processing_fee = Decimal("0.00")
+        self.processing_fee_ngn = Decimal("0.00")
         self.paid_at = timezone.now()
         self.save()
         return self

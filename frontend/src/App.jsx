@@ -1,6 +1,7 @@
 import { Suspense, lazy, useCallback, useState } from 'react';
 import { Route, Routes } from 'react-router-dom';
 import ProtectedRoute from './components/layout/ProtectedRoute';
+import PaymentReturnPage from './features/wizard/PaymentReturnPage';
 import Loading from './components/ui/Loading';
 import LoginModal from './features/auth/LoginModal';
 import LandingPage from './features/landing/LandingPage';
@@ -54,6 +55,17 @@ export default function App() {
             element={
               <ProtectedRoute role="supervisor">
                 <SupervisorPortal />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Paystack sends the applicant back here. Behind the applicant guard,
+              because confirming a payment means reading that application. */}
+          <Route
+            path="/payment/:reference"
+            element={
+              <ProtectedRoute role="applicant">
+                <PaymentReturnPage />
               </ProtectedRoute>
             }
           />

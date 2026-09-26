@@ -4,6 +4,7 @@ from django.utils.html import format_html
 from apps.applications import services
 
 from .models import Payment
+from .settlement import settle
 
 
 @admin.register(Payment)
@@ -65,15 +66,15 @@ class PaymentAdmin(admin.ModelAdmin):
         count = 0
         credited = 0
         for payment in queryset.exclude(status=Payment.Status.PAID):
-            payment.mark_paid()
-            services.notify(
-                payment.application,
-                f"Payment of {payment.display_total} confirmed. Your receipt is ready.",
-            )
-            # Confirming a transfer that arrived off-platform earns the agent
-            # their commission exactly as paying through checkout does.
-            credited += services.award_registration_commission(payment.application)
-            count += 1
+            # The same settlement path the webhook uses, so a transfer confirmed
+            # by hand and a card paid online cannot end up meaning different
+            # things. It is idempotent, so a double click is harmless.
+            before = payment.application.commissions.count()
+            if settle(payment, Payment.Gateway.PARTNER):
+                count += 1
+                payment.application.refresh_from_db()
+                for commission in payment.application.commissions.all()[before:]:
+                    credited += commission.amount
         self.message_user(
             request,
             f"{count} payment(s) confirmed."

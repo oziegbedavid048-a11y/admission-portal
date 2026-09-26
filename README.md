@@ -346,6 +346,75 @@ simulation.
 The webhook replays safely: a second delivery for a payment already settled is
 ignored, so a retrying provider cannot pay the commission twice.
 
+### Setting up Paystack
+
+Set two variables and point one webhook. Nothing else.
+
+| Variable | Value |
+| --- | --- |
+| `PAYSTACK_SECRET_KEY` | your `sk_live_…` (or `sk_test_…`) key |
+| `PAYSTACK_PUBLIC_KEY` | your `pk_live_…` key |
+
+The same variable holds a test or a live key; Paystack decides which environment
+that is from the key itself, so there is no mode flag here to fall out of step
+with it.
+
+Then, in the Paystack dashboard under **Settings → API Keys & Webhooks**, set the
+webhook URL to:
+
+```
+https://YOUR-DOMAIN/api/payments/webhook/paystack/
+```
+
+That endpoint is unauthenticated by necessity — Paystack holds no account here —
+so the signature is the authentication. It checks, in order: the optional IP
+allowlist, an HMAC-SHA512 signature over the **raw** request body compared in
+constant time, that the event is `charge.success`, that the transaction status is
+`success`, that the currency is NGN, and that the amount collected covers the
+quote. Anything that fails is logged and ignored, and the endpoint always answers
+`200` so a sender is never told whether it guessed right.
+
+**The webhook is not the only path.** It can be late, retried, or lost behind a
+deploy, and the applicant is standing there now. So when they come back from
+Paystack they land on `/payment/<reference>`, which calls
+`GET /api/payments/status/<reference>/`; that verifies the transaction
+server-to-server against Paystack and settles it if the money is in. Both routes
+call the same `settle()` in `apps/payments/settlement.py`, which takes the row
+lock and re-reads the status inside it, so whichever arrives first does the work
+and the other is a no-op. A commission cannot be paid twice.
+
+A retried payment gets a fresh gateway reference (`GBS-…-A2`), because Paystack
+refuses a reference it has already seen. Without that, an applicant who abandoned
+their first attempt could never pay at all.
+
+#### The fee the applicant pays
+
+Paystack's own charge is computed in Naira from their published pricing — 1.5%
+plus ₦100, the flat part waived under ₦2,500, capped at ₦2,000 — added to the
+application fee, and only then converted for display. On a ₦200,000 fee that is
+₦2,000, so the card is debited **₦202,000**.
+
+This matters because the old code added a flat `3.50` in the applicant's own
+currency to the total on screen and then asked the gateway for the application fee
+alone. Nobody was ever charged that 3.50, so every receipt was wrong by it and
+nothing would have reconciled against a settlement report. All four numbers are
+env-overridable if you have a negotiated rate.
+
+#### Deploying on Render
+
+- Set every variable from `.env.example` in the Render service's environment. It
+  reads them directly; there is no `.env` file on the server.
+- `RENDER_EXTERNAL_HOSTNAME` is set by Render and added to `ALLOWED_HOSTS`
+  automatically, so a first deploy answers instead of returning `DisallowedHost`.
+- Leave `PAYSTACK_WEBHOOK_IPS` **empty**. Render terminates TLS in front of the
+  app and does not pass Paystack's original address through, so an allowlist
+  there would reject every genuine webhook.
+- `SECURE_PROXY_SSL_HEADER` is already set for `X-Forwarded-Proto`, which is what
+  Render sends.
+- Serve the built frontend from the same hostname, with the API under `/api`. The
+  refresh-token cookie is same-origin: split them and everyone is logged out on
+  every reload.
+
 ### Sessions
 
 The access token lives in **memory** in the browser and the refresh token in an

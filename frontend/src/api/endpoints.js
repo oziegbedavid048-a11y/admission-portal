@@ -70,6 +70,9 @@ export const payments = {
   quote: (reference) => api.get(`/payments/quote/${reference}/`),
   // Which provider collects the money is a server decision, not the browser's.
   checkout: (reference) => api.post('/payments/checkout/', { application: reference }),
+  // Asks the server what happened to a payment. The server asks Paystack, so the
+  // browser is never the thing that decides a payment succeeded.
+  status: (reference) => api.get(`/payments/status/${reference}/`),
   receipt: (reference) => api.get(`/payments/receipt/${reference}/`),
 };
 

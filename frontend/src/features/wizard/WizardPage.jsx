@@ -135,6 +135,9 @@ export default function WizardPage({ onOpenLogin }) {
           amount,
           processing_fee: processing,
           total: amount + processing,
+          total_charged_ngn: feeWaived
+            ? 0
+            : Number(data.amount_ngn) + Number(data.processing_fee_ngn || 0),
           waived: feeWaived,
         });
       })
@@ -626,15 +629,15 @@ export default function WizardPage({ onOpenLogin }) {
                   </span>
                 </div>
                 {quote && !quote.waived && quote.currency !== 'NGN' ? (
-                  <p
-                    style={{
-                      margin: '10px 0 0',
-                      fontSize: '0.75rem',
-                      color: 'var(--color-text-muted)',
-                    }}
-                  >
-                    Charged as ₦{Number(quote.amount_ngn).toLocaleString('en-NG')} at an
-                    indicative rate of {quote.rate} per {quote.currency}.
+                  <p className="quote-fx-note">
+                    {/* The card is debited in Naira, so the statement shows this
+                        figure rather than the converted one above it. */}
+                    Debited as ₦
+                    {Number(
+                      quote.total_charged_ngn ??
+                        Number(quote.amount_ngn) + Number(quote.processing_fee_ngn || 0),
+                    ).toLocaleString('en-NG')}{' '}
+                    at an indicative rate of {quote.rate} per {quote.currency}.
                   </p>
                 ) : null}
               </div>

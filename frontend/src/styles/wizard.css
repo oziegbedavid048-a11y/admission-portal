@@ -711,3 +711,64 @@
   .pay-summary { flex-direction: column; }
   .pay-summary-right { text-align: left; }
 }
+
+/* ─── Coming back from the payment provider ───────────────────────────
+   One message, centred, with one way onward. The applicant has just left
+   the site and come back, so this page says what happened and nothing
+   else. */
+.return-card {
+  max-width: 34rem;
+  margin: 0 auto;
+  padding: clamp(28px, 6vw, 48px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  text-align: center;
+  background: var(--g-surface);
+  border: 1px solid var(--g-line);
+  border-radius: var(--g-r-lg);
+  box-shadow: var(--g-sh-1);
+}
+
+.return-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 54px;
+  height: 54px;
+  border-radius: var(--g-r-pill);
+}
+
+.return-mark.is-ok {
+  background: var(--g-accent-tint);
+  color: var(--g-accent);
+}
+
+.return-mark.is-wait {
+  background: var(--g-attn-tint);
+  color: var(--g-attn);
+}
+
+.return-title {
+  margin: 0;
+  font-size: clamp(1.25rem, 3vw, 1.625rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--g-ink);
+}
+
+.return-note {
+  margin: 0;
+  max-width: 44ch;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: var(--g-ink-2);
+}
+
+.quote-fx-note {
+  margin: 10px 0 0;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--g-ink-3);
+}

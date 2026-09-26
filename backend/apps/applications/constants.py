@@ -6,8 +6,20 @@ from decimal import Decimal
 # to the applicant converted into their own currency.
 APPLICATION_FEE_NGN = Decimal("200000")
 
-# Gateway processing fee, charged only when the institution fee is not waived.
-PROCESSING_FEE = Decimal("3.50")
+# Paystack's own charge on a Nigerian card transaction, published at
+# paystack.com/pricing: 1.5% plus a flat fee, with the flat part waived on small
+# transactions and the whole thing capped. Every value is overridable from the
+# environment, because a negotiated rate is a normal thing to have.
+#
+# This is denominated in Naira because that is what is actually charged. The old
+# PROCESSING_FEE was a flat 3.50 in whatever currency the applicant was quoted
+# in, which was added to the total they were shown and then never collected: the
+# gateway was only ever asked for the application fee. Anything the applicant is
+# shown has to be what the card is debited.
+PAYSTACK_FEE_PERCENT = Decimal("1.5")
+PAYSTACK_FEE_FLAT_NGN = Decimal("100")
+PAYSTACK_FEE_FLAT_WAIVED_UNDER_NGN = Decimal("2500")
+PAYSTACK_FEE_CAP_NGN = Decimal("2000")
 
 # Commission an agent earns per student, per milestone.
 AGENT_COMMISSION_PER_MILESTONE = Decimal("30000")

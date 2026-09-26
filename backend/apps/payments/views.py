@@ -9,13 +9,15 @@ from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
-from apps.applications.constants import APPLICATION_FEE_NGN, PROCESSING_FEE
+from apps.applications.constants import APPLICATION_FEE_NGN
 from apps.applications import services
 from apps.applications.serializers import ApplicationSerializer
 from apps.applications.views import visible_applications
 
 from . import gateway
+from .fees import processing_fee_ngn
 from .models import Payment
+from .settlement import settle
 from .serializers import CheckoutSerializer, PaymentSerializer
 
 logger = logging.getLogger(__name__)
@@ -25,11 +27,46 @@ class PaymentThrottle(ScopedRateThrottle):
     scope = "money"
 
 
+def client_ip(request):
+    """The caller's address, taking the first hop of a forwarding chain.
+
+    Only used for the optional webhook allowlist. The header is client-controlled
+    where nothing strips it, which is exactly why it is not what authenticates a
+    webhook: the signature is.
+    """
+    forwarded = request.META.get("HTTP_X_FORWARDED_FOR", "")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.META.get("REMOTE_ADDR", "")
+
+
+def find_payment(gateway_reference):
+    """The payment an attempt belongs to.
+
+    Paystack knows a payment by the reference of the attempt, which carries an
+    attempt suffix because Paystack refuses a reference it has seen before. Our
+    own reference is accepted too, so a payment initialised before the suffix
+    existed still resolves.
+    """
+    if not gateway_reference:
+        return None
+    found = Payment.objects.filter(gateway_reference=gateway_reference).first()
+    if found:
+        return found
+    return Payment.objects.filter(reference=str(gateway_reference).split("-A")[0]).first()
+
+
 def quote_for(application):
-    """What this applicant owes, in their own currency.
+    """What this applicant owes, in their own currency and in Naira.
 
     The fee is a fixed amount of Naira. The origin country decides the display
     currency; a fee-free partner institution waives it entirely.
+
+    Both currencies are returned because the card is debited in Naira and the
+    applicant reads the total in theirs. Everything is computed in Naira first and
+    converted for display, never the other way round: the old version added a
+    flat processing fee in the display currency and then asked the gateway for the
+    fee alone, so the number on screen was never the number debited.
     """
     origin = application.origin_country
     institution = application.institution
@@ -41,18 +78,21 @@ def quote_for(application):
             "amount": Decimal("0.00"),
             "processing_fee": Decimal("0.00"),
             "amount_ngn": Decimal("0.00"),
+            "processing_fee_ngn": Decimal("0.00"),
+            "total_ngn": Decimal("0.00"),
             "fx_rate": origin.ngn_per_unit,
             "waived": True,
         }
 
-    # The gateway's cut is a flat charge in whatever currency the card is
-    # billed in, so it is not converted the way the fee itself is.
+    fee_ngn = processing_fee_ngn(APPLICATION_FEE_NGN)
     return {
         "currency": origin.currency,
         "symbol": origin.symbol,
         "amount": origin.convert_from_ngn(APPLICATION_FEE_NGN),
-        "processing_fee": PROCESSING_FEE,
+        "processing_fee": origin.convert_from_ngn(fee_ngn),
         "amount_ngn": APPLICATION_FEE_NGN,
+        "processing_fee_ngn": fee_ngn,
+        "total_ngn": APPLICATION_FEE_NGN + fee_ngn,
         "fx_rate": origin.ngn_per_unit,
         "waived": False,
     }
@@ -86,6 +126,9 @@ class QuoteView(APIView):
             )
         quote = quote_for(application)
         quote["total"] = quote["amount"] + quote["processing_fee"]
+        # Stated alongside the converted total so the applicant can see the figure
+        # their card will actually show on the statement.
+        quote["total_charged_ngn"] = quote["total_ngn"]
         # How the money is expected to arrive, so the checkout screen can say so
         # rather than printing an account number that was baked into the markup.
         quote["provider"] = "paystack" if gateway.is_live() else "transfer"
@@ -143,6 +186,7 @@ class CheckoutView(APIView):
         payment.amount = quote["amount"]
         payment.processing_fee = quote["processing_fee"]
         payment.amount_ngn = quote["amount_ngn"]
+        payment.processing_fee_ngn = quote["processing_fee_ngn"]
         payment.fx_rate = quote["fx_rate"]
         payment.status = Payment.Status.PENDING
         payment.save()
@@ -164,10 +208,15 @@ class CheckoutView(APIView):
                 status=status.HTTP_201_CREATED,
             )
 
+        # Paystack sends the applicant back here. The application reference is in
+        # the path so the page knows what to ask about without trusting the
+        # transaction reference Paystack appends to the query string.
         authorization_url = gateway.initiate(
             payment,
             email=application.email,
-            callback_url=f"{settings.FRONTEND_URL.rstrip('/')}/portal/programme",
+            callback_url=(
+                f"{settings.FRONTEND_URL.rstrip('/')}/payment/{application.reference}"
+            ),
         )
 
         services.notify(
@@ -194,11 +243,15 @@ class CheckoutView(APIView):
 
 
 class PaystackWebhookView(APIView):
-    """The only door a payment can be settled through without a human.
+    """Paystack telling us money arrived.
 
-    Unauthenticated by necessity, because the provider holds no account here. The
-    signature is the authentication, and the amount is checked against what was
-    quoted. Anything failing either check is logged and ignored.
+    Unauthenticated by necessity, because Paystack holds no account here. The
+    signature over the raw body is the authentication; the amount and currency are
+    checked against what was quoted. Anything that fails a check is logged and
+    ignored.
+
+    Always answers 200. Paystack retries anything else, and a sender that guessed
+    wrong must not be told whether it guessed right.
     """
 
     authentication_classes = ()
@@ -206,54 +259,113 @@ class PaystackWebhookView(APIView):
     throttle_classes = ()
 
     def post(self, request):
-        signature = request.headers.get("x-paystack-signature", "")
-        if not gateway.signature_is_valid(request.body, signature):
-            logger.warning("Rejected a payment webhook with an invalid signature.")
-            # 200 so a sender is never told whether it guessed correctly.
-            return Response(status=status.HTTP_200_OK)
+        ok = Response(status=status.HTTP_200_OK)
+
+        if not gateway.ip_is_allowed(client_ip(request)):
+            logger.warning("Webhook from an address outside the allowlist.")
+            return ok
+
+        if not gateway.signature_is_valid(
+            request.body, request.headers.get("x-paystack-signature", "")
+        ):
+            logger.warning("Rejected a webhook with an invalid signature.")
+            return ok
 
         try:
             event = json.loads(request.body.decode())
         except (UnicodeDecodeError, ValueError):
-            return Response(status=status.HTTP_200_OK)
+            logger.warning("Rejected a webhook whose body was not JSON.")
+            return ok
 
         if event.get("event") != "charge.success":
-            return Response(status=status.HTTP_200_OK)
+            # Every other event is recorded and otherwise ignored, so a new event
+            # type from Paystack can never be mistaken for a settlement.
+            logger.info("Ignoring webhook event %r.", event.get("event"))
+            return ok
 
         data = event.get("data") or {}
-        reference = data.get("reference")
-        payment = Payment.objects.filter(reference=reference).first()
+        payment = find_payment(data.get("reference"))
         if payment is None:
-            logger.warning("Payment webhook for an unknown reference %r.", reference)
-            return Response(status=status.HTTP_200_OK)
+            logger.warning("Webhook for an unknown reference %r.", data.get("reference"))
+            return ok
 
-        if payment.status in {Payment.Status.PAID, Payment.Status.WAIVED}:
-            # Providers retry. Settling twice would pay the commission twice.
-            return Response(status=status.HTTP_200_OK)
-
-        if not gateway.amount_matches(payment, data.get("amount")):
-            logger.error(
-                "Payment %s came back settled for %r, short of the %s quoted.",
-                payment.reference,
-                data.get("amount"),
-                payment.amount_ngn,
+        if not gateway.transaction_is_settled(data):
+            logger.info(
+                "Webhook for %s reported status %r, not success.",
+                payment.reference, data.get("status"),
             )
-            return Response(status=status.HTTP_200_OK)
+            return ok
 
-        self._settle(payment)
-        return Response(status=status.HTTP_200_OK)
+        if not gateway.currency_is_expected(data):
+            logger.error(
+                "Webhook for %s was in %r, not NGN.", payment.reference, data.get("currency")
+            )
+            return ok
 
-    @transaction.atomic
-    def _settle(self, payment):
-        payment.mark_paid(Payment.Gateway.PAYSTACK)
-        services.notify(
-            payment.application,
-            f"Payment of {payment.display_total} confirmed. "
-            "Your receipt is ready to download.",
+        if not gateway.amount_covers(payment, data.get("amount")):
+            logger.error(
+                "Webhook for %s collected %r kobo, short of the %s NGN quoted.",
+                payment.reference, data.get("amount"), payment.total_ngn,
+            )
+            return ok
+
+        settle(payment, Payment.Gateway.PAYSTACK, data.get("reference"))
+        return ok
+
+
+class PaymentStatusView(APIView):
+    """Where the applicant lands coming back from Paystack.
+
+    The webhook is the primary path, but it can be late, retried, or lost behind a
+    deploy, and the applicant is standing there now. So this asks Paystack
+    directly what happened to the reference rather than waiting to be told.
+
+    It settles on the same code path as the webhook, so the two cannot disagree
+    and whichever arrives first does the work. The reference comes from the
+    browser, so it is never trusted: it is only used to find a payment this user
+    is allowed to see, and the amount is then confirmed against Paystack.
+    """
+
+    throttle_classes = (PaymentThrottle,)
+
+    def get(self, request, reference):
+        application = visible_applications(request.user).filter(
+            reference=reference
+        ).first()
+        if application is None or not hasattr(application, "payment"):
+            return Response(
+                {"detail": "No payment for this application."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        payment = application.payment
+        settled_now = False
+
+        if payment.status == Payment.Status.PENDING and payment.gateway_reference:
+            data = gateway.verify(payment.gateway_reference)
+            if (
+                gateway.transaction_is_settled(data)
+                and gateway.currency_is_expected(data)
+                and gateway.amount_covers(payment, (data or {}).get("amount"))
+            ):
+                settled_now = settle(
+                    payment, Payment.Gateway.PAYSTACK, payment.gateway_reference
+                )
+            elif data and data.get("status") in {"failed", "abandoned", "reversed"}:
+                logger.info(
+                    "Paystack reports %s as %r; the fee stays outstanding.",
+                    payment.reference, data.get("status"),
+                )
+
+        return Response(
+            {
+                "payment": PaymentSerializer(payment).data,
+                "settled": payment.status in {Payment.Status.PAID, Payment.Status.WAIVED},
+                # True only on the call that did the settling, so the interface can
+                # celebrate once rather than on every poll.
+                "settled_now": settled_now,
+            }
         )
-        # One of the two places a paid fee earns the agent their first
-        # commission. The other is the desk confirming a transfer in the admin.
-        services.award_registration_commission(payment.application)
 
 
 class ReceiptView(APIView):

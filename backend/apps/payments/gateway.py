@@ -1,25 +1,28 @@
-"""Talking to the payment provider, and being told when money arrives.
+"""Talking to Paystack, and being told when money arrives.
 
 The rule this module exists to enforce: **a payment is only settled by something
-that can prove money moved.** Before this, the checkout endpoint settled the
-payment itself. Anyone who could call it — including an agent, on a file they had
-just created for a student — got the fee marked paid and the ₦30,000 registration
-commission credited, without a naira arriving anywhere.
+that can prove money moved.** The checkout endpoint used to settle the payment
+itself, so anyone who could call it — including an agent, on a file they had just
+created for a student — got the fee marked paid and the registration commission
+credited, with no naira arriving anywhere.
 
-So settlement now has exactly two doors, and neither of them is the applicant's
+Settlement now has exactly three doors, and none of them is the applicant's
 browser:
 
-  * a provider webhook whose signature verifies against the secret key, and
-    whose amount matches what was quoted, or
+  * `charge.success` on the webhook, where the signature verifies against the
+    secret key and the amount matches the quote,
+  * a server-to-server verify of the reference when the applicant returns from
+    Paystack, which covers a webhook that is late or lost,
   * the admissions desk confirming in the admin that a bank transfer landed.
 
-`initiate` is what the browser gets: a pending payment and, when a provider is
-configured, the URL to go and pay at. It never changes a status.
+The browser's only role is to be sent somewhere and to come back with a reference
+that this server then checks for itself.
 
-Paystack is the provider wired here because it is what the quote is denominated
-against. It is active only when PAYSTACK_SECRET_KEY is set; with no key the
-platform runs in transfer mode, which is a real way to take money, not a
-simulation: the applicant transfers and the desk confirms.
+Live when `PAYSTACK_SECRET_KEY` is set. The same variable holds a `sk_test_` or an
+`sk_live_` key; Paystack decides which environment that is, so there is no mode
+flag here to get out of step with the key. With no key the platform runs in
+transfer mode, which is a real way to take money: the applicant transfers and the
+desk confirms.
 """
 
 import hashlib
@@ -27,13 +30,23 @@ import hmac
 import json
 import logging
 from decimal import Decimal
-from urllib import error, request
+from urllib import error, parse, request
 
 from django.conf import settings
+
+from .fees import minor_units
 
 logger = logging.getLogger(__name__)
 
 PAYSTACK_API = "https://api.paystack.co"
+TIMEOUT = 20
+
+# Paystack posts webhooks from these addresses. Checking them is defence in depth
+# behind the signature, not instead of it: a proxy can rewrite the client address,
+# and the signature is what actually proves the message. Off unless an allowlist
+# is configured, because a platform that terminates TLS for you may not pass the
+# real address through at all.
+DEFAULT_WEBHOOK_IPS = ("52.31.139.75", "52.49.173.169", "52.214.14.220")
 
 
 def is_live():
@@ -41,65 +54,103 @@ def is_live():
     return bool(getattr(settings, "PAYSTACK_SECRET_KEY", ""))
 
 
-def _post(path, payload):
-    body = json.dumps(payload).encode()
+def _call(path, payload=None, method="GET"):
+    """One request to Paystack. Raises on anything that is not a clean answer."""
+    body = json.dumps(payload).encode() if payload is not None else None
     req = request.Request(
         f"{PAYSTACK_API}{path}",
         data=body,
         headers={
             "Authorization": f"Bearer {settings.PAYSTACK_SECRET_KEY}",
             "Content-Type": "application/json",
+            "Accept": "application/json",
         },
-        method="POST",
+        method=method,
     )
-    with request.urlopen(req, timeout=20) as response:
+    with request.urlopen(req, timeout=TIMEOUT) as response:
         return json.loads(response.read().decode())
 
 
 def initiate(payment, email, callback_url):
-    """Ask the provider for somewhere to send the applicant to pay.
+    """Ask Paystack for somewhere to send the applicant to pay.
 
-    Returns the URL to redirect to, or None when no provider is configured. The
-    payment's status is not touched either way: it stays pending until something
-    proves otherwise.
+    Returns the URL to redirect to, or None when there is no provider or the call
+    failed. The payment's status is never touched: it stays pending until
+    something proves otherwise.
+
+    A fresh gateway reference is minted per attempt, because Paystack refuses a
+    reference it has already seen. Without that, an applicant who abandoned the
+    first attempt could never pay at all.
     """
     if not is_live():
         return None
 
+    reference = payment.new_gateway_reference()
+    payment.save(update_fields=["gateway_reference"])
+
     try:
-        data = _post(
+        data = _call(
             "/transaction/initialize",
             {
-                # Paystack counts in the minor unit, so kobo rather than naira.
-                "amount": int((payment.amount_ngn * 100).to_integral_value()),
+                # Paystack counts in kobo, and this is the whole total: the fee
+                # plus the gateway's own cut, which is what the applicant was
+                # shown.
+                "amount": minor_units(payment.total_ngn),
                 "email": email,
                 "currency": "NGN",
-                "reference": payment.reference,
+                "reference": reference,
                 "callback_url": callback_url,
-                "metadata": {"application": payment.application.reference},
+                "metadata": {
+                    "application": payment.application.reference,
+                    "payment": payment.reference,
+                },
             },
+            method="POST",
         )
-    except (error.URLError, error.HTTPError, ValueError, TimeoutError) as exc:
-        # A provider that cannot be reached must not block the application from
-        # being filed. The file stays submitted with the fee outstanding, and the
-        # applicant can pay by transfer.
+    except (error.URLError, error.HTTPError, ValueError, TimeoutError, OSError) as exc:
+        # A provider that cannot be reached must not stop the application being
+        # filed. The file stays submitted with the fee outstanding.
         logger.error("Could not initialise payment %s: %s", payment.reference, exc)
         return None
 
     if not data.get("status"):
-        logger.error("Provider refused payment %s: %s", payment.reference, data.get("message"))
+        logger.error(
+            "Paystack refused to initialise %s: %s", payment.reference, data.get("message")
+        )
         return None
 
     return (data.get("data") or {}).get("authorization_url")
 
 
+def verify(reference):
+    """Ask Paystack what happened to a reference.
+
+    Used when the applicant comes back from the provider. A webhook can be late,
+    retried, or lost behind a deploy, so the return trip does not wait for it: it
+    asks. Returns the transaction dict, or None if the call failed — which is not
+    the same as "not paid" and must never be treated as a failure.
+    """
+    if not is_live() or not reference:
+        return None
+    try:
+        data = _call(f"/transaction/verify/{parse.quote(str(reference), safe='')}")
+    except (error.URLError, error.HTTPError, ValueError, TimeoutError, OSError) as exc:
+        logger.error("Could not verify %s with Paystack: %s", reference, exc)
+        return None
+    if not data.get("status"):
+        logger.warning("Paystack could not verify %s: %s", reference, data.get("message"))
+        return None
+    return data.get("data") or {}
+
+
 def signature_is_valid(raw_body, header_signature):
-    """Whether this webhook really came from the provider.
+    """Whether this webhook really came from Paystack.
 
     Paystack signs the raw request body with HMAC-SHA512 under the secret key.
-    Without checking it, the webhook endpoint is a public "mark this paid" button,
-    which is worse than the hole it was added to close. Compared in constant time
-    so the check cannot be probed a byte at a time.
+    Without checking it the webhook endpoint is a public "mark this paid" button,
+    which would be worse than the hole it was added to close. Compared in constant
+    time so the check cannot be probed a byte at a time, and computed over the raw
+    bytes because re-serialising the JSON would change them.
     """
     if not is_live() or not header_signature:
         return False
@@ -108,20 +159,45 @@ def signature_is_valid(raw_body, header_signature):
         raw_body,
         hashlib.sha512,
     ).hexdigest()
-    return hmac.compare_digest(expected, header_signature)
+    return hmac.compare_digest(expected, str(header_signature))
 
 
-def amount_matches(payment, minor_units):
-    """Whether the provider charged what we quoted.
+def ip_is_allowed(address):
+    """Whether this address may post webhooks, when an allowlist is configured.
 
-    A signature proves the message came from the provider. It does not prove the
-    amount: someone who can start a ₦100 charge against a known reference would
-    otherwise have a ₦200,000 application fee settled for ₦100.
+    Empty allowlist means every address is allowed through to the signature
+    check, which is the setting to use behind a proxy that does not pass the
+    original address on.
     """
-    if minor_units is None:
+    allowed = getattr(settings, "PAYSTACK_WEBHOOK_IPS", None)
+    if not allowed:
+        return True
+    return address in set(allowed)
+
+
+def transaction_is_settled(data):
+    """Whether this transaction dict says the money is actually in."""
+    return bool(data) and data.get("status") == "success"
+
+
+def amount_covers(payment, minor):
+    """Whether what Paystack collected covers what was quoted.
+
+    A signature proves the message came from Paystack. It does not prove the
+    amount: someone able to start a small charge against a known reference would
+    otherwise have the whole application fee settled for a fraction of it. The
+    comparison is against the total in Naira, which is the number the card was
+    asked for.
+    """
+    if minor is None:
         return False
     try:
-        paid = (Decimal(minor_units) / 100).quantize(Decimal("0.01"))
+        collected = (Decimal(minor) / 100).quantize(Decimal("0.01"))
     except (TypeError, ValueError, ArithmeticError):
         return False
-    return paid >= payment.amount_ngn
+    return collected >= payment.total_ngn
+
+
+def currency_is_expected(data):
+    """Paystack is asked for Naira, so anything else is not this transaction."""
+    return (data or {}).get("currency", "NGN").upper() == "NGN"

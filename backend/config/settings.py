@@ -46,6 +46,13 @@ if not SECRET_KEY:
 
 ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1" if DEBUG else "")
 
+# Render sets this to the service's own hostname. Adding it here means a first
+# deploy answers rather than returning a DisallowedHost for the one address the
+# platform actually routes to.
+RENDER_HOST = env("RENDER_EXTERNAL_HOSTNAME")
+if RENDER_HOST and RENDER_HOST not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append(RENDER_HOST)
+
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
@@ -256,6 +263,11 @@ if not DEBUG:
     SECURE_CONTENT_TYPE_NOSNIFF = True
     X_FRAME_OPTIONS = "DENY"
 
+# DATABASE_URL carries the database password and matches none of the names Django
+# masks by default, so the filter is extended rather than relied on. See
+# config/reporting.py.
+DEFAULT_EXCEPTION_REPORTER_FILTER = "config.reporting.GabstepReporterFilter"
+
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
@@ -283,6 +295,20 @@ SERVER_EMAIL = DEFAULT_FROM_EMAIL
 # in the admin. Both credit the agent's commission; nothing else does.
 PAYSTACK_SECRET_KEY = env("PAYSTACK_SECRET_KEY")
 PAYSTACK_PUBLIC_KEY = env("PAYSTACK_PUBLIC_KEY")
+
+# Paystack's own charge, from paystack.com/pricing. Overridable because a
+# negotiated rate is normal. The applicant is shown this on top of the fee and the
+# card is debited the sum, so the number on screen is the number on the statement.
+PAYSTACK_FEE_PERCENT = env("PAYSTACK_FEE_PERCENT", "1.5")
+PAYSTACK_FEE_FLAT_NGN = env("PAYSTACK_FEE_FLAT_NGN", "100")
+PAYSTACK_FEE_FLAT_WAIVED_UNDER_NGN = env("PAYSTACK_FEE_FLAT_WAIVED_UNDER_NGN", "2500")
+PAYSTACK_FEE_CAP_NGN = env("PAYSTACK_FEE_CAP_NGN", "2000")
+
+# Optional allowlist for webhook callers, checked before the signature as defence
+# in depth. Leave empty behind a proxy that does not pass the original address
+# through, which is the common case on a managed host: the signature is what
+# actually authenticates a webhook, not the address it came from.
+PAYSTACK_WEBHOOK_IPS = env_list("PAYSTACK_WEBHOOK_IPS", "")
 
 # The account an applicant transfers the fee to when no online provider is
 # configured. These were hardcoded into the checkout dialog as placeholder
