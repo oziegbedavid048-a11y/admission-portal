@@ -1,0 +1,1357 @@
+{
+  "COUNTRIES_OF_ORIGIN": [
+    "Argentina",
+    "Australia",
+    "Bangladesh",
+    "Belgium",
+    "Brazil",
+    "Cameroon",
+    "Canada",
+    "Chile",
+    "China",
+    "Colombia",
+    "Denmark",
+    "Egypt",
+    "Ethiopia",
+    "France",
+    "Germany",
+    "Ghana",
+    "India",
+    "Indonesia",
+    "Ireland",
+    "Italy",
+    "Ivory Coast",
+    "Japan",
+    "Jordan",
+    "Kenya",
+    "Kuwait",
+    "Lebanon",
+    "Malaysia",
+    "Mexico",
+    "Morocco",
+    "Nepal",
+    "Netherlands",
+    "New Zealand",
+    "Nigeria",
+    "Norway",
+    "Pakistan",
+    "Peru",
+    "Philippines",
+    "Poland",
+    "Portugal",
+    "Qatar",
+    "Rwanda",
+    "Saudi Arabia",
+    "Senegal",
+    "Singapore",
+    "South Africa",
+    "South Korea",
+    "Spain",
+    "Sri Lanka",
+    "Sweden",
+    "Switzerland",
+    "Tanzania",
+    "Thailand",
+    "Turkey",
+    "Uganda",
+    "United Arab Emirates",
+    "United Kingdom",
+    "United States",
+    "Vietnam",
+    "Zambia",
+    "Zimbabwe"
+  ],
+  "ORIGIN_COUNTRIES": [
+    {
+      "name": "Nigeria",
+      "currency": "NGN",
+      "symbol": "₦",
+      "ngnPerUnit": 1
+    },
+    {
+      "name": "Ghana",
+      "currency": "GHS",
+      "symbol": "GH₵",
+      "ngnPerUnit": 95
+    },
+    {
+      "name": "Kenya",
+      "currency": "KES",
+      "symbol": "KSh",
+      "ngnPerUnit": 12
+    },
+    {
+      "name": "South Africa",
+      "currency": "ZAR",
+      "symbol": "R",
+      "ngnPerUnit": 85
+    },
+    {
+      "name": "Egypt",
+      "currency": "EGP",
+      "symbol": "E£",
+      "ngnPerUnit": 32
+    },
+    {
+      "name": "Morocco",
+      "currency": "MAD",
+      "symbol": "MAD",
+      "ngnPerUnit": 155
+    },
+    {
+      "name": "Uganda",
+      "currency": "UGX",
+      "symbol": "USh",
+      "ngnPerUnit": 0.42
+    },
+    {
+      "name": "Tanzania",
+      "currency": "TZS",
+      "symbol": "TSh",
+      "ngnPerUnit": 0.6
+    },
+    {
+      "name": "Rwanda",
+      "currency": "RWF",
+      "symbol": "FRw",
+      "ngnPerUnit": 1.15
+    },
+    {
+      "name": "Zambia",
+      "currency": "ZMW",
+      "symbol": "ZK",
+      "ngnPerUnit": 60
+    },
+    {
+      "name": "Zimbabwe",
+      "currency": "USD",
+      "symbol": "$",
+      "ngnPerUnit": 1550
+    },
+    {
+      "name": "Cameroon",
+      "currency": "XAF",
+      "symbol": "FCFA",
+      "ngnPerUnit": 2.55
+    },
+    {
+      "name": "Ethiopia",
+      "currency": "ETB",
+      "symbol": "Br",
+      "ngnPerUnit": 12
+    },
+    {
+      "name": "Senegal",
+      "currency": "XOF",
+      "symbol": "CFA",
+      "ngnPerUnit": 2.55
+    },
+    {
+      "name": "Ivory Coast",
+      "currency": "XOF",
+      "symbol": "CFA",
+      "ngnPerUnit": 2.55
+    },
+    {
+      "name": "India",
+      "currency": "INR",
+      "symbol": "₹",
+      "ngnPerUnit": 18.5
+    },
+    {
+      "name": "Pakistan",
+      "currency": "PKR",
+      "symbol": "₨",
+      "ngnPerUnit": 5.5
+    },
+    {
+      "name": "Bangladesh",
+      "currency": "BDT",
+      "symbol": "৳",
+      "ngnPerUnit": 13
+    },
+    {
+      "name": "Sri Lanka",
+      "currency": "LKR",
+      "symbol": "Rs",
+      "ngnPerUnit": 5.2
+    },
+    {
+      "name": "Nepal",
+      "currency": "NPR",
+      "symbol": "Rs",
+      "ngnPerUnit": 11.6
+    },
+    {
+      "name": "Philippines",
+      "currency": "PHP",
+      "symbol": "₱",
+      "ngnPerUnit": 27
+    },
+    {
+      "name": "Vietnam",
+      "currency": "VND",
+      "symbol": "₫",
+      "ngnPerUnit": 0.063
+    },
+    {
+      "name": "Indonesia",
+      "currency": "IDR",
+      "symbol": "Rp",
+      "ngnPerUnit": 0.095
+    },
+    {
+      "name": "Malaysia",
+      "currency": "MYR",
+      "symbol": "RM",
+      "ngnPerUnit": 345
+    },
+    {
+      "name": "Singapore",
+      "currency": "SGD",
+      "symbol": "S$",
+      "ngnPerUnit": 1150
+    },
+    {
+      "name": "China",
+      "currency": "CNY",
+      "symbol": "¥",
+      "ngnPerUnit": 215
+    },
+    {
+      "name": "Japan",
+      "currency": "JPY",
+      "symbol": "¥",
+      "ngnPerUnit": 10.3
+    },
+    {
+      "name": "South Korea",
+      "currency": "KRW",
+      "symbol": "₩",
+      "ngnPerUnit": 1.13
+    },
+    {
+      "name": "Thailand",
+      "currency": "THB",
+      "symbol": "฿",
+      "ngnPerUnit": 44
+    },
+    {
+      "name": "Turkey",
+      "currency": "TRY",
+      "symbol": "₺",
+      "ngnPerUnit": 45
+    },
+    {
+      "name": "Saudi Arabia",
+      "currency": "SAR",
+      "symbol": "SR",
+      "ngnPerUnit": 413
+    },
+    {
+      "name": "United Arab Emirates",
+      "currency": "AED",
+      "symbol": "AED",
+      "ngnPerUnit": 422
+    },
+    {
+      "name": "Qatar",
+      "currency": "QAR",
+      "symbol": "QR",
+      "ngnPerUnit": 425
+    },
+    {
+      "name": "Kuwait",
+      "currency": "KWD",
+      "symbol": "KD",
+      "ngnPerUnit": 5050
+    },
+    {
+      "name": "Jordan",
+      "currency": "JOD",
+      "symbol": "JD",
+      "ngnPerUnit": 2185
+    },
+    {
+      "name": "Lebanon",
+      "currency": "USD",
+      "symbol": "$",
+      "ngnPerUnit": 1550
+    },
+    {
+      "name": "United Kingdom",
+      "currency": "GBP",
+      "symbol": "£",
+      "ngnPerUnit": 1960
+    },
+    {
+      "name": "Ireland",
+      "currency": "EUR",
+      "symbol": "€",
+      "ngnPerUnit": 1680
+    },
+    {
+      "name": "Germany",
+      "currency": "EUR",
+      "symbol": "€",
+      "ngnPerUnit": 1680
+    },
+    {
+      "name": "France",
+      "currency": "EUR",
+      "symbol": "€",
+      "ngnPerUnit": 1680
+    },
+    {
+      "name": "Spain",
+      "currency": "EUR",
+      "symbol": "€",
+      "ngnPerUnit": 1680
+    },
+    {
+      "name": "Italy",
+      "currency": "EUR",
+      "symbol": "€",
+      "ngnPerUnit": 1680
+    },
+    {
+      "name": "Portugal",
+      "currency": "EUR",
+      "symbol": "€",
+      "ngnPerUnit": 1680
+    },
+    {
+      "name": "Netherlands",
+      "currency": "EUR",
+      "symbol": "€",
+      "ngnPerUnit": 1680
+    },
+    {
+      "name": "Belgium",
+      "currency": "EUR",
+      "symbol": "€",
+      "ngnPerUnit": 1680
+    },
+    {
+      "name": "Poland",
+      "currency": "PLN",
+      "symbol": "zł",
+      "ngnPerUnit": 390
+    },
+    {
+      "name": "Sweden",
+      "currency": "SEK",
+      "symbol": "kr",
+      "ngnPerUnit": 145
+    },
+    {
+      "name": "Norway",
+      "currency": "NOK",
+      "symbol": "kr",
+      "ngnPerUnit": 140
+    },
+    {
+      "name": "Denmark",
+      "currency": "DKK",
+      "symbol": "kr",
+      "ngnPerUnit": 225
+    },
+    {
+      "name": "Switzerland",
+      "currency": "CHF",
+      "symbol": "CHF",
+      "ngnPerUnit": 1745
+    },
+    {
+      "name": "United States",
+      "currency": "USD",
+      "symbol": "$",
+      "ngnPerUnit": 1550
+    },
+    {
+      "name": "Canada",
+      "currency": "CAD",
+      "symbol": "C$",
+      "ngnPerUnit": 1120
+    },
+    {
+      "name": "Mexico",
+      "currency": "MXN",
+      "symbol": "MX$",
+      "ngnPerUnit": 76
+    },
+    {
+      "name": "Brazil",
+      "currency": "BRL",
+      "symbol": "R$",
+      "ngnPerUnit": 270
+    },
+    {
+      "name": "Argentina",
+      "currency": "USD",
+      "symbol": "$",
+      "ngnPerUnit": 1550
+    },
+    {
+      "name": "Colombia",
+      "currency": "COP",
+      "symbol": "COP",
+      "ngnPerUnit": 0.39
+    },
+    {
+      "name": "Chile",
+      "currency": "CLP",
+      "symbol": "CLP",
+      "ngnPerUnit": 1.62
+    },
+    {
+      "name": "Peru",
+      "currency": "PEN",
+      "symbol": "S/",
+      "ngnPerUnit": 412
+    },
+    {
+      "name": "Australia",
+      "currency": "AUD",
+      "symbol": "A$",
+      "ngnPerUnit": 1010
+    },
+    {
+      "name": "New Zealand",
+      "currency": "NZD",
+      "symbol": "NZ$",
+      "ngnPerUnit": 920
+    }
+  ],
+  "APPLICATION_FEE_NGN": 200000,
+  "DESTINATION_COUNTRIES": [
+    {
+      "id": "France",
+      "name": "France",
+      "code": "FR",
+      "currency": "EUR",
+      "currencySymbol": "€",
+      "isEuropean": true
+    },
+    {
+      "id": "Spain",
+      "name": "Spain",
+      "code": "ES",
+      "currency": "EUR",
+      "currencySymbol": "€",
+      "isEuropean": true
+    }
+  ],
+  "INSTITUTIONS_BY_COUNTRY": {
+    "France": [
+      {
+        "id": "pba",
+        "name": "Paris Business Academy (PBA)",
+        "location": "Paris, France",
+        "tagline": "Premier French Business & Digital Academy • State-Recognized RNCP Level 6 & 7 Degrees",
+        "appFee": 0,
+        "currency": "EUR",
+        "tuition": "€7,500 - €10,000 / year (25% Scholarship Available)",
+        "programs": [
+          {
+            "name": "Bachelor's in Web Marketing",
+            "duration": "3 Years",
+            "level": "Level 6 (RNCP35634)",
+            "rncp": "RNCP35634",
+            "tuition": 7500,
+            "scholarship": "25% Scholarship: €7,500/yr + €690 other expenses (Standard: €10,000/yr)",
+            "intake": "September / October & January"
+          },
+          {
+            "name": "Bachelor's in Digital Project Management",
+            "duration": "3 Years",
+            "level": "Level 6 (RNCP35634)",
+            "rncp": "RNCP35634",
+            "tuition": 7500,
+            "scholarship": "25% Scholarship: €7,500/yr + €690 other expenses (Standard: €10,000/yr)",
+            "intake": "September / October & January"
+          },
+          {
+            "name": "Bachelor's in Web Development",
+            "duration": "3 Years",
+            "level": "Level 6 (RNCP35634)",
+            "rncp": "RNCP35634",
+            "tuition": 7500,
+            "scholarship": "25% Scholarship: €7,500/yr + €690 other expenses (Standard: €10,000/yr)",
+            "intake": "September / October & January"
+          },
+          {
+            "name": "Global MBA",
+            "duration": "2 Years",
+            "level": "Level 7 (RNCP41354)",
+            "rncp": "RNCP41354",
+            "tuition": 9000,
+            "scholarship": "25% Scholarship: €9,000 1st yr + €690 other expenses (Total: €18,000)",
+            "intake": "September / October & January"
+          },
+          {
+            "name": "Mastère in Business Project Management",
+            "duration": "2 Years",
+            "level": "Level 7 (RNCP41354)",
+            "rncp": "RNCP41354",
+            "tuition": 9000,
+            "scholarship": "25% Scholarship: €9,000 1st yr + €690 other expenses (Total: €18,000)",
+            "intake": "September / October & January"
+          }
+        ],
+        "features": [
+          "Paris Campus",
+          "RNCP Certified",
+          "25% Scholarship Available",
+          "Level 6 & 7 Degrees"
+        ],
+        "badge": "Premier Partner"
+      },
+      {
+        "id": "financia",
+        "name": "Financia Business School",
+        "location": "Paris, France",
+        "tagline": "Specialized Finance & Management School • RNCP Accredited Degrees & MBAs",
+        "appFee": 0,
+        "currency": "EUR",
+        "tuition": "€10,000 - €12,000 / year",
+        "programs": [
+          {
+            "name": "Bachelor in Business Development",
+            "duration": "3 Years",
+            "level": "Level 6 (RNCP40889 - Formatives)",
+            "rncp": "RNCP40889 (Formatives)",
+            "tuition": 10000,
+            "note": "1st Year Fees + Other Expenses: €10,000 + €690",
+            "intake": "September / October & January"
+          },
+          {
+            "name": "MBA Corporate Finance & Financial Control",
+            "duration": "2 Years",
+            "level": "Level 7 (RNCP41469)",
+            "rncp": "RNCP41469",
+            "tuition": 12000,
+            "note": "Total: €18,000 • 1st Year: €12,000 + €690 other expenses",
+            "intake": "September / October & January"
+          },
+          {
+            "name": "MBA Trading & Finance",
+            "duration": "2 Years",
+            "level": "Level 7 (RNCP38601)",
+            "rncp": "RNCP38601",
+            "tuition": 12000,
+            "note": "Total: €18,000 • 1st Year: €12,000 + €690 other expenses",
+            "intake": "September / October & January"
+          }
+        ],
+        "features": [
+          "Paris Financial District",
+          "RNCP Certified",
+          "Corporate Finance & Trading Focus"
+        ],
+        "badge": "Finance Specialist"
+      },
+      {
+        "id": "alternis",
+        "name": "Alternis Business School",
+        "location": "Paris, France",
+        "tagline": "Work-Study & Management Excellence • RNCP Level 6 & 7 Certification",
+        "appFee": 0,
+        "currency": "EUR",
+        "tuition": "€10,000 - €12,000 / year",
+        "programs": [
+          {
+            "name": "Bachelor in Business Development",
+            "duration": "3 Years",
+            "level": "Level 6 (RNCP40889 - Formatives)",
+            "rncp": "RNCP40889 (Formatives)",
+            "tuition": 10000,
+            "note": "1st Year Fees + Other Expenses: €10,000 + €690",
+            "intake": "September / October & January"
+          },
+          {
+            "name": "MBA Logistics Purchasing and Supply Chain",
+            "duration": "2 Years",
+            "level": "Level 7 (RNCP37618 - ESLI)",
+            "rncp": "RNCP37618 (ESLI)",
+            "tuition": 12000,
+            "note": "Total: €18,000 • 1st Year: €12,000 + €690 other expenses",
+            "intake": "September / October & January"
+          }
+        ],
+        "features": [
+          "Paris Campus",
+          "RNCP Accredited",
+          "Supply Chain & Business Focus"
+        ],
+        "badge": "Partner School"
+      }
+    ],
+    "Spain": [
+      {
+        "id": "insa",
+        "name": "INSA Business School",
+        "location": "Barcelona, Spain",
+        "tagline": "Business, marketing and technology masters",
+        "appFee": 0,
+        "currency": "EUR",
+        "tuition": "€4,900 - €11,900 / year",
+        "programs": [
+          {
+            "name": "Bachelor's Degree in International Business",
+            "duration": "3 years",
+            "tuition": 7500
+          },
+          {
+            "name": "Bachelor's Degree in Business and Marketing",
+            "duration": "3 years",
+            "tuition": 7500
+          },
+          {
+            "name": "Master in Artificial Intelligence, Data and Cloud",
+            "duration": "1 year",
+            "tuition": 4900
+          },
+          {
+            "name": "Master in International Business Communication",
+            "duration": "1 year",
+            "tuition": 11900
+          },
+          {
+            "name": "Lifelong Learning Master in Business Event Management",
+            "duration": "1 year",
+            "tuition": 4900
+          },
+          {
+            "name": "International MBA",
+            "duration": "1 year",
+            "tuition": 11900
+          },
+          {
+            "name": "Master in Digital Marketing and Customer Experience",
+            "duration": "1 year",
+            "tuition": 6500
+          },
+          {
+            "name": "Master in Business Management",
+            "duration": "1 year",
+            "tuition": 6500
+          },
+          {
+            "name": "Master in Project Management",
+            "duration": "1 year",
+            "tuition": 6500
+          },
+          {
+            "name": "Master in Business Administration",
+            "duration": "1 year",
+            "tuition": 6500
+          },
+          {
+            "name": "Master in Integral Logistics Operations and Supply Chain Management",
+            "duration": "1 year",
+            "tuition": 6500
+          },
+          {
+            "name": "Master in Business Communication",
+            "duration": "1 year",
+            "tuition": 7400
+          },
+          {
+            "name": "Master in Marketing Digital y Social Media",
+            "duration": "1 year",
+            "tuition": 4900
+          },
+          {
+            "name": "Master in Marketing Management",
+            "duration": "1 year",
+            "tuition": 6500
+          },
+          {
+            "name": "Master in Entrepreneurship and Innovation",
+            "duration": "1 year",
+            "tuition": 4900
+          },
+          {
+            "name": "Master in Big Data and Data Intelligence",
+            "duration": "1 year",
+            "tuition": 4900
+          },
+          {
+            "name": "Master in Foreign Trade and International Marketing",
+            "duration": "1 year",
+            "tuition": 6500
+          },
+          {
+            "name": "Master in Business Sustainability Management",
+            "duration": "1 year",
+            "tuition": 6500
+          },
+          {
+            "name": "Master in Digital Business Transformation",
+            "duration": "1 year",
+            "tuition": 6500
+          },
+          {
+            "name": "Master in Data Visualization Management",
+            "duration": "1 year",
+            "tuition": 6500
+          },
+          {
+            "name": "Master in Logistics",
+            "duration": "1 year",
+            "tuition": 6500
+          }
+        ],
+        "features": [
+          "Barcelona campus",
+          "English-taught programmes"
+        ],
+        "badge": "Partner School"
+      },
+      {
+        "id": "c3s",
+        "name": "C3S Business School",
+        "location": "Barcelona, Spain",
+        "tagline": "OTHM and NCC accredited diplomas, degrees and masters",
+        "appFee": 0,
+        "currency": "EUR",
+        "tuition": "€7,000 - €11,000 / year",
+        "programs": [
+          {
+            "name": "OTHM Level 5 Diploma in Business Management",
+            "duration": "1 year",
+            "tuition": 7000,
+            "intake": "October"
+          },
+          {
+            "name": "Diploma in Hospitality Management",
+            "duration": "1 year",
+            "tuition": 7000,
+            "intake": "October"
+          },
+          {
+            "name": "Diploma in Information Technology",
+            "duration": "1 year",
+            "tuition": 7000,
+            "intake": "October"
+          },
+          {
+            "name": "BA (Hons) in Management",
+            "duration": "3 years",
+            "tuition": 8500,
+            "intake": "February, May & October"
+          },
+          {
+            "name": "BA (Hons) in Business Analytics and Digital Transformation",
+            "duration": "3 years",
+            "tuition": 8500,
+            "intake": "February, May & October"
+          },
+          {
+            "name": "BA (Hons) in Business Management (Finance and Tech Compliance)",
+            "duration": "3 years",
+            "tuition": 8500,
+            "intake": "February, May & October"
+          },
+          {
+            "name": "BA (Hons) in Business Management (Entrepreneurship)",
+            "duration": "3 years",
+            "tuition": 8500,
+            "intake": "February, May & October"
+          },
+          {
+            "name": "BA (Hons) in Business Management (International Business and Cross-Border Trade)",
+            "duration": "3 years",
+            "tuition": 8500,
+            "intake": "February, May & October"
+          },
+          {
+            "name": "BA (Hons) in Business Computing & Information Systems (NCC)",
+            "duration": "3 years",
+            "tuition": 8500,
+            "intake": "February, May & October"
+          },
+          {
+            "name": "BA (Hons) Tourism",
+            "duration": "3 years",
+            "tuition": 8500,
+            "intake": "February, May & October"
+          },
+          {
+            "name": "Global MBA",
+            "duration": "1 year",
+            "tuition": 11000,
+            "intake": "February, May & October"
+          },
+          {
+            "name": "Master in Business Analytics & Data Science for Management",
+            "duration": "1 year",
+            "tuition": 11000,
+            "intake": "February, May & October"
+          },
+          {
+            "name": "Master in Entrepreneurship & Business Transformation",
+            "duration": "1 year",
+            "tuition": 11000,
+            "intake": "February, May & October"
+          },
+          {
+            "name": "Master in Project Management",
+            "duration": "1 year",
+            "tuition": 11000,
+            "intake": "February, May & October"
+          }
+        ],
+        "features": [
+          "OTHM and NCC accreditation",
+          "Three intakes a year"
+        ],
+        "badge": "Partner School"
+      },
+      {
+        "id": "eu_barcelona",
+        "name": "EU Business School Barcelona",
+        "location": "Barcelona, Spain",
+        "tagline": "Top European Business School • Swiss & UK Dual Qualifications",
+        "appFee": 80,
+        "currency": "EUR",
+        "tuition": "€12,500 - €15,800 / year",
+        "programs": [
+          {
+            "name": "Bachelor of Business Administration (BBA)",
+            "duration": "3 years",
+            "tuition": 13500,
+            "intake": "October & February"
+          },
+          {
+            "name": "Master in Digital Business & AI Leadership",
+            "duration": "1 year",
+            "tuition": 14800,
+            "intake": "October, January & March"
+          },
+          {
+            "name": "Master in Innovation & Entrepreneurship",
+            "duration": "1 year",
+            "tuition": 14800,
+            "intake": "October, January & March"
+          },
+          {
+            "name": "Master in Blockchain & FinTech Management",
+            "duration": "1 year",
+            "tuition": 14800,
+            "intake": "October, January & March"
+          },
+          {
+            "name": "International MBA (Dual European Degree)",
+            "duration": "1 year",
+            "tuition": 15600,
+            "intake": "October, January & March"
+          }
+        ],
+        "features": [
+          "Barcelona & Geneva Campuses",
+          "Top 50 European MBA Ranking"
+        ],
+        "badge": "Premier Partner"
+      },
+      {
+        "id": "ucam",
+        "name": "UCAM Universidad Católica de Murcia",
+        "location": "Murcia, Spain",
+        "tagline": "One of Spain's most innovative private universities — 200+ degrees across Medicine, Sport, Law, Tech & more",
+        "appFee": 0,
+        "currency": "EUR",
+        "tuition": "€3,800 - €15,200 / year",
+        "programs": [
+          {
+            "name": "Bachelor in Business Administration and Management",
+            "duration": "4 years",
+            "tuition": 6750
+          },
+          {
+            "name": "Bachelor in Biotechnology",
+            "duration": "4 years",
+            "tuition": 8100
+          },
+          {
+            "name": "Bachelor in Business Administration",
+            "duration": "4 years"
+          },
+          {
+            "name": "Bachelor in Physical Activity & Sport Science",
+            "duration": "4 years",
+            "tuition": 5990
+          },
+          {
+            "name": "Bachelor in Criminology",
+            "duration": "4 years",
+            "tuition": 4990
+          },
+          {
+            "name": "Bachelor in Dance",
+            "duration": "3 years",
+            "tuition": 5000
+          },
+          {
+            "name": "Bachelor's Degree in Dentistry",
+            "duration": "4 years",
+            "tuition": 15200
+          },
+          {
+            "name": "Degree in Law",
+            "duration": "4 years",
+            "tuition": 6500
+          },
+          {
+            "name": "Bachelor in Early Childhood Education",
+            "duration": "4 years",
+            "tuition": 5500
+          },
+          {
+            "name": "Bachelor's in Advertising & Public Relations",
+            "duration": "4 years"
+          },
+          {
+            "name": "Bachelor in Audiovisual Communication",
+            "duration": "4 years",
+            "tuition": 5800
+          },
+          {
+            "name": "Bachelor's Degree in Journalism",
+            "duration": "4 years",
+            "tuition": 5800
+          },
+          {
+            "name": "Bachelor's Degree in Advertising, Public Relations & Content Marketing",
+            "duration": "4 years"
+          },
+          {
+            "name": "Bachelor's Degree in Marketing & Commercial Management",
+            "duration": "4 years",
+            "tuition": 6200
+          },
+          {
+            "name": "Bachelor's Degree in Tourism",
+            "duration": "4 years",
+            "tuition": 6200
+          },
+          {
+            "name": "Bachelor's Degree in Psychology",
+            "duration": "4 years",
+            "tuition": 7950
+          },
+          {
+            "name": "Bachelor's Degree in Primary Education",
+            "duration": "4 years",
+            "tuition": 5900
+          },
+          {
+            "name": "Bachelor's Degree in Translation & Interpretation",
+            "duration": "4 years",
+            "tuition": 5900
+          },
+          {
+            "name": "Bachelor's Degree in Medicine",
+            "duration": "6 years",
+            "tuition": 15150
+          },
+          {
+            "name": "Bachelor's Degree in Nursing",
+            "duration": "4 years",
+            "tuition": 10500
+          },
+          {
+            "name": "Bachelor's Degree in Food Science & Technology",
+            "duration": "4 years",
+            "tuition": 5400
+          },
+          {
+            "name": "Bachelor's Degree in Gastronomy",
+            "duration": "4 years",
+            "tuition": 6450
+          },
+          {
+            "name": "Bachelor's Degree in Human Nutrition and Dietetics",
+            "duration": "4 years"
+          },
+          {
+            "name": "Bachelor's Degree in Pharmacy",
+            "duration": "5 years",
+            "tuition": 9450
+          },
+          {
+            "name": "Bachelor's Degree in Physiotherapy",
+            "duration": "4 years",
+            "tuition": 10000
+          },
+          {
+            "name": "Bachelor's Degree in Architecture (Fundamentals)",
+            "duration": "5 years",
+            "tuition": 6200
+          },
+          {
+            "name": "Degree in Civil Engineering",
+            "duration": "4 years",
+            "tuition": 5990
+          },
+          {
+            "name": "Degree in Computer Engineering",
+            "duration": "4 years",
+            "tuition": 5990
+          },
+          {
+            "name": "Degree in Building Engineering (Technical Architecture)",
+            "duration": "4 years",
+            "tuition": 5990
+          },
+          {
+            "name": "Degree in Telecommunications Engineering",
+            "duration": "4 years",
+            "tuition": 5550
+          },
+          {
+            "name": "Bachelor's Degree in International Relations",
+            "duration": "4 years"
+          },
+          {
+            "name": "Degree in Marketing & Sales Management",
+            "duration": "4 years",
+            "tuition": 6200
+          },
+          {
+            "name": "Degree in Human Nutrition & Dietetics",
+            "duration": "4 years",
+            "tuition": 6000
+          },
+          {
+            "name": "Degree in Dentistry",
+            "duration": "4 years",
+            "tuition": 14500
+          },
+          {
+            "name": "Bachelor's Degree in Sport and Exercise Sciences",
+            "duration": "4 years",
+            "tuition": 7800
+          },
+          {
+            "name": "Degree in Podiatry",
+            "duration": "4 years",
+            "tuition": 7900
+          },
+          {
+            "name": "Degree in Occupational Therapy",
+            "duration": "4 years"
+          },
+          {
+            "name": "Degree in Translation and Interpretation",
+            "duration": "4 years",
+            "tuition": 5900
+          },
+          {
+            "name": "Degree in Tourism and Tourism Business Management",
+            "duration": "4 years",
+            "tuition": 4250
+          },
+          {
+            "name": "Degree in Veterinary Medicine",
+            "duration": "5 years",
+            "tuition": 12990
+          },
+          {
+            "name": "Degree in Modern Languages",
+            "duration": "4 years",
+            "tuition": 4900
+          },
+          {
+            "name": "Bachelor's Degree in Tourism Management (Spanish)",
+            "duration": "4 years",
+            "tuition": 4250
+          },
+          {
+            "name": "Master's Degree in Business Administration (MBA)",
+            "duration": "1 year",
+            "tuition": 10200
+          },
+          {
+            "name": "Master's Degree in MBA in Sports Management",
+            "duration": "1 year",
+            "tuition": 8980
+          },
+          {
+            "name": "Master's Degree in MBA Sport Management",
+            "duration": "1 year",
+            "tuition": 11700
+          },
+          {
+            "name": "Master's Degree in Architecture",
+            "duration": "1 year",
+            "tuition": 4850
+          },
+          {
+            "name": "Master's Degree in Access to the Legal Profession (Lawyer & Solicitor)",
+            "duration": "2 years",
+            "tuition": 4500
+          },
+          {
+            "name": "Master's Degree in Audiology and Balance",
+            "duration": "1 year",
+            "tuition": 4800
+          },
+          {
+            "name": "Master's Degree in Bilingual Education (CLIL)",
+            "duration": "1 year",
+            "tuition": 5500
+          },
+          {
+            "name": "Master's Degree in Foot Surgery for Podiatrists",
+            "duration": "1 year",
+            "tuition": 9500
+          },
+          {
+            "name": "Master's Degree in Sustainable Tourism Policy & Management",
+            "duration": "1 year",
+            "tuition": 6100
+          },
+          {
+            "name": "Master's Degree in Management and Administration of Sports Entities",
+            "duration": "1 year",
+            "tuition": 6500
+          },
+          {
+            "name": "Master's Degree in Emergency, Urgent Care and Special Care",
+            "duration": "1 year",
+            "tuition": 6750
+          },
+          {
+            "name": "Master's Degree in School Nursing and Health",
+            "duration": "1 year",
+            "tuition": 4100
+          },
+          {
+            "name": "Master's Degree in High Performance Sports: Strength & Conditioning",
+            "duration": "1 year",
+            "tuition": 9300
+          },
+          {
+            "name": "Master's Degree in Pathology and Intervention",
+            "duration": "2 years",
+            "tuition": 4850
+          },
+          {
+            "name": "Master's Degree in Physical Exercise and Training for Health",
+            "duration": "1 year",
+            "tuition": 4500
+          },
+          {
+            "name": "Master's Degree in Physiotherapy in Sport",
+            "duration": "1 year",
+            "tuition": 7100
+          },
+          {
+            "name": "Master's Degree in Teacher Training",
+            "duration": "1 year",
+            "tuition": 7050
+          },
+          {
+            "name": "Master's Degree in Geriatrics and Gerontology: Comprehensive Care",
+            "duration": "1 year",
+            "tuition": 5500
+          },
+          {
+            "name": "Master's Degree in Management and Planning",
+            "duration": "1 year",
+            "tuition": 7300
+          },
+          {
+            "name": "Master's Degree in Hospitality Management",
+            "duration": "1 year",
+            "tuition": 7600
+          },
+          {
+            "name": "Master's Degree in Civil Engineering",
+            "duration": "2 years",
+            "tuition": 5700
+          },
+          {
+            "name": "Master's Degree in Innovation and Tourism Marketing",
+            "duration": "1 year",
+            "tuition": 6800
+          },
+          {
+            "name": "Master's Degree in Research in Physical Education and Health",
+            "duration": "1 year",
+            "tuition": 5200
+          },
+          {
+            "name": "Master's Degree in Management of Sport Entities",
+            "duration": "1 year",
+            "tuition": 11700
+          },
+          {
+            "name": "Master's Degree in Marketing and Communication",
+            "duration": "1 year",
+            "tuition": 7800
+          },
+          {
+            "name": "Master's Degree in Emergency Medicine",
+            "duration": "1 year",
+            "tuition": 7000
+          },
+          {
+            "name": "Master's Degree in Clinical Nutrition",
+            "duration": "1 year",
+            "tuition": 6500
+          },
+          {
+            "name": "Master's Degree in Nutrition in Physical Activity and Sport",
+            "duration": "1 year",
+            "tuition": 7300
+          },
+          {
+            "name": "Master's Degree in Nutrition and Food Security",
+            "duration": "1 year",
+            "tuition": 4800
+          },
+          {
+            "name": "Master's Degree in Osteopathy and Manual Therapy",
+            "duration": "2 years",
+            "tuition": 11950
+          },
+          {
+            "name": "Master's Degree in General Health Psychology",
+            "duration": "2 years",
+            "tuition": 14000
+          },
+          {
+            "name": "Master's Degree in Corporate Social Responsibility",
+            "duration": "1 year",
+            "tuition": 4350
+          },
+          {
+            "name": "Master's Degree in Voice, Language and Communication Disorders",
+            "duration": "1 year",
+            "tuition": 4150
+          },
+          {
+            "name": "Master's Degree in VFX Composition (Blended Learning)",
+            "duration": "1 year",
+            "tuition": 8500
+          },
+          {
+            "name": "Master's Degree in International Relations",
+            "duration": "1 year",
+            "tuition": 5500
+          },
+          {
+            "name": "Master's Degree in Continuing Education: Digital Marketing",
+            "duration": "1 year",
+            "tuition": 4000
+          },
+          {
+            "name": "Master's Degree in BIM/GIS Methodology & Data Governance",
+            "duration": "9 months",
+            "tuition": 3800
+          },
+          {
+            "name": "Master's Degree in Clinical and Sports Podiatry",
+            "duration": "1 year",
+            "tuition": 4600
+          },
+          {
+            "name": "Master's Degree in Physical Preparation & Rehabilitation in Football",
+            "duration": "1 year",
+            "tuition": 7990
+          },
+          {
+            "name": "Master's Degree in Music Production",
+            "duration": "1 year",
+            "tuition": 3900
+          },
+          {
+            "name": "Master's Degree in Digital Transformation of the Agriculture Sector",
+            "duration": "1 year",
+            "tuition": 4300
+          },
+          {
+            "name": "Master's Degree in Sport Traumatology",
+            "duration": "2 years",
+            "tuition": 8500
+          },
+          {
+            "name": "Master's Degree in Graphic Design (Online/Offline)",
+            "duration": "1 year",
+            "tuition": 5500
+          },
+          {
+            "name": "Master's Degree in Corporate Tax Consulting",
+            "duration": "9 months",
+            "tuition": 4500
+          },
+          {
+            "name": "Master's Degree in Big Data & Data Engineering",
+            "duration": "9 months",
+            "tuition": 4100
+          },
+          {
+            "name": "Master's Degree in Financial Management",
+            "duration": "9 months",
+            "tuition": 4100
+          },
+          {
+            "name": "PhD in Social Sciences",
+            "duration": "3 years",
+            "tuition": 1800,
+            "intake": "Annual"
+          },
+          {
+            "name": "PhD in Health Sciences",
+            "duration": "3 years",
+            "tuition": 1300,
+            "intake": "Annual"
+          },
+          {
+            "name": "PhD in Sports Sciences",
+            "duration": "3 years",
+            "tuition": 1300,
+            "intake": "Annual"
+          },
+          {
+            "name": "PhD in Computer Technologies and Environmental Engineering",
+            "duration": "3 years",
+            "tuition": 1300,
+            "intake": "Annual"
+          }
+        ],
+        "features": [
+          "Murcia & Online campuses",
+          "200+ degrees",
+          "Medicine, Law, Sport, Tech"
+        ],
+        "badge": "Partner University"
+      }
+    ]
+  },
+  "FAQ_ITEMS": [
+    {
+      "q": "How does the single institution application fee policy work?",
+      "a": "Under the Gabstep Visa Application system, your application fee is charged per institution, not per individual program. You can select up to two distinct courses at your chosen university for the same single institutional fee."
+    },
+    {
+      "q": "What happens if I choose an institution with CAD 0.00 / Free application fee?",
+      "a": "Partner institutions marked as Fee-Free have negotiated application fee waivers with Gabstep. In Step 5, the payment gateway is automatically bypassed, and your application is submitted directly at zero cost."
+    },
+    {
+      "q": "When will I receive my portal access credentials?",
+      "a": "Immediately upon successful completion and submission of Step 5. The system provisions your applicant account and displays your login key while instantly launching your live dashboard."
+    },
+    {
+      "q": "What is the Europass CV requirement for European institutions?",
+      "a": "German and European partner institutions strictly prefer the standardized Europass CV format. When selecting Germany as your study destination, Step 4 will provide direct guidelines and formatting recommendations."
+    },
+    {
+      "q": "Can I edit my application details after submission?",
+      "a": "Yes! Your Applicant Dashboard includes a dedicated Self-Service Corrections portal. You can modify your phone number, residential address, previous GPA, or re-upload clearer documents before final institutional review. Institution and course selections are locked post-payment."
+    }
+  ]
+}

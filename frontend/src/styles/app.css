@@ -1,0 +1,1357 @@
+/* ===================================================================
+   Additions the React app needs on top of the original stylesheets:
+   loading states, a few small primitives, and the polish passes that
+   were previously written inline in the markup.
+   =================================================================== */
+
+/* ── Route loading ───────────────────────────────────────────────── */
+.route-loading {
+  min-height: 60vh;
+  display: grid;
+  place-items: center;
+  gap: var(--space-4);
+  color: var(--color-text-secondary);
+  font-size: 0.9375rem;
+}
+
+.spinner {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 2.5px solid var(--color-border-subtle);
+  border-top-color: var(--color-accent);
+  animation: spin 720ms linear infinite;
+}
+
+.spinner-sm {
+  width: 15px;
+  height: 15px;
+  border-width: 2px;
+  border-top-color: currentColor;
+  border-color: rgba(255, 255, 255, 0.35);
+  border-top-color: #fff;
+  display: inline-block;
+  vertical-align: -2px;
+  margin-right: 8px;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner,
+  .spinner-sm {
+    animation-duration: 2s;
+  }
+}
+
+/* ── Nav agent button, previously inline on the markup ───────────── */
+.nav-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+}
+
+.btn-nav-agent {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--brand-50);
+  color: var(--brand-700);
+  border: 1px solid var(--brand-200);
+  border-radius: var(--radius-full);
+  padding: 7px 15px;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.btn-nav-agent:hover {
+  background: var(--brand-100);
+  border-color: var(--brand-300);
+  transform: translateY(-1px);
+}
+
+.nav-user-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 14px 5px 5px;
+  border: 1px solid var(--color-border-subtle);
+  background: var(--color-bg-surface);
+  border-radius: var(--radius-full);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--slate-800);
+  font-family: inherit;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.nav-user-chip:hover {
+  border-color: var(--brand-300);
+  background: var(--brand-50);
+}
+
+.nav-user-chip .chip-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--brand-900);
+  color: #fff;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.nav-user-chip .chip-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+@media (max-width: 560px) {
+  .nav-user-chip span.chip-name,
+  .btn-nav-agent span {
+    display: none;
+  }
+  .nav-user-chip {
+    padding: 5px;
+  }
+}
+
+/* ── Hero: one solid action, one quiet one ───────────────────────────
+   The quiet button sits on a photograph, so it is a translucent pane rather
+   than a filled shape: filling it would give the hero two things of equal
+   weight and nothing to look at first. */
+.hero-cta-group .btn-quiet {
+  border: 1.5px solid rgba(255, 255, 255, 0.34);
+  background: rgba(255, 255, 255, 0.10);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: #fff;
+  font-weight: 600;
+}
+
+.hero-cta-group .btn-quiet:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+
+/* ── Searchable select: keyboard cursor row ──────────────────────── */
+.searchable-item.cursor {
+  background-color: var(--brand-50);
+}
+
+/* ── Dropzone: a filled slot should look settled, not pending ────── */
+.dropzone-card.has-file {
+  border-style: solid;
+  border-color: var(--brand-300);
+  background-color: var(--brand-50);
+}
+
+.dropzone-card.drag-active {
+  border-color: var(--brand-600);
+  background-color: var(--brand-50);
+}
+
+/* ── Demo credential hint on the sign-in screens ─────────────────── *
+
+/* ── Empty states ────────────────────────────────────────────────── */
+.empty-block {
+  text-align: center;
+  padding: var(--space-8) var(--space-4);
+  color: var(--color-text-secondary);
+  font-size: 0.9375rem;
+}
+
+.empty-block strong {
+  display: block;
+  color: var(--color-text-primary);
+  margin-bottom: 4px;
+}
+
+/* ── Field error under a portal field ────────────────────────────── */
+.field-error {
+  display: block;
+  margin-top: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-error);
+}
+
+/* ── Links that carry a control's styling ────────────────────────
+   React Router renders navigation as anchors, so controls that were
+   <button> in the original markup are sometimes <a> here. The visual
+   rules are class-based and carry over; only the anchor defaults need
+   clearing. */
+a.sidebar-nav-link,
+a.sidebar-foot-link,
+a.agent-action,
+a.agent-btn,
+a.g-btn,
+a.btn,
+a.btn-nav-agent,
+a.agent-topbar-profile-btn {
+  text-decoration: none;
+}
+
+/* ── Stepper nodes are buttons, so they can be reached by keyboard ── *
+
+/* ── Focus ring ──────────────────────────────────────────────────
+   One visible ring everywhere, drawn outside the control so it never
+   shifts the layout. Mouse users do not see it; keyboard users always do. */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-accent, var(--g-accent));
+  outline-offset: 2px;
+  border-radius: var(--radius-xs, 4px);
+}
+
+.sidebar-nav-link:focus-visible,
+.sidebar-foot-link:focus-visible {
+  outline-color: var(--g-accent-tint);
+}
+
+/* ── Letters issued to the applicant ─────────────────────────────
+   The counterpart of the Documents list in Details: those travel up to
+   the desk, these come back down. Same row rhythm so the two pages
+   feel like one portal. */
+.letters {
+  display: flex;
+  flex-direction: column;
+}
+
+.letter {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 18px 0;
+  border-bottom: 1px solid var(--g-line);
+}
+
+.letter:first-child {
+  padding-top: 0;
+}
+
+.letter:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+@media (max-width: 560px) {
+  .letter {
+    flex-wrap: wrap;
+  }
+  .letter-actions .g-btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* ── Modern Letter Section (Clean, Minimal & Document Preview) ── */
+.letter-panel-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.letter-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding-bottom: 4px;
+}
+
+.letter-page-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  color: var(--color-text-primary, #0f172a);
+  margin: 0;
+}
+
+.letter-page-subtitle {
+  font-size: 0.875rem;
+  color: var(--color-text-secondary, #64748b);
+  margin: 4px 0 0;
+}
+
+.visa-support-header-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 9999px;
+  background: var(--g-accent-tint);
+  color: var(--g-accent-hover);
+  border: 1px solid #a7f3d0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.letter-empty-card {
+  padding: 48px 24px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: #ffffff;
+  border-radius: 12px;
+  border: 1px solid var(--color-border-subtle, #e2e8f0);
+}
+
+.letter-empty-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: #f1f5f9;
+  color: #64748b;
+  display: grid;
+  place-items: center;
+  margin-bottom: 14px;
+}
+
+.letter-empty-title {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #1e293b;
+  margin: 0 0 6px;
+}
+
+.letter-empty-sub {
+  font-size: 0.875rem;
+  color: #64748b;
+  max-width: 440px;
+  margin: 0 auto;
+  line-height: 1.5;
+}
+
+.letter-cards-list {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.letter-modern-card {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  gap: 32px;
+  padding: 24px;
+  background: #ffffff;
+  border-radius: 14px;
+  border: 1px solid var(--color-border-subtle, #e2e8f0);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  align-items: center;
+}
+
+.letter-preview-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.letter-mini-sheet {
+  width: 100%;
+  max-width: 240px;
+  min-height: 290px;
+  background: #fafaf9;
+  border: 1px solid #e2e8f0;
+  border-top: 4px solid #1e40af;
+  border-radius: 8px;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+  padding: 16px 14px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  position: relative;
+  overflow: hidden;
+}
+
+.mini-sheet-letterhead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.mini-sheet-crest {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  display: grid;
+  place-items: center;
+  border: 1px solid #dbeafe;
+  flex-shrink: 0;
+}
+
+.mini-sheet-inst-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.mini-sheet-inst-name {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
+}
+
+.mini-sheet-inst-country {
+  font-size: 0.65rem;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.mini-sheet-divider {
+  height: 1px;
+  background: #e2e8f0;
+  margin-bottom: 10px;
+}
+
+.mini-sheet-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.mini-sheet-doc-badge {
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: #1e40af;
+  text-transform: uppercase;
+}
+
+.mini-sheet-doc-title {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+  line-height: 1.3;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.mini-sheet-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.mini-sheet-row {
+  display: flex;
+  gap: 4px;
+  font-size: 0.68rem;
+  line-height: 1.3;
+}
+
+.mini-row-lbl {
+  color: #64748b;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.mini-row-val {
+  color: #1e293b;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mini-sheet-note {
+  font-size: 0.63rem;
+  font-style: italic;
+  color: #475569;
+  background: #f1f5f9;
+  padding: 4px 6px;
+  border-radius: 4px;
+  line-height: 1.3;
+}
+
+.mini-sheet-seal {
+  margin-top: 10px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.mini-seal-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: 9999px;
+  background: var(--g-accent-tint);
+  border: 1px solid var(--g-chart-2);
+  color: var(--g-accent-hover);
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.letter-preview-caption {
+  font-size: 0.72rem;
+  color: #94a3b8;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.letter-info-column {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.letter-info-header {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.letter-kind-pill {
+  align-self: flex-start;
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+}
+
+.letter-display-title {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+  line-height: 1.3;
+}
+
+.letter-date-meta {
+  font-size: 0.85rem;
+  color: #64748b;
+  margin: 0;
+}
+
+.letter-description-text {
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: #334155;
+  margin: 0;
+  padding: 10px 14px;
+  background: #f8fafc;
+  border-left: 3px solid #cbd5e1;
+  border-radius: 0 6px 6px 0;
+}
+
+.letter-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 6px;
+}
+
+.letter-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  padding: 10px 18px;
+  border-radius: 8px;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.15s ease;
+}
+
+.letter-transfer-btn {
+  border-color: #2563eb !important;
+  color: #2563eb !important;
+  background: #ffffff !important;
+}
+
+.letter-transfer-btn:hover:not(:disabled) {
+  background: #eff6ff !important;
+  border-color: #1d4ed8 !important;
+  color: #1d4ed8 !important;
+}
+
+.letter-transfer-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.visa-transferred-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 16px;
+  border-radius: 8px;
+  background: var(--g-accent-tint);
+  border: 1px solid #86efac;
+  color: #166534;
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+
+.visa-transferred-note {
+  font-size: 0.8125rem;
+  color: var(--g-chart-3);
+  margin: 0;
+  font-weight: 500;
+}
+
+@media (max-width: 768px) {
+  .letter-modern-card {
+    grid-template-columns: 1fr;
+    gap: 20px;
+    padding: 18px;
+  }
+  .letter-preview-wrapper {
+    width: 100%;
+    margin: 0 auto;
+  }
+  .letter-mini-sheet {
+    max-width: 100%;
+  }
+  .letter-action-row {
+    flex-direction: column;
+    width: 100%;
+    align-items: stretch;
+  }
+  .letter-action-btn,
+  .visa-transferred-status-pill {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* A letter waiting on the overview deserves to be noticed once. *
+
+.letter-flag .g-btn {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+/* ── Wallet: why the withdraw button is off ──────────────────────
+   A disabled control needs to say why, next to itself, not in a
+   tooltip nobody hovers. */
+.balance-hint {
+  margin: 14px 0 0;
+  padding: 11px 14px;
+  border-radius: var(--g-r-sm);
+  background: var(--g-attn-tint);
+  border: 1px solid var(--g-attn-line);
+  color: var(--g-attn);
+  font-size: 13.5px;
+  line-height: 1.55;
+}
+
+.agent-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* ===================================================================
+   Agent: currency converter
+   Rates move, so the panel says how fresh they are rather than
+   presenting a number with no provenance.
+   =================================================================== *
+
+.fx-grid {
+  display: grid;
+  grid-template-columns: minmax(140px, 1.2fr) 1fr auto 1fr;
+  align-items: end;
+  gap: 12px;
+}
+
+.fx-grid .agent-form-group {
+  margin-bottom: 0;
+}
+
+.fx-swap {
+  width: var(--g-tap);
+  height: var(--g-tap);
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border-radius: var(--g-r-pill);
+  border: 1px solid var(--g-line-strong);
+  background: var(--g-surface);
+  color: var(--g-ink-2);
+  cursor: pointer;
+  transition: background 160ms ease, color 160ms ease, transform 160ms ease;
+}
+
+.fx-swap:hover {
+  background: var(--g-accent-tint);
+  border-color: var(--g-accent-line);
+  color: var(--g-accent);
+  transform: rotate(180deg);
+}
+
+.fx-result {
+  margin-top: 18px;
+  padding: 18px 20px;
+  border-radius: var(--g-r-md);
+  background: var(--g-accent-tint);
+  border: 1px solid var(--g-accent-line);
+}
+
+.fx-result-from {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--g-ink-2);
+}
+
+.fx-result-to {
+  margin-top: 2px;
+  font-size: clamp(26px, 5vw, 34px);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  color: var(--g-accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.fx-result-rate {
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--g-ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.fx-chip.active {
+  background: var(--g-accent);
+  border-color: var(--g-accent);
+  color: var(--g-accent-ink);
+}
+
+@media (max-width: 720px) {
+  .fx-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .fx-amount {
+    grid-column: 1 / -1;
+  }
+  .fx-swap {
+    grid-row: 2;
+    grid-column: 2;
+    justify-self: end;
+    margin-bottom: 4px;
+  }
+  .fx-grid .agent-form-group:last-of-type {
+    grid-column: 1 / -1;
+  }
+}
+
+/* ===================================================================
+   Agent: course browser
+   =================================================================== */
+.course-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.course-filter-bar .applicants-search-wrap {
+  flex: 1 1 260px;
+}
+
+.course-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px;
+  min-height: var(--g-tap);
+  border-radius: var(--g-r-sm);
+  border: 1px solid var(--g-line-strong);
+  background: var(--g-surface);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--g-ink-2);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.course-toggle input {
+  accent-color: var(--g-accent);
+  width: 16px;
+  height: 16px;
+}
+
+.course-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.course-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 18px 0;
+  border-bottom: 1px solid var(--g-line);
+}
+
+.course-row:first-child {
+  padding-top: 0;
+}
+
+.course-row:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.course-icon {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--g-r-sm);
+  display: grid;
+  place-items: center;
+  background: var(--g-surface-2);
+  color: var(--g-ink-2);
+  border: 1px solid var(--g-line);
+}
+
+.course-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.course-name {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--g-ink);
+  line-height: 1.35;
+}
+
+.course-where {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 5px;
+  font-size: 13px;
+  color: var(--g-ink-3);
+}
+
+.course-dot {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--g-line-strong);
+  margin: 0 4px;
+}
+
+.course-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.course-tag {
+  padding: 3px 9px;
+  border-radius: var(--g-r-pill);
+  background: var(--g-surface-2);
+  border: 1px solid var(--g-line);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--g-ink-2);
+}
+
+.course-note {
+  margin: 10px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--g-accent);
+  font-weight: 500;
+}
+
+.course-side {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+  text-align: right;
+}
+
+.course-tuition {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--g-ink);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.course-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid var(--g-line);
+}
+
+.course-pager-label {
+  font-size: 13px;
+  color: var(--g-ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 640px) {
+  .course-row {
+    flex-wrap: wrap;
+  }
+  .course-side {
+    width: 100%;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    padding-left: 54px;
+    text-align: left;
+  }
+}
+
+/* ── The commission landing, called out in the success dialog ────── */
+.commission-flash {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 18px;
+  margin-bottom: 16px;
+  border-radius: var(--g-r-md);
+  background: var(--g-accent-tint);
+  border: 1px solid var(--g-accent-line);
+  color: var(--g-accent);
+}
+
+.commission-flash strong {
+  display: block;
+  font-size: 15px;
+  font-weight: 650;
+  color: var(--g-ink);
+}
+
+.commission-flash small {
+  display: block;
+  margin-top: 2px;
+  font-size: 13px;
+  color: var(--g-ink-2);
+}
+
+/* ── A card whose action sits at the foot, under the content ─────
+   Used where the action follows from what you have just read, rather
+   than heading it: "here are the recent five, now see them all". */
+.card-foot-action {
+  display: flex;
+  justify-content: center;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--g-line);
+}
+
+/* ===================================================================
+   Icon motion
+   Movement earns its place here by pointing at what a control does:
+   an arrow slides the way it takes you, a download drops, a refresh
+   turns. Nothing loops, nothing moves unasked, and all of it stops
+   for a visitor who has asked for reduced motion.
+   =================================================================== */
+.icon {
+  flex-shrink: 0;
+  overflow: visible;
+  transition: transform 220ms cubic-bezier(0.34, 1.35, 0.64, 1);
+  will-change: transform;
+}
+
+/* Draw-in. Every shape is normalised to pathLength 1 in the component,
+   so a passport outline and a tick draw at the same speed. */
+.icon-draw > * {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: icon-draw 620ms cubic-bezier(0.65, 0, 0.35, 1) forwards;
+}
+
+.icon-draw > *:nth-child(2) { animation-delay: 90ms; }
+.icon-draw > *:nth-child(3) { animation-delay: 170ms; }
+.icon-draw > *:nth-child(4) { animation-delay: 240ms; }
+
+@keyframes icon-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* ── Hover micro-interactions, driven by the control around the icon ── */
+:is(button, a, label, .agent-action, .destination-card, .sidebar-nav-link, .sidebar-foot-link):hover
+  .icon-live {
+  transform: translateY(-1px);
+}
+
+:is(button, a, .agent-action, .destination-card):hover .icon-arrowRight,
+:is(button, a, .agent-action, .destination-card):hover .icon-chevronRight {
+  transform: translateX(3px);
+}
+
+:is(button, a):hover .icon-arrowLeft {
+  transform: translateX(-3px);
+}
+
+:is(button, a):hover .icon-chevronDown {
+  transform: translateY(2px);
+}
+
+:is(button, a):hover .icon-download {
+  transform: translateY(2px);
+}
+
+:is(button, a):hover .icon-signOut {
+  transform: translateX(2px);
+}
+
+:is(button, a):hover .icon-signIn {
+  transform: translateX(2px);
+}
+
+:is(button, a):hover .icon-search {
+  transform: scale(1.12);
+}
+
+:is(button, a, label):hover .icon-camera,
+:is(button, a):hover .icon-check,
+:is(button, a):hover .icon-checkCircle,
+:is(button, a):hover .icon-badgeCheck {
+  transform: scale(1.14);
+}
+
+:is(button, a):hover .icon-close,
+:is(button, a):hover .icon-closeCircle {
+  transform: rotate(90deg);
+}
+
+:is(button, a):hover .icon-bell {
+  animation: icon-ring 640ms ease-in-out;
+  transform-origin: 50% 15%;
+}
+
+@keyframes icon-ring {
+  0%, 100% { transform: rotate(0); }
+  20% { transform: rotate(-11deg); }
+  40% { transform: rotate(9deg); }
+  60% { transform: rotate(-6deg); }
+  80% { transform: rotate(3deg); }
+}
+
+:is(button, a):hover .icon-clock {
+  transform: rotate(18deg);
+}
+
+:is(button, a):hover .icon-trend,
+:is(button, a):hover .icon-chart {
+  transform: translateY(-2px) scale(1.06);
+}
+
+:is(button, a):hover .icon-pin {
+  animation: icon-drop 520ms cubic-bezier(0.34, 1.4, 0.64, 1);
+}
+
+@keyframes icon-drop {
+  0% { transform: translateY(-3px); }
+  55% { transform: translateY(1px); }
+  100% { transform: translateY(0); }
+}
+
+:is(button, a):hover .icon-plane {
+  transform: translate(2px, -2px) rotate(8deg);
+}
+
+/* Icons sitting in a tinted tile lift with the tile rather than alone. */
+.agent-icon .icon,
+.app-greet-icon .icon,
+.step-icon .icon,
+.letter-icon .icon,
+.course-icon .icon {
+  transition: transform 260ms cubic-bezier(0.34, 1.35, 0.64, 1);
+}
+
+.agent-action:hover .agent-icon .icon,
+.destination-card:hover .icon,
+.step-card:hover .step-icon .icon,
+.letter:hover .letter-icon .icon,
+.course-row:hover .course-icon .icon {
+  transform: scale(1.1);
+}
+
+/* A banner icon draws itself in as the page settles. */
+.app-banner .icon,
+.agent-banner .icon {
+  animation: icon-settle 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes icon-settle {
+  from {
+    opacity: 0;
+    transform: scale(0.82) translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* The spinner that sits inside a busy button keeps turning, of course. */
+@media (prefers-reduced-motion: reduce) {
+  .icon,
+  .icon-live,
+  .agent-icon .icon,
+  .app-banner .icon,
+  .agent-banner .icon {
+    transition: none;
+    animation: none;
+    transform: none;
+  }
+  .icon-draw > * {
+    stroke-dasharray: none;
+    stroke-dashoffset: 0;
+    animation: none;
+  }
+}
+
+/* ── Pie charts size to their card ───────────────────────────────
+   A fixed pixel height makes a ring look lost on a wide desktop card
+   and cramped on a phone. The height prop becomes an upper bound and
+   the ring takes a share of the available width between two limits. */
+.chart-frame-pie {
+  height: clamp(200px, 46vw, var(--chart-h, 260px));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+@media (min-width: 900px) {
+  .chart-frame-pie {
+    height: var(--chart-h, 260px);
+  }
+}
+
+/* A slice lifts slightly under the pointer; the ring itself fades in. */
+.chart-frame-pie canvas {
+  animation: chart-in 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes chart-in {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chart-frame-pie canvas {
+    animation: none;
+  }
+}
+
+/* ===================================================================
+   Supervisor: the agent code
+   Nobody joins a supervisor's team without this string, so it is
+   given the weight of a headline and made easy to copy exactly.
+   =================================================================== */
+.code-card {
+  background: linear-gradient(135deg, var(--g-accent-tint) 0%, var(--g-surface) 70%);
+  border-color: var(--g-accent-line);
+}
+
+.code-card-body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--g-gap);
+}
+
+.code-card-label {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--g-accent);
+}
+
+.code-card-value {
+  margin-top: 6px;
+  font-family: var(--font-mono);
+  font-size: clamp(26px, 5vw, 38px);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  line-height: 1.1;
+  color: var(--g-ink);
+  user-select: all;
+}
+
+.code-card-note {
+  margin: 10px 0 0;
+  max-width: 46ch;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--g-ink-2);
+}
+
+.code-card-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.code-card-count {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--g-ink-2);
+}
+
+@media (max-width: 620px) {
+  .code-card-side {
+    width: 100%;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+}
+
+/* The explanatory line beside the code field on the sign-up form. */
+.signup-hint {
+  margin: 0;
+  align-self: center;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--g-ink-2);
+}
+
+/* ── The second portal link in the header ────────────────────────
+   Agents outnumber supervisors heavily, so the supervisor link is
+   present but quieter: same shape, less fill, so it does not compete
+   with the one most visitors want. */
+.btn-nav-quiet {
+  background: transparent;
+  border-color: var(--color-border-default);
+  color: var(--slate-600);
+}
+
+.btn-nav-quiet:hover {
+  background: var(--brand-50);
+  border-color: var(--brand-200);
+  color: var(--brand-700);
+}
+
+/* A note under a sign-in form, for saying how to get an account at all. */
+.auth-footnote {
+  margin: 14px 0 0;
+  padding: 11px 14px;
+  border-radius: var(--radius-lg);
+  background: var(--slate-50);
+  border: 1px solid var(--color-border-subtle);
+  font-size: 0.8125rem;
+  line-height: 1.55;
+  color: var(--color-text-secondary);
+  text-align: center;
+}
+
+/* ── Avatar: saving state ────────────────────────────────────────
+   The new picture appears at once from a local preview; this says the
+   upload behind it is still in flight. */
+.profile-avatar.is-saving,
+.ap-avatar.is-saving {
+  position: relative;
+}
+
+.profile-avatar.is-saving img,
+.ap-avatar.is-saving img {
+  opacity: 0.55;
+}
+
+.avatar-spinner {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2.5px solid rgba(255, 255, 255, 0.4);
+  border-top-color: #fff;
+  animation: spin 720ms linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .avatar-spinner {
+    animation-duration: 2s;
+  }
+}
+
+/* ===================================================================
+   Focus
+   -------------------------------------------------------------------
+   One ring, on everything that takes focus, drawn only for keyboard and
+   assistive-technology focus so a mouse press does not leave a halo
+   behind. It is the last rule in the sheet so it is not overridden by a
+   component's own outline: none.
+   =================================================================== */
+
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--g-accent);
+  outline-offset: 2px;
+  border-radius: var(--g-r-sm);
+}
+
+/* On the deep green and over the hero photograph the accent has nothing to
+   contrast against, so the ring turns white there. */
+:where(.hero-cta-group, .g-deep, .agent-sidebar, .site-footer)
+  :where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline-color: #ffffff;
+}
+
+/* A focus ring must never be clipped by the scroll container it sits in. */
+.sheet-body :where(a, button, input, select, textarea):focus-visible {
+  outline-offset: 1px;
+}

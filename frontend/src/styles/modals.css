@@ -1,0 +1,203 @@
+/* ===================================================================
+   Sheets
+   -------------------------------------------------------------------
+   Every dialog in the product is one sheet that rises from the bottom
+   edge. It is the same on a phone and on a desktop: the actions end up
+   near the thumb, the header and footer hold still, and the middle is
+   the only thing that scrolls, so a long form can never push its own
+   buttons off the screen.
+
+   The sheet is capped at 92% of the viewport and its body takes the
+   remaining space, which is what makes the scroll land in the body
+   rather than on the page behind it.
+   =================================================================== */
+
+.sheet-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal-backdrop);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(4, 35, 27, 0.55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  animation: sheet-scrim-in 220ms ease both;
+  /* A tall sheet on a phone must clear the home indicator. */
+  padding: 0;
+}
+
+@keyframes sheet-scrim-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.sheet {
+  position: relative;
+  z-index: var(--z-modal);
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 560px;
+  max-height: 92dvh;
+  background: var(--g-surface);
+  color: var(--g-ink);
+  border: 1px solid var(--g-line);
+  border-bottom: none;
+  border-radius: var(--g-r-xl) var(--g-r-xl) 0 0;
+  box-shadow: var(--g-sh-3);
+  animation: sheet-up 320ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  overflow: hidden;
+}
+
+@keyframes sheet-up {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+
+/* Reduced motion still gets the sheet, it just does not travel. */
+@media (prefers-reduced-motion: reduce) {
+  .sheet-scrim,
+  .sheet {
+    animation-duration: 1ms;
+  }
+}
+
+/* ─── Grabber ─── */
+
+.sheet-grabber {
+  flex-shrink: 0;
+  width: 42px;
+  height: 4px;
+  margin: 10px auto 0;
+  border-radius: var(--g-r-pill);
+  background: var(--g-line-strong);
+}
+
+/* ─── Header ─── */
+
+.sheet-header {
+  flex-shrink: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px var(--g-pad) 14px;
+  border-bottom: 1px solid var(--g-line);
+}
+
+.sheet-heading {
+  min-width: 0;
+}
+
+.sheet-header h3 {
+  margin: 0;
+  font-size: 1.0625rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  color: var(--g-ink);
+}
+
+.sheet-subtitle {
+  display: block;
+  margin-top: 3px;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--g-ink-2);
+}
+
+.sheet-close {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* 44px is the smallest comfortable target on a touch screen, and this is
+     the control people reach for first when they want out. */
+  width: var(--g-tap);
+  height: var(--g-tap);
+  margin: -10px -10px -10px 0;
+  border: none;
+  border-radius: var(--g-r-pill);
+  background: none;
+  color: var(--g-ink-2);
+  cursor: pointer;
+  transition: background 160ms ease, color 160ms ease;
+}
+
+.sheet-close:hover {
+  background: var(--g-surface-2);
+  color: var(--g-ink);
+}
+
+/* ─── Body: the only part that scrolls ─── */
+
+.sheet-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  /* Keeps a flick at the end of the list from scrolling the page behind. */
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: var(--g-pad);
+}
+
+.sheet-body > *:first-child { margin-top: 0; }
+.sheet-body > *:last-child  { margin-bottom: 0; }
+
+/* ─── Footer ─── */
+
+.sheet-footer {
+  flex-shrink: 0;
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  padding: 14px var(--g-pad);
+  /* The last line of the body should look like it continues under the footer,
+     not like it stops at a second card edge. */
+  border-top: 1px solid var(--g-line);
+  background: var(--g-surface);
+  /* Clear of the home indicator on a phone. */
+  padding-bottom: max(14px, env(safe-area-inset-bottom));
+}
+
+/* A single action fills the width: there is nothing to line it up against. */
+.sheet-footer > :only-child {
+  width: 100%;
+}
+
+/* ─── Wider screens ─── */
+
+@media (min-width: 640px) {
+  .sheet-scrim {
+    padding: 0 var(--space-4);
+  }
+
+  .sheet {
+    max-height: 88dvh;
+    /* Still rises from the bottom edge, just no longer touching it, so it
+       reads as a sheet on a desktop rather than a docked panel. */
+    margin-bottom: clamp(16px, 4vh, 48px);
+    border-bottom: 1px solid var(--g-line);
+    border-radius: var(--g-r-xl);
+  }
+
+  .sheet-footer {
+    padding-bottom: 14px;
+  }
+
+  .sheet-footer > :only-child {
+    width: auto;
+  }
+}
+
+/* Stacked buttons on the narrowest phones: two 44px targets side by side stop
+   fitting once the labels are real words. */
+@media (max-width: 400px) {
+  .sheet-footer {
+    flex-direction: column-reverse;
+  }
+
+  .sheet-footer > * {
+    width: 100%;
+  }
+}

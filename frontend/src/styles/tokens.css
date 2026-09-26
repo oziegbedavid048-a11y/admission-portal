@@ -1,0 +1,292 @@
+/* ===================================================================
+   Gabstep Visa Application - Design Tokens & Variables
+   Modern, sleek, high-contrast, minimalist enterprise-grade UI
+   Palette: Enterprise Dark Green & Crisp Slate Neutrals
+   =================================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+:root {
+  /* ================= Layer 1: Primitive Tokens ================= */
+  /* Colour.
+     There is one palette in this product: the deep-green brand system defined
+     in Layer 3 as --g-*. The --slate-* and --brand-* names below are the
+     original Tailwind-shaped scales, kept only because 261 declarations across
+     the wizard, the landing page and the shared base styles refer to them.
+     Every one is now an alias onto the --g-* system, so those screens render in
+     the brand green and on the brand neutrals without each declaration having
+     to be rewritten, and there is no second palette left to drift from.
+
+     Do not add a new --slate-* or --brand-* reference. Use the --g-* token. */
+
+  /* Neutrals: warm, so they sit with the cream canvas instead of fighting it. */
+  --slate-50:  var(--g-canvas);
+  --slate-100: var(--g-surface-2);
+  --slate-200: var(--g-line);
+  --slate-300: var(--g-line-strong);
+  --slate-400: var(--g-ink-4);   /* icons and hairlines: 4.2:1 on white */
+  --slate-500: var(--g-ink-3);   /* 5.3:1 on white */
+  --slate-600: var(--g-ink-2);   /* 6.2:1 on white */
+  --slate-700: var(--g-deep-2);
+  --slate-800: var(--g-ink);
+  --slate-900: var(--g-ink);
+  --slate-950: var(--g-deep);
+
+  /* Green: one accent, #0b5c43, 8.0:1 on white. The lighter steps are the
+     chart ramp and the tints, and are never used for text. */
+  --brand-50:  var(--g-accent-tint);
+  --brand-100: var(--g-accent-line);
+  --brand-200: var(--g-accent-line);
+  --brand-300: var(--g-chart-1);
+  --brand-400: var(--g-chart-2);
+  --brand-500: var(--g-chart-2);
+  --brand-600: var(--g-accent);
+  --brand-700: var(--g-accent);
+  --brand-800: var(--g-accent-hover);
+  --brand-900: var(--g-deep-2);
+  --brand-950: var(--g-deep);
+
+  /* Status. Green carries one meaning, so success is the brand accent rather
+     than a second green; warning and error are the only other two tones. */
+  --success-50:  var(--g-accent-tint);
+  --success-500: var(--g-accent);
+  --success-600: var(--g-accent);
+  --success-700: var(--g-accent-hover);
+
+  --warning-50:  var(--g-attn-tint);
+  --warning-500: var(--g-attn);   /* 5.9:1 on white */
+  --warning-600: var(--g-attn);
+  --warning-700: var(--g-attn);
+
+  --error-50:  var(--g-neg-tint);
+  --error-500: var(--g-neg);      /* 7.5:1 on white */
+  --error-600: var(--g-neg);
+  --error-700: var(--g-neg);
+
+  --info-50:  var(--g-accent-tint);
+  --info-500: var(--g-accent);
+  --info-600: var(--g-accent);
+  --info-700: var(--g-accent-hover);
+
+  /* Typography Families */
+  --font-sans: var(--g-font);
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* Spacing Primitives */
+  --space-1: 0.25rem;   /* 4px */
+  --space-2: 0.5rem;    /* 8px */
+  --space-3: 0.75rem;   /* 12px */
+  --space-4: 1rem;      /* 16px */
+  --space-5: 1.25rem;   /* 20px */
+  --space-6: 1.5rem;    /* 24px */
+  --space-8: 2rem;      /* 32px */
+  --space-10: 2.5rem;   /* 40px */
+  --space-12: 3rem;     /* 48px */
+  --space-16: 4rem;     /* 64px */
+  --space-20: 5rem;     /* 80px */
+
+  /* Border Radii */
+  --radius-xs: 0.25rem;
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-2xl: 1.5rem;
+  --radius-full: 9999px;
+
+  /* Shadows */
+  --shadow-xs: 0 1px 2px 0 rgba(15, 23, 42, 0.05);
+  --shadow-sm: 0 1px 3px 0 rgba(15, 23, 42, 0.08), 0 1px 2px -1px rgba(15, 23, 42, 0.08);
+  --shadow-md: 0 4px 6px -1px rgba(15, 23, 42, 0.08), 0 2px 4px -2px rgba(15, 23, 42, 0.08);
+  --shadow-lg: 0 10px 15px -3px rgba(15, 23, 42, 0.08), 0 4px 6px -4px rgba(15, 23, 42, 0.04);
+  --shadow-xl: 0 20px 25px -5px rgba(15, 23, 42, 0.1), 0 8px 10px -6px rgba(15, 23, 42, 0.06);
+  --shadow-2xl: 0 25px 50px -12px rgba(15, 23, 42, 0.25);
+  --shadow-focus: 0 0 0 3px rgba(11, 92, 67, 0.28);
+
+  /* Transitions */
+  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-normal: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 400ms cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Z-Index Hierarchy */
+  --z-base: 1;
+  --z-sticky: 100;
+  --z-dropdown: 200;
+  --z-modal-backdrop: 500;
+  --z-modal: 600;
+  --z-toast: 1000;
+
+  /* ================= Layer 2: Semantic Tokens ================= */
+  --color-bg-canvas: var(--g-canvas);
+  --color-bg-subtle: var(--g-surface-2);
+  --color-bg-muted: var(--g-surface-2);
+  --color-bg-surface: var(--g-surface);
+  --color-bg-card: var(--g-surface);
+
+  --color-text-primary: var(--g-ink);
+  --color-text-secondary: var(--g-ink-2);
+  --color-text-muted: var(--g-ink-3);
+  --color-text-inverse: var(--g-on-deep);
+
+  --color-border-subtle: var(--g-line);
+  --color-border-default: var(--g-line-strong);
+  --color-border-focus: var(--g-accent);
+
+  /* The primary control is the brand accent, not the near-black deep tone:
+     one green means one thing, and that thing is "this does something". */
+  --color-primary: var(--g-accent);
+  --color-primary-hover: var(--g-accent-hover);
+  --color-primary-fg: var(--g-accent-ink);
+
+  --color-accent: var(--g-accent);
+  --color-accent-hover: var(--g-accent-hover);
+  --color-accent-fg: var(--g-accent-ink);
+  --color-accent-subtle: var(--g-accent-tint);
+
+  --color-success: var(--g-accent);
+  --color-success-bg: var(--g-accent-tint);
+  --color-warning: var(--g-attn);
+  --color-warning-bg: var(--g-attn-tint);
+  --color-error: var(--g-neg);
+  --color-error-bg: var(--g-neg-tint);
+  --color-info: var(--g-accent);
+  --color-info-bg: var(--g-accent-tint);
+
+  /* Container width */
+  --container-max-width: 1200px;
+  --nav-height: 72px;
+
+  /* ================= Layer 3: Portal Design System =================
+     Deep-green brand system shared by the applicant dashboard and the
+     agent portal. Every text token is checked against its own surface
+     for WCAG AA (4.5:1 body, 3:1 large). Light values first, dark
+     appearance overrides at the bottom of this file. */
+
+  --g-font: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter',
+            'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+
+  /* Warm cream page, white cards, warm-neutral hairlines. The neutrals are
+     warmed to sit with the cream rather than fight it. */
+  --g-canvas:      #fbf7ef;
+  --g-surface:     #ffffff;
+  --g-surface-2:   #f7f2e8;
+  --g-line:        #e6dfd1;
+  --g-line-strong: #d3c9b6;
+
+  --g-ink:   #08211b; /* 16.9:1 on surface, 16.1:1 on canvas */
+  --g-ink-2: #54665f; /*  6.2:1 on surface,  5.9:1 on canvas */
+  --g-ink-3: #5f6f69; /*  5.3:1 on surface,  5.0:1 on canvas */
+  /* Non-text only: icons, chevrons, dividers. Clears the 3:1 floor for
+     graphics with room to spare, and is never used for a sentence. */
+  --g-ink-4: #6e7f78; /*  4.2:1 on surface,  4.0:1 on canvas */
+
+  /* Banner: 3-stop diagonal, mint into the page cream and back out. */
+  --g-banner: linear-gradient(135deg, #e1f6dd 0%, #fbf7ef 50%, #e1f6dd 100%);
+  --g-banner-line: #cfebc9;
+
+  /* Ordinal chart ramp, one hue, light to dark. Validated with the dataviz
+     palette checker: monotone lightness, adjacent gaps >= 0.06, light end
+     2.10:1 on the card surface, hue spread 6 degrees. Step 4 is the brand
+     accent, so the darkest stage of a funnel is the brand green. */
+  --g-chart-1: #7fbe9c;
+  --g-chart-2: #4e9f79;
+  --g-chart-3: #227152;
+  --g-chart-4: #0b5c43;
+  --g-chart-grid: var(--g-line);
+
+  /* Outstanding, pending, not-yet: deliberately outside the green ramp so a
+     slice that has not been earned never reads as one that has. Darkened from
+     #b9b0a0, which measured 2.15:1 on white rather than the 3.1:1 the old
+     comment claimed, and was the faintest thing on the page. */
+  --g-chart-muted: #948a78; /* 3.4:1 on surface, 3.2:1 on canvas */
+
+  --g-accent:       #0b5c43; /* 8.0:1 on surface, white text 8.0:1 */
+  --g-accent-hover: #084533;
+  --g-accent-ink:   #ffffff;
+  --g-accent-tint:  #e1f6dd; /* same mint as the banner gradient stops */
+  --g-accent-line:  #cfebc9; /* same hairline as the banner border */
+
+  --g-deep:      #04231b; /* white text 16.7:1 */
+  --g-deep-2:    #0a3a2c;
+  --g-on-deep:   #ffffff;
+  --g-on-deep-2: #a9c6bb; /* 9.1:1 on --g-deep */
+  --g-deep-line: rgba(255, 255, 255, 0.14);
+  --g-deep-fill: rgba(255, 255, 255, 0.08);
+
+  --g-attn:      #8a5a00; /* 5.9:1 on surface */
+  --g-attn-tint: #fbf3e3;
+  --g-attn-line: #ebd9ae;
+  --g-neg:       #a32020; /* 7.5:1 on surface */
+  --g-neg-tint:  #fbecec;
+  --g-neg-line:  #f0cfcf;
+
+  --g-r-sm: 10px;
+  --g-r-md: 14px;
+  --g-r-lg: 18px;
+  --g-r-xl: 24px;
+  --g-r-pill: 999px;
+
+  --g-sh-1: 0 1px 2px rgba(8, 33, 27, 0.06), 0 2px 6px rgba(8, 33, 27, 0.04);
+  --g-sh-2: 0 4px 16px rgba(8, 33, 27, 0.08);
+  --g-sh-3: 0 18px 48px rgba(8, 33, 27, 0.16);
+
+  /* Spacing scale. --g-gap is the space BETWEEN cards and --g-pad the space
+     INSIDE them; keeping gap >= pad is what stops a column of cards from
+     reading as one crowded block. --g-band is the vertical rhythm of the
+     page header and the space that follows it. */
+  --g-gap:  clamp(16px, 2.4vw, 28px);
+  --g-pad:  clamp(18px, 2.4vw, 26px);
+  --g-band: clamp(28px, 4vw, 44px);
+
+  --g-gutter: clamp(16px, 4vw, 32px);
+  --g-max: 1180px;
+  --g-tap: 44px;
+}
+
+/* Dark appearance for the portals. Opt in with <html data-theme="dark">.
+   It is not wired to prefers-color-scheme yet because the landing page and
+   the application wizard are still light-only, and a half-dark app reads as
+   broken. Switch this to a media query once those two are converted. */
+:root[data-theme="dark"] {
+  --g-canvas:      #070d0c;
+  --g-surface:     #101a17;
+  --g-surface-2:   #16221e;
+  --g-line:        #223029;
+  --g-line-strong: #2e3f37;
+
+  --g-banner: linear-gradient(135deg, #16332a 0%, #101a17 50%, #16332a 100%);
+  --g-banner-line: #23453a;
+
+  /* Dark ramp runs dim to bright so the furthest stage still reads strongest.
+     Validated against the dark surface: light end 2.77:1, hue spread 4. */
+  --g-chart-1: #2e6b53;
+  --g-chart-2: #3f8e6c;
+  --g-chart-3: #5fb88e;
+  --g-chart-4: #8fdcb4;
+  --g-chart-muted: #4a5551;
+
+  --g-ink:   #eaf2ef; /* 15.6:1 on surface */
+  --g-ink-2: #a8bcb5; /*  8.9:1 on surface */
+  --g-ink-3: #8aa098; /*  6.4:1 on surface */
+  --g-ink-4: #75897f; /*  4.6:1 on surface, graphics only */
+
+  --g-accent:       #4dbf95; /* 7.8:1 on surface */
+  --g-accent-hover: #6bd3ac;
+  --g-accent-ink:   #04231b;
+  --g-accent-tint:  #13302a;
+  --g-accent-line:  #1e4438;
+
+  --g-deep:   #0a1714;
+  --g-deep-2: #102821;
+
+  --g-attn:      #e0a94a; /* 8.4:1 on surface */
+  --g-attn-tint: #2c2417;
+  --g-attn-line: #453720;
+  --g-neg:       #f08a8a; /* 7.4:1 on surface */
+  --g-neg-tint:  #2e1a1a;
+  --g-neg-line:  #4a2626;
+
+  --g-sh-1: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --g-sh-2: 0 4px 16px rgba(0, 0, 0, 0.45);
+  --g-sh-3: 0 18px 48px rgba(0, 0, 0, 0.6);
+}

@@ -1,0 +1,37 @@
+{% extends "admin/index.html" %}
+
+{% comment %}
+A short orientation note above the section list. Staff open the admin and see a
+column of model names; this says which screens do the daily work and in what
+order, so nobody has to learn it by clicking.
+{% endcomment %}
+
+{% block content %}
+  <div class="gabstep-hint">
+    <strong>Working the pipeline.</strong>
+    <ol class="gabstep-steps">
+      <li>
+        <strong>Applications</strong> is the main screen: verify documents, move a file
+        to the next stage, grant admission, confirm a visa. Add an <em>issued letter</em>
+        on an application and the applicant sees it on their dashboard straight away.
+      </li>
+      <li>
+        <strong>Partners &amp; sales</strong> is where agent and sales manager requests
+        are approved: ad funding, agent payouts and sales manager payouts.
+      </li>
+      <li>
+        <strong>Payments</strong> confirms an application fee that arrived off platform,
+        which also pays the agent their commission.
+      </li>
+      <li>
+        <strong>Add course</strong> is the whole catalogue in one screen. Paste a
+        school's course list, check what was read, set the application fee, and the
+        country, the school and every course are created in the right place. Links
+        at the foot of that screen reach the existing rows if one needs correcting.
+      </li>
+    </ol>
+    Select rows and choose an action from the dropdown to handle several at once.
+    Everything that changes what an applicant can see also writes them a notification.
+  </div>
+  {{ block.super }}
+{% endblock %}

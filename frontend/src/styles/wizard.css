@@ -1,0 +1,713 @@
+/* ===================================================================
+   Gabstep Visa Application - Multi-Step Application Wizard Styles
+   Theme: Enterprise Dark Green & Crisp Slate
+   Responsive: Full Mobile & Tablet Grid System
+   =================================================================== */
+
+.wizard-section {
+  padding: var(--space-4) 0 var(--space-12);
+  min-height: calc(100vh - var(--nav-height));
+  background-color: var(--g-canvas);
+}
+
+@media (min-width: 768px) {
+  .wizard-section {
+    padding: var(--space-8) 0 var(--space-16);
+  }
+}
+
+.wizard-shell {
+  max-width: 900px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* Wizard Header & Progress Bar *
+
+/* Stepper Track *
+
+.step-node.locked {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.step-node.active .step-circle {
+  border-color: var(--brand-700);
+  background-color: var(--brand-700);
+  color: #ffffff;
+  box-shadow: 0 0 0 4px var(--brand-100);
+}
+
+.step-node.completed .step-circle {
+  border-color: var(--brand-800);
+  background-color: var(--brand-800);
+  color: #ffffff;
+}
+
+.step-node.active .step-label {
+  color: var(--brand-800);
+  font-weight: 700;
+}
+
+.step-node.completed .step-label {
+  color: var(--slate-800);
+}
+
+/* Step Card Container */
+.wizard-card {
+  background-color: #ffffff;
+  border: 1px solid var(--slate-200);
+  border-radius: var(--radius-xl);
+  padding: var(--space-4);
+  box-shadow: var(--shadow-sm);
+  animation: fadeInStep 300ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@media (min-width: 640px) {
+  .wizard-card {
+    padding: var(--space-6);
+  }
+}
+@media (min-width: 900px) {
+  .wizard-card {
+    padding: var(--space-8);
+  }
+}
+
+@keyframes fadeInStep {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.step-header {
+  margin-bottom: var(--space-4);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--slate-100);
+}
+
+@media (min-width: 640px) {
+  .step-header {
+    margin-bottom: var(--space-6);
+    padding-bottom: var(--space-4);
+  }
+}
+
+.step-header h3 {
+  font-size: clamp(1.125rem, 3.5vw, 1.375rem);
+  color: var(--slate-950);
+  margin-bottom: var(--space-1);
+}
+
+.step-header p {
+  color: var(--slate-500);
+  font-size: clamp(0.8125rem, 2vw, 0.9375rem);
+  line-height: 1.5;
+}
+
+/* Form Grids */
+.form-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-3);
+}
+
+@media (min-width: 640px) {
+  .form-grid-2 {
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--space-4);
+  }
+}
+
+/* ================= Step 3: School & Program Cards (Accordion UX) ================= */
+.schools-container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+
+/* ─── School Card ─── *
+
+.school-card.open {
+  border-color: var(--slate-300);
+  box-shadow: var(--shadow-md);
+}
+
+.school-card.selected {
+  border-color: var(--brand-600);
+  box-shadow: 0 4px 20px rgba(4, 120, 87, 0.12);
+}
+
+/* ─── School Card Trigger (clickable header) ─── *
+
+.school-card.selected .school-card-trigger { background-color: var(--g-accent-tint); }
+
+/* ─── School Body (expandable) ─── *
+
+.school-card.open .school-card-body {
+  grid-template-rows: 1fr;
+  border-top-width: 1px;
+}
+
+/* Inner wrapper needed for grid trick *
+
+/* ─── Chevron Arrow ─── *
+.school-card.selected .school-card-arrow { color: var(--brand-700); }
+.school-card.open .school-chevron { transform: rotate(180deg); }
+
+/* ─── School badges row inside trigger ─── *
+
+/* ─── Degree Accordion ─── *
+.degree-accordion.open .degree-accordion-trigger { background-color: var(--brand-50); }
+
+.degree-accordion.open .degree-accordion-label { color: var(--brand-800); }
+
+.degree-accordion.open .degree-count-badge {
+  background: var(--brand-100);
+  color: var(--brand-800);
+}
+.degree-accordion.open .degree-chevron {
+  transform: rotate(180deg);
+  color: var(--brand-700);
+}
+
+/* ─── Degree Accordion Body (expandable) ─── *
+
+.degree-accordion.open .degree-accordion-body {
+  grid-template-rows: 1fr;
+}
+
+.app-fee-badge.paid {
+  background-color: var(--brand-950);
+  color: #ffffff;
+}
+
+.app-fee-badge.free {
+  background-color: var(--success-50);
+  color: var(--success-700);
+  border: 1px solid var(--success-500);
+}
+
+/* Degree-level category headers within the programs list *
+
+.program-item.checked {
+  border-color: var(--brand-700);
+  background-color: var(--brand-50);
+}
+
+.program-item.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background-color: var(--slate-100);
+}
+
+/* ================= Step 4: Document Upload Dropzones ================= */
+.dropzone-container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.dropzone-card {
+  border: 2px dashed var(--slate-300);
+  border-radius: var(--radius-xl);
+  padding: var(--space-4);
+  text-align: center;
+  background-color: var(--slate-50);
+  transition: all var(--transition-fast);
+  cursor: pointer;
+  position: relative;
+}
+
+@media (min-width: 640px) {
+  .dropzone-card {
+    padding: var(--space-6);
+  }
+}
+
+.dropzone-card:hover, .dropzone-card.dragover {
+  border-color: var(--brand-700);
+  background-color: var(--brand-50);
+}
+
+.dropzone-icon {
+  width: 36px;
+  height: 36px;
+  margin: 0 auto var(--space-2);
+  color: var(--slate-400);
+  transition: color var(--transition-fast);
+}
+
+@media (min-width: 640px) {
+  .dropzone-icon {
+    width: 44px;
+    height: 44px;
+    margin-bottom: var(--space-3);
+  }
+}
+
+.dropzone-card:hover .dropzone-icon {
+  color: var(--brand-700);
+}
+
+.dropzone-title {
+  font-size: clamp(0.875rem, 2.5vw, 1rem);
+  font-weight: 700;
+  color: var(--slate-900);
+  margin-bottom: var(--space-1);
+}
+
+.dropzone-req {
+  color: var(--error-600);
+}
+
+.dropzone-hint {
+  font-size: clamp(0.6875rem, 2vw, 0.8125rem);
+  color: var(--slate-500);
+  margin-bottom: var(--space-3);
+}
+
+.dropzone-file-input {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.uploaded-file-tag {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-2) var(--space-3);
+  background-color: #ffffff;
+  border: 1px solid var(--success-500);
+  border-radius: var(--radius-md);
+  margin-top: var(--space-2);
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.uploaded-file-tag.visible {
+  display: flex;
+}
+
+.uploaded-file-info {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.file-status-icon {
+  color: var(--success-600);
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.file-name-display {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--slate-900);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-size-display {
+  font-size: 0.6875rem;
+  color: var(--slate-500);
+  margin-left: 4px;
+}
+
+/* ================= Step 5: Payment Breakdown & Gateways ================= */
+.summary-invoice {
+  background-color: var(--slate-50);
+  border: 1px solid var(--slate-200);
+  border-radius: var(--radius-xl);
+  padding: var(--space-4);
+  margin-bottom: var(--space-5);
+}
+
+@media (min-width: 640px) {
+  .summary-invoice {
+    padding: var(--space-6);
+    margin-bottom: var(--space-6);
+  }
+}
+
+.invoice-header {
+  font-size: clamp(0.9375rem, 2.5vw, 1rem);
+  font-weight: 700;
+  color: var(--slate-900);
+  margin-bottom: var(--space-3);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--slate-200);
+}
+
+.invoice-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: clamp(0.8125rem, 2.5vw, 0.9375rem);
+  color: var(--slate-600);
+  margin-bottom: var(--space-2);
+  gap: var(--space-2);
+}
+
+.invoice-row.total {
+  font-size: clamp(1rem, 3vw, 1.125rem);
+  font-weight: 800;
+  color: var(--slate-950);
+  padding-top: var(--space-3);
+  margin-top: var(--space-3);
+  border-top: 1px dashed var(--slate-300);
+}
+
+.gateway-selector {
+  margin-bottom: var(--space-6);
+}
+
+.gateway-selector-label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--slate-800);
+  margin-bottom: var(--space-3);
+}
+
+.gateways-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-3);
+}
+
+@media (min-width: 540px) {
+  .gateways-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.gateway-option {
+  border: 2px solid var(--slate-200);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  cursor: pointer;
+  background-color: #ffffff;
+  transition: all var(--transition-fast);
+  min-height: 48px;
+}
+
+.gateway-option:hover {
+  border-color: var(--slate-300);
+}
+
+.gateway-option.selected {
+  border-color: var(--brand-700);
+  background-color: var(--brand-50);
+}
+
+.gateway-radio {
+  accent-color: var(--brand-700);
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.gateway-name {
+  font-weight: 700;
+  font-size: 0.9375rem;
+  color: var(--slate-900);
+}
+
+.gateway-methods {
+  font-size: 0.75rem;
+  color: var(--slate-500);
+}
+
+/* ================= Wizard Navigation Footer Buttons ================= */
+.wizard-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: var(--space-6);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--slate-200);
+  gap: var(--space-3);
+  width: 100%;
+}
+
+@media (max-width: 600px) {
+  .wizard-footer {
+    flex-direction: column-reverse;
+    gap: var(--space-3);
+  }
+  .wizard-footer .btn {
+    width: 100%;
+    justify-content: center;
+    padding: 0.8rem 1rem;
+    white-space: normal;
+    text-align: center;
+  }
+}
+
+/* Course rows carry their duration, tuition and intake under the name. *
+
+/* ==========================================================================
+   STEP 3: SCHOOL, THEN COURSE
+   Two native select fields shown one at a time. Deliberately undecorated: the
+   applicant is answering two questions, and a card grid made that look like
+   more work than it is.
+   ========================================================================== */
+
+.picker {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.picker-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.picker-label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--slate-700);
+  letter-spacing: 0.01em;
+}
+
+.picker-count {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--slate-500);
+  font-variant-numeric: tabular-nums;
+}
+
+.picker-select-wrap {
+  position: relative;
+}
+
+.picker-select {
+  width: 100%;
+  appearance: none;
+  -webkit-appearance: none;
+  padding: 13px 44px 13px 14px;
+  border: 1.5px solid var(--slate-300);
+  border-radius: var(--radius-md);
+  background: #ffffff;
+  font-family: inherit;
+  font-size: 0.9375rem;
+  color: var(--slate-900);
+  line-height: 1.4;
+  cursor: pointer;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.picker-select:hover:not(:disabled) {
+  border-color: var(--slate-400);
+}
+
+.picker-select:focus {
+  outline: none;
+  border-color: var(--brand-600);
+  box-shadow: 0 0 0 3px rgba(4, 120, 87, 0.12);
+}
+
+.picker-select:disabled {
+  background: var(--slate-50);
+  color: var(--slate-500);
+  cursor: not-allowed;
+}
+
+.picker-chevron {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--slate-500);
+  pointer-events: none;
+}
+
+/* The school, once it is settled: one line, and a way back to it. */
+.picker-chosen {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 13px 14px;
+  border: 1.5px solid var(--slate-200);
+  border-radius: var(--radius-md);
+  background: var(--slate-50);
+}
+
+.picker-chosen-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.picker-chosen-label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--slate-500);
+}
+
+.picker-chosen-value {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--slate-900);
+}
+
+.picker-chosen-meta {
+  font-size: 0.8125rem;
+  color: var(--slate-600);
+}
+
+.picker-change {
+  flex-shrink: 0;
+  padding: 6px 12px;
+  border: 1px solid var(--slate-300);
+  border-radius: var(--radius-sm);
+  background: #ffffff;
+  font-family: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--slate-700);
+  cursor: pointer;
+  transition: border-color 160ms ease, color 160ms ease;
+}
+
+.picker-change:hover {
+  border-color: var(--slate-400);
+  color: var(--slate-900);
+}
+
+.picker-chosen-list {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.picker-chosen-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 14px;
+  border: 1.5px solid var(--brand-200);
+  border-radius: var(--radius-md);
+  background: var(--brand-50);
+}
+
+/* The course field arrives where the school field was, so it moves in rather
+   than appearing from nowhere. */
+.picker-reveal {
+  animation: picker-reveal 260ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes picker-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .picker-reveal {
+    animation: none;
+  }
+}
+
+@media (max-width: 520px) {
+  .picker-chosen,
+  .picker-chosen-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+}
+
+/* ─── Payment sheet ───────────────────────────────────────────────── */
+
+.pay-summary {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--g-line);
+}
+
+.pay-summary-right {
+  text-align: right;
+}
+
+.pay-summary-label {
+  display: block;
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--g-ink-3);
+}
+
+.pay-summary-value {
+  display: block;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--g-ink);
+  overflow-wrap: anywhere;
+}
+
+.pay-summary-amount {
+  display: block;
+  font-size: 1.25rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--g-accent);
+}
+
+.pay-row-label { color: var(--g-ink-3); }
+
+.pay-row-account {
+  font-family: var(--font-mono);
+  color: var(--g-accent);
+}
+
+.pay-note {
+  font-size: 0.8125rem;
+  color: var(--g-ink-2);
+}
+
+/* The two halves stack before the email address and the amount collide. */
+@media (max-width: 420px) {
+  .pay-summary { flex-direction: column; }
+  .pay-summary-right { text-align: left; }
+}

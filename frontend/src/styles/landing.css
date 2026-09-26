@@ -1,0 +1,270 @@
+/* ===================================================================
+   Gabstep Visa Application - Landing Page & Hero Section Styles
+   Theme: Crisp Left-Aligned Hero with Blurred Image Background
+   =================================================================== */
+
+/* Top Navigation Bar */
+.site-header {
+  position: sticky;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: var(--nav-height);
+  background-color: rgba(255, 255, 255, 0.98);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--color-border-subtle);
+  z-index: var(--z-sticky);
+  transition: all var(--transition-normal);
+}
+
+.site-header .nav-container {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start; /* Starts brand title cleanly on the left-hand side */
+  height: 100%;
+  padding-left: var(--space-4);
+  padding-right: var(--space-4);
+}
+
+@media (min-width: 768px) {
+  .site-header .nav-container {
+    padding-left: var(--space-6);
+    padding-right: var(--space-6);
+  }
+}
+
+.brand-logo {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  text-decoration: none;
+  color: var(--slate-900);
+}
+
+.brand-icon-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.brand-logo-img {
+  height: 42px;
+  width: auto;
+  max-width: 100%;
+  object-fit: contain;
+  display: block;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.08));
+  transition: transform var(--transition-fast);
+}
+
+.brand-logo:hover .brand-logo-img {
+  transform: scale(1.08) rotate(-2deg);
+}
+
+.brand-name {
+  font-size: clamp(1.15rem, 3.8vw, 1.45rem);
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  color: var(--brand-950);
+  display: flex;
+  flex-direction: row; /* Horizontal */
+  align-items: center;
+  gap: 6px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.brand-name span.sub {
+  font-size: inherit;
+  font-weight: 800; /* Bold */
+  letter-spacing: -0.025em;
+  text-transform: none;
+  color: var(--brand-700);
+}
+
+@media (max-width: 480px) {
+  .brand-logo-img {
+    height: 32px;
+  }
+}
+
+/* ================= Hero Section & Crossfade Blurred Carousel ================= */
+.hero-section {
+  position: relative;
+  min-height: calc(100vh - var(--nav-height));
+  display: flex;
+  align-items: center;
+  justify-content: flex-start; /* Aligned to left-hand side */
+  overflow: hidden;
+  background-color: #0b0f19; /* Neutral dark base, no green background */
+  padding: var(--space-8) 0;
+}
+
+/* Zero-layout-shift blurred image crossfade carousel */
+.hero-carousel {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+  overflow: hidden;
+}
+
+.carousel-slide {
+  position: absolute;
+  top: -20px;
+  left: -20px;
+  width: calc(100% + 40px);
+  height: calc(100% + 40px);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 1200ms cubic-bezier(0.4, 0, 0.2, 1), visibility 1200ms ease;
+  background-size: cover;
+  background-position: center;
+  /* Blurred image for strong text contrast, dimmed without colored wash */
+  filter: blur(8px) brightness(0.60);
+  will-change: opacity, filter;
+}
+
+.carousel-slide.active {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Neutral soft overlay - no green tint, just clear legibility */
+.hero-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 2;
+  background: linear-gradient(
+    to right,
+    rgba(11, 15, 25, 0.70) 0%,
+    rgba(11, 15, 25, 0.45) 55%,
+    rgba(11, 15, 25, 0.25) 100%
+  );
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+
+/* Hero Content - Clean Left-Hand Side Alignment */
+.hero-content-wrap {
+  position: relative;
+  z-index: 3;
+  padding-top: var(--space-8);
+  padding-bottom: var(--space-8);
+  max-width: 720px;
+  width: 100%;
+  text-align: left;
+  margin-left: 0;
+  margin-right: auto;
+}
+
+@media (min-width: 768px) {
+  .hero-content-wrap {
+    padding-top: var(--space-12);
+    padding-bottom: var(--space-12);
+  }
+}
+
+.hero-title {
+  color: #ffffff;
+  font-size: clamp(2rem, 5.5vw, 3.65rem);
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: -0.03em;
+  margin-bottom: var(--space-4);
+  text-align: left;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.65);
+}
+
+.hero-subtitle {
+  color: #f1f5f9;
+  font-size: clamp(1rem, 2.2vw, 1.25rem);
+  line-height: 1.6;
+  margin-bottom: var(--space-8);
+  max-width: 620px;
+  text-align: left;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.6);
+}
+
+.hero-cta-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-start; /* Left-aligned */
+  gap: var(--space-4);
+  width: 100%;
+}
+
+.hero-cta-group .btn-accent {
+  background-color: var(--g-accent);
+  color: #ffffff;
+  border: 1px solid var(--g-chart-3);
+  padding: 0.875rem 2rem;
+  font-size: 1.0625rem;
+  box-shadow: 0 4px 20px rgba(4, 120, 87, 0.45);
+}
+.hero-cta-group .btn-accent:hover {
+  background-color: var(--g-deep-2);
+  border-color: var(--g-accent);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 24px rgba(4, 120, 87, 0.6);
+}
+
+.hero-cta-group .btn-secondary {
+  background-color: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  padding: 0.875rem 2rem;
+  font-size: 1.0625rem;
+  backdrop-filter: blur(8px);
+}
+.hero-cta-group .btn-secondary:hover {
+  background-color: rgba(255, 255, 255, 0.28);
+  color: #ffffff;
+  transform: translateY(-2px);
+}
+
+/* Mobile full-width stack for CTAs */
+@media (max-width: 540px) {
+  .hero-cta-group {
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+  .hero-cta-group .btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* Carousel Indicators */
+.carousel-controls {
+  position: absolute;
+  bottom: var(--space-6);
+  right: var(--space-6);
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.carousel-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+  background-color: rgba(255, 255, 255, 0.35);
+  border: none;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.carousel-dot.active {
+  width: 24px;
+  background-color: var(--g-chart-1);
+}

@@ -1,0 +1,27 @@
+from django.urls import include, path
+from rest_framework.routers import DefaultRouter
+
+from .views import (
+    AgentOverviewView,
+    AgentProfileView,
+    AgentStudentViewSet,
+    CommissionListView,
+    LoanViewSet,
+    SavingsView,
+    WalletView,
+    WithdrawalViewSet,
+)
+
+router = DefaultRouter()
+router.register("students", AgentStudentViewSet, basename="agent-student")
+router.register("loans", LoanViewSet, basename="agent-loan")
+router.register("withdrawals", WithdrawalViewSet, basename="agent-withdrawal")
+
+urlpatterns = [
+    path("me/", AgentProfileView.as_view(), name="agent-profile"),
+    path("overview/", AgentOverviewView.as_view(), name="agent-overview"),
+    path("wallet/", WalletView.as_view(), name="agent-wallet"),
+    path("wallet/savings/", SavingsView.as_view(), name="agent-savings"),
+    path("commissions/", CommissionListView.as_view(), name="agent-commissions"),
+    path("", include(router.urls)),
+]

@@ -1,0 +1,22 @@
+{% extends "admin/base.html" %}
+{% load static %}
+
+{% block title %}{% if subtitle %}{{ subtitle }} | {% endif %}{{ title }} | Gabstep admissions desk{% endblock %}
+
+{% block extrastyle %}
+  {{ block.super }}
+  <link rel="stylesheet" href="{% static 'admin/css/gabstep.css' %}">
+  <link rel="icon" type="image/png" href="{% static 'admin/img/gabstep-logo.png' %}">
+{% endblock %}
+
+{% block branding %}
+  <h1 id="site-name">
+    <a href="{% url 'admin:index' %}" class="gabstep-brand">
+      <img src="{% static 'admin/img/gabstep-logo.png' %}" alt="">
+      <span>Gabstep</span>
+      <span class="gabstep-brand-sub">Admissions desk</span>
+    </a>
+  </h1>
+{% endblock %}
+
+{% block nav-global %}{% endblock %}

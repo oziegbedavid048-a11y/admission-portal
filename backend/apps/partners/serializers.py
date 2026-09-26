@@ -1,0 +1,372 @@
+from decimal import Decimal
+
+from django.db import transaction
+
+from rest_framework import serializers
+
+from apps.accounts.models import User
+from apps.applications.constants import (
+    AGENT_COMMISSION_PER_MILESTONE,
+    MIN_WITHDRAWAL_NGN,
+)
+from apps.applications import services
+from apps.applications.models import Application, Notification
+from apps.applications.serializers import ApplicationCreateSerializer
+
+from .models import AgentProfile, Commission, Loan, Wallet, Withdrawal
+
+
+class WalletSerializer(serializers.ModelSerializer):
+    available_balance = serializers.DecimalField(
+        max_digits=12, decimal_places=2, read_only=True
+    )
+    # Published so the portal enforces the same floor the API does, rather than
+    # keeping its own copy of the number that can drift out of step.
+    minimum_withdrawal = serializers.SerializerMethodField()
+    can_withdraw = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Wallet
+        fields = (
+            "registration_commission_total",
+            "visa_commission_total",
+            "total_earned",
+            "loan_balance",
+            "saved_balance",
+            "total_withdrawn",
+            "available_balance",
+            "minimum_withdrawal",
+            "can_withdraw",
+            "updated_at",
+        )
+        read_only_fields = fields
+
+    def get_minimum_withdrawal(self, obj):
+        return MIN_WITHDRAWAL_NGN
+
+    def get_can_withdraw(self, obj):
+        return obj.available_balance >= MIN_WITHDRAWAL_NGN
+
+
+class AgentProfileSerializer(serializers.ModelSerializer):
+    full_name = serializers.CharField(source="user.full_name")
+    email = serializers.EmailField(source="user.email", read_only=True)
+    phone = serializers.CharField(source="user.phone", required=False, allow_blank=True)
+    country = serializers.CharField(
+        source="user.country", required=False, allow_blank=True
+    )
+    avatar = serializers.ImageField(source="user.avatar", read_only=True)
+    initials = serializers.CharField(source="user.initials", read_only=True)
+    partner_code = serializers.CharField(read_only=True)
+    wallet = WalletSerializer(read_only=True)
+
+    class Meta:
+        model = AgentProfile
+        fields = (
+            "id",
+            "full_name",
+            "email",
+            "phone",
+            "country",
+            "avatar",
+            "initials",
+            "partner_code",
+            "agency_name",
+            "bank_name",
+            "account_number",
+            "account_name",
+            "total_closed_sales",
+            "wallet",
+            "created_at",
+        )
+        read_only_fields = ("id", "total_closed_sales", "created_at")
+
+    def validate_account_number(self, value):
+        if value and not (value.isdigit() and len(value) == 10):
+            raise serializers.ValidationError("Account number should be 10 digits.")
+        return value
+
+    def update(self, instance, validated_data):
+        user_data = validated_data.pop("user", {})
+        for field, value in user_data.items():
+            setattr(instance.user, field, value)
+        if user_data:
+            instance.user.save()
+        return super().update(instance, validated_data)
+
+
+class LoanSerializer(serializers.ModelSerializer):
+    reference = serializers.CharField(read_only=True)
+    ad_account_link = serializers.URLField(
+        required=False, allow_blank=True, default="https://business.facebook.com/adsmanager"
+    )
+
+    class Meta:
+        model = Loan
+        fields = (
+            "id",
+            "reference",
+            "requested_amount",
+            "approved_amount",
+            "purpose",
+            "ad_account_link",
+            "status",
+            "requested_at",
+            "disbursed_at",
+        )
+        read_only_fields = ("id", "reference", "approved_amount", "status", "requested_at", "disbursed_at")
+
+    def validate_requested_amount(self, value):
+        if value < Loan.MIN_AMOUNT or value > Loan.MAX_AMOUNT:
+            raise serializers.ValidationError(
+                f"Ad funding runs from {Loan.MIN_AMOUNT:,.0f} to {Loan.MAX_AMOUNT:,.0f} Naira."
+            )
+        return value
+
+    def validate(self, attrs):
+        """One request at a time, and nothing new while a balance is owed.
+
+        The per-request ceiling was the only limit, so an agent could file ten
+        requests of the maximum and, if each were approved, hold ten times the
+        cap. Repayment is taken from commission the agent has not earned yet, so
+        the exposure has to be one loan deep.
+        """
+        agent = self.context["agent"]
+
+        if agent.loans.filter(status=Loan.Status.PENDING).exists():
+            raise serializers.ValidationError(
+                "You already have a funding request in review. The desk will come "
+                "back to you on that one before you can raise another."
+            )
+
+        outstanding = agent.wallet.loan_balance
+        if outstanding > 0:
+            raise serializers.ValidationError(
+                f"₦{outstanding:,.0f} of ad funding is still outstanding. It is "
+                "repaid automatically from your withdrawals, and you can request "
+                "again once it clears."
+            )
+        return attrs
+
+    def validate_purpose(self, value):
+        if not value.strip():
+            raise serializers.ValidationError("Choose an advertising platform.")
+        return value
+
+
+class WithdrawalSerializer(serializers.ModelSerializer):
+    reference = serializers.CharField(read_only=True)
+
+    class Meta:
+        model = Withdrawal
+        fields = (
+            "id",
+            "reference",
+            "amount_requested",
+            "loan_deduction",
+            "net_amount",
+            "status",
+            "created_at",
+        )
+        read_only_fields = ("id", "reference", "loan_deduction", "net_amount", "status", "created_at")
+
+
+class WithdrawalRequestSerializer(serializers.Serializer):
+    amount = serializers.DecimalField(max_digits=12, decimal_places=2)
+
+    def validate_amount(self, value):
+        """A friendly check before the request is made.
+
+        The authoritative one is in Withdrawal.request, under a row lock. This
+        exists so the common case gets a clear message on the field rather than
+        an error from the model.
+        """
+        agent = self.context["agent"]
+        if value < MIN_WITHDRAWAL_NGN:
+            raise serializers.ValidationError(
+                f"The smallest withdrawal is ₦{MIN_WITHDRAWAL_NGN:,.0f}."
+            )
+        if value > agent.wallet.available_balance:
+            raise serializers.ValidationError("That is more than your available balance.")
+        return value
+
+
+class SaveToSavingsSerializer(serializers.Serializer):
+    amount = serializers.DecimalField(max_digits=12, decimal_places=2, min_value=Decimal("1"))
+
+    def validate_amount(self, value):
+        agent = self.context["agent"]
+        if value > agent.wallet.available_balance:
+            raise serializers.ValidationError("That is more than your available balance.")
+        return value
+
+
+class ReleaseFromSavingsSerializer(serializers.Serializer):
+    """Take money back out of savings and make it withdrawable again."""
+
+    amount = serializers.DecimalField(max_digits=12, decimal_places=2, min_value=Decimal("1"))
+
+    def validate_amount(self, value):
+        agent = self.context["agent"]
+        if value > agent.wallet.saved_balance:
+            raise serializers.ValidationError("That is more than you have in savings.")
+        return value
+
+
+class CommissionSerializer(serializers.ModelSerializer):
+    application_reference = serializers.CharField(
+        source="application.reference", read_only=True
+    )
+    kind_display = serializers.CharField(source="get_kind_display", read_only=True)
+    student_name = serializers.CharField(source="application.full_name", read_only=True)
+
+    class Meta:
+        model = Commission
+        fields = (
+            "id",
+            "kind",
+            "kind_display",
+            "amount",
+            "earned_at",
+            "application_reference",
+            "student_name",
+        )
+
+
+class AgentStudentSerializer(serializers.ModelSerializer):
+    """A student file as the agent's Students table shows it."""
+
+    institution = serializers.CharField(source="institution.name", default="", read_only=True)
+    destination_country = serializers.CharField(
+        source="destination_country.name", read_only=True
+    )
+    origin_country = serializers.CharField(source="origin_country.name", read_only=True)
+    program = serializers.SerializerMethodField()
+    documents = serializers.SerializerMethodField()
+    commission_earned = serializers.SerializerMethodField()
+    fee_status = serializers.SerializerMethodField()
+    fee_display = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Application
+        fields = (
+            "id",
+            "reference",
+            "full_name",
+            "email",
+            "phone",
+            "origin_country",
+            "destination_country",
+            "institution",
+            "program",
+            "qualification",
+            "year_graduated",
+            "grade_gpa",
+            "status",
+            "visa_status",
+            "notes",
+            "documents",
+            "commission_earned",
+            "fee_status",
+            "fee_display",
+            "submitted_at",
+        )
+        # Everything here is read-only. This serializer is what the agent's
+        # Students table renders, and it used to be writable: a PATCH could set
+        # `status`, `visa_status` or the student's own `email`, which is where
+        # every letter and status update is sent. The desk decides what a file's
+        # status is, and the only field an agent may still change is the note
+        # they wrote themselves, which AgentStudentNoteSerializer handles.
+        read_only_fields = fields
+
+    def get_program(self, obj):
+        return " & ".join(p.name for p in obj.programs.all())
+
+    def get_documents(self, obj):
+        return [doc.name for doc in obj.documents.all()]
+
+    def get_commission_earned(self, obj):
+        return sum((c.amount for c in obj.commissions.all()), Decimal("0.00"))
+
+    def get_fee_status(self, obj):
+        """Whether the application fee has been settled.
+
+        This is what gates the agent's commission, so the students table shows
+        it on every row rather than making them open each file to find out.
+        """
+        payment = getattr(obj, "payment", None)
+        if payment is None:
+            return "unpaid"
+        return {"paid": "paid", "waived": "waived"}.get(payment.status, "pending")
+
+    def get_fee_display(self, obj):
+        payment = getattr(obj, "payment", None)
+        if payment is None:
+            return "Not paid"
+        if payment.status == "waived":
+            return "Waived"
+        return payment.display_total
+
+
+class AgentStudentNoteSerializer(serializers.ModelSerializer):
+    """The agent's own note on a file they filed, and nothing else."""
+
+    class Meta:
+        model = Application
+        fields = ("notes",)
+
+
+class AgentStudentCreateSerializer(ApplicationCreateSerializer):
+    """The agent version of the wizard: it also provisions the student account.
+
+    The student gets their own login so they can follow the file in the
+    applicant portal, with a one-time password returned to the agent to hand
+    over.
+    """
+
+    @transaction.atomic
+    def create(self, validated_data):
+        request = self.context["request"]
+        agent = request.user.agent_profile
+
+        email = validated_data["email"].lower()
+        student = User.objects.filter(email__iexact=email).first()
+        account_created = False
+        if student is None:
+            # The account exists to hold the file, not to be signed into. Nobody
+            # is given a password for it: the student is never written to, and
+            # the agent handles the file on their behalf. An unusable password
+            # means no secret is created that would then have to be delivered
+            # somewhere. Staff can set one from the admin if access is ever
+            # genuinely needed.
+            student = User.objects.create_user(
+                email=email,
+                password=None,
+                full_name=validated_data["full_name"],
+                phone=validated_data["phone"],
+                role=User.Role.APPLICANT,
+            )
+            account_created = True
+
+        validated_data["applicant"] = student
+        validated_data["agent"] = agent
+        application = super().create(validated_data)
+
+        agent_name = request.user.full_name or request.user.email
+        application.notes = (
+            application.notes
+            or f"Registered through the partner portal by {agent_name}."
+        )
+        application.save(update_fields=["notes"])
+        Notification.objects.create(
+            application=application,
+            text=f"Filed by your education partner, {agent_name}.",
+            send_email=False,
+        )
+
+        # The sales manager who recruited this agent earns their bonus here,
+        # at the moment of registration.
+        services.award_supervisor_bonus(application)
+
+        application.account_created = account_created
+        return application

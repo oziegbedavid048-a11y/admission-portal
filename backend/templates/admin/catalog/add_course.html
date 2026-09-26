@@ -1,0 +1,227 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% comment %}
+Add Course, in two stages on one screen. Stage one is a paste box. Stage two is
+what the parser made of it: every course as a row that can be corrected, and the
+school and fee details above them. Nothing is written until Save is pressed.
+
+Rows render as plain text with an Edit button. The inputs are already in the
+page; Edit only reveals them, so correcting a row costs no round trip and the
+table stays readable while it is being checked.
+{% endcomment %}
+
+{% block extrastyle %}{{ block.super }}
+<style>
+  .ac-wrap { max-width: 1180px; }
+  .ac-lead { color: var(--body-quiet-color, #666); margin: 0 0 18px; max-width: 70ch; }
+  .ac-panel {
+    background: var(--darkened-bg, #f8f8f8);
+    border: 1px solid var(--hairline-color, #e0e0e0);
+    border-radius: 6px; padding: 18px; margin-bottom: 18px;
+  }
+  .ac-panel h2 { font-size: 14px; margin: 0 0 14px; text-transform: uppercase; letter-spacing: .04em; }
+  .ac-paste textarea {
+    width: 100%; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12.5px; line-height: 1.55; padding: 12px; border-radius: 4px;
+  }
+  .ac-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px 20px; }
+  .ac-field label { display: block; font-weight: 600; font-size: 12px; margin-bottom: 4px; }
+  .ac-field input[type=text], .ac-field input[type=number], .ac-field select { width: 100%; box-sizing: border-box; }
+  .ac-help { display: block; font-size: 11px; color: var(--body-quiet-color, #777); margin-top: 3px; }
+  .ac-err { color: var(--error-fg, #ba2121); font-size: 12px; margin-top: 4px; }
+  .ac-warn { background: #fffbeb; border: 1px solid #fde68a; color: #92400e;
+             border-radius: 6px; padding: 12px 14px; margin-bottom: 16px; font-size: 13px; }
+  .ac-warn ul { margin: 6px 0 0 18px; padding: 0; }
+
+  table.ac-rows { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.ac-rows th {
+    text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .04em;
+    padding: 8px 10px; border-bottom: 2px solid var(--hairline-color, #e0e0e0); white-space: nowrap;
+  }
+  table.ac-rows td { padding: 8px 10px; border-bottom: 1px solid var(--hairline-color, #eee); vertical-align: top; }
+  table.ac-rows tr.ac-off td { opacity: .45; }
+  .ac-name { font-weight: 600; }
+  .ac-sub { color: var(--body-quiet-color, #777); font-size: 12px; }
+  .ac-row-edit input, .ac-row-edit select { width: 100%; box-sizing: border-box; font-size: 12.5px; }
+  .ac-edit-fields { display: none; }
+  tr.editing .ac-edit-fields { display: block; }
+  tr.editing .ac-read { display: none; }
+  .ac-stack > * + * { margin-top: 5px; }
+  .ac-actions { display: flex; gap: 12px; align-items: center; margin-top: 20px; }
+  .ac-muted-btn { background: none; border: 1px solid var(--hairline-color, #ccc); border-radius: 4px;
+                  padding: 6px 12px; cursor: pointer; font-size: 12px; }
+  .ac-links { font-size: 12px; color: var(--body-quiet-color, #777); margin-top: 26px; }
+  .ac-links a { margin-right: 14px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="ac-wrap">
+
+{% if stage == "preview" %}
+
+  <p class="ac-lead">
+    This is what was read from the paste. Correct anything that is wrong, set the
+    application fee, then save.
+  </p>
+
+  {% if warnings %}
+    <div class="ac-warn">
+      Worth checking:
+      <ul>{% for warning in warnings %}<li>{{ warning }}</li>{% endfor %}</ul>
+    </div>
+  {% endif %}
+
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="stage" value="preview">
+    <textarea name="paste" style="display:none">{{ paste }}</textarea>
+    {{ formset.management_form }}
+
+    <div class="ac-panel">
+      <h2>Where these courses go</h2>
+      {% if details_form.non_field_errors %}
+        <div class="ac-err">{{ details_form.non_field_errors }}</div>
+      {% endif %}
+      <div class="ac-grid">
+        {% for field in details_form %}
+          <div class="ac-field">
+            <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+            {{ field }}
+            {% if field.help_text %}<span class="ac-help">{{ field.help_text }}</span>{% endif %}
+            {% for error in field.errors %}<div class="ac-err">{{ error }}</div>{% endfor %}
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="ac-panel">
+      <h2>{{ formset.total_form_count }} course{{ formset.total_form_count|pluralize }} read from the paste</h2>
+      <table class="ac-rows">
+        <thead>
+          <tr>
+            <th style="width:46px">Add</th>
+            <th>Course</th>
+            <th style="width:150px">Level</th>
+            <th style="width:110px">Duration</th>
+            <th style="width:120px">Tuition</th>
+            <th style="width:170px">Intake</th>
+            <th style="width:70px"></th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for form in formset %}
+          <tr class="ac-row" id="row-{{ forloop.counter0 }}">
+            {% for hidden in form.hidden_fields %}{{ hidden }}{% endfor %}
+            <td>{{ form.include }}</td>
+
+            <td class="ac-row-edit">
+              <div class="ac-read">
+                <div class="ac-name">{{ form.name.value|default:"" }}</div>
+                {% if form.qualification_level.value %}
+                  <div class="ac-sub">{{ form.qualification_level.value }}</div>
+                {% endif %}
+                {% if form.scholarship.value %}<div class="ac-sub">{{ form.scholarship.value }}</div>{% endif %}
+                {% if form.note.value %}<div class="ac-sub">{{ form.note.value }}</div>{% endif %}
+              </div>
+              <div class="ac-edit-fields ac-stack">
+                {{ form.name }}
+                {{ form.qualification_level }}
+                {{ form.scholarship }}
+                {{ form.note }}
+              </div>
+              {% for error in form.name.errors %}<div class="ac-err">{{ error }}</div>{% endfor %}
+            </td>
+
+            <td class="ac-row-edit">
+              <div class="ac-read">{{ form.level.value|default:"other" }}</div>
+              <div class="ac-edit-fields">{{ form.level }}</div>
+            </td>
+
+            <td class="ac-row-edit">
+              <div class="ac-read">{{ form.duration.value|default:"&mdash;" }}</div>
+              <div class="ac-edit-fields">{{ form.duration }}</div>
+            </td>
+
+            <td class="ac-row-edit">
+              <div class="ac-read">{{ form.tuition.value|default:"On request" }}</div>
+              <div class="ac-edit-fields">{{ form.tuition }}</div>
+              {% for error in form.tuition.errors %}<div class="ac-err">{{ error }}</div>{% endfor %}
+            </td>
+
+            <td class="ac-row-edit">
+              <div class="ac-read">{{ form.intake.value|default:"&mdash;" }}</div>
+              <div class="ac-edit-fields">{{ form.intake }}</div>
+            </td>
+
+            <td>
+              <button type="button" class="ac-muted-btn" data-edit="row-{{ forloop.counter0 }}">Edit</button>
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="ac-actions">
+      <input type="submit" class="default" value="Save to the catalogue">
+      <button type="submit" name="back" value="1" class="ac-muted-btn"
+              formnovalidate>Back to the paste</button>
+    </div>
+  </form>
+
+{% else %}
+
+  <p class="ac-lead">
+    Paste a school's course list. A table copied from a spreadsheet or a PDF, or
+    one course per line, both work. Name the country, the school and the city on
+    their own lines and they will be picked up; anything missing can be filled in
+    on the next screen.
+  </p>
+
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="stage" value="paste">
+    <div class="ac-panel ac-paste">
+      {{ paste_form.paste }}
+      {% for error in paste_form.paste.errors %}<div class="ac-err">{{ error }}</div>{% endfor %}
+    </div>
+    <div class="ac-actions">
+      <input type="submit" class="default" value="Proceed">
+    </div>
+  </form>
+
+  <p class="ac-links">
+    Already in the catalogue:
+    <a href="{{ program_changelist }}">courses</a>
+    <a href="{{ institution_changelist }}">schools</a>
+    <a href="{{ country_changelist }}">countries</a>
+    <a href="{{ faq_changelist }}">FAQ</a>
+    <a href="{{ rates_changelist }}">exchange rates</a>
+  </p>
+
+{% endif %}
+</div>
+
+<script>
+  document.addEventListener('click', function (event) {
+    var button = event.target.closest('[data-edit]');
+    if (!button) return;
+    var row = document.getElementById(button.dataset.edit);
+    var editing = row.classList.toggle('editing');
+    button.textContent = editing ? 'Done' : 'Edit';
+    if (editing) {
+      var first = row.querySelector('.ac-edit-fields input, .ac-edit-fields select');
+      if (first) first.focus();
+    }
+  });
+
+  // A row that is not being added is dimmed, so what will be saved is obvious
+  // without reading every checkbox.
+  document.addEventListener('change', function (event) {
+    if (!event.target.matches('input[type=checkbox][name$="-include"]')) return;
+    event.target.closest('tr').classList.toggle('ac-off', !event.target.checked);
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,235 @@
+/* ===================================================================
+   Gabstep admin theme.
+   The same deep green the product uses, so staff moving between the
+   admin and the dashboard are looking at one system. Colour carries
+   meaning here too: green is settled, amber waits on someone, red
+   needs attention.
+   =================================================================== */
+
+:root,
+html[data-theme='light'] {
+  --primary: #064e3b;
+  --secondary: #04231b;
+  --accent: #047857;
+  --primary-fg: #ffffff;
+
+  --header-bg: #04231b;
+  --header-color: #ffffff;
+  --header-branding-color: #ffffff;
+  --header-link-color: #a7f3d0;
+
+  --breadcrumbs-bg: #065f46;
+  --breadcrumbs-fg: #d1fae5;
+  --breadcrumbs-link-fg: #ffffff;
+
+  --link-fg: #047857;
+  --link-hover-color: #064e3b;
+  --link-selected-fg: #065f46;
+
+  --button-bg: #047857;
+  --button-fg: #ffffff;
+  --button-hover-bg: #065f46;
+  --default-button-bg: #064e3b;
+  --default-button-hover-bg: #04231b;
+  --close-button-bg: #64748b;
+  --close-button-hover-bg: #475569;
+  --delete-button-bg: #b91c1c;
+  --delete-button-hover-bg: #991b1b;
+
+  --selected-bg: #ecfdf5;
+  --selected-row: #d1fae5;
+
+  --body-fg: #0f172a;
+  --body-quiet-color: #64748b;
+  --border-color: #e2e8f0;
+  --hairline-color: #f1f5f9;
+
+  --font-family-primary: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    Helvetica, Arial, sans-serif;
+}
+
+html[data-theme='dark'] {
+  --primary: #0b5c43;
+  --accent: #4dbf95;
+  --header-bg: #04231b;
+  --breadcrumbs-bg: #06352a;
+  --link-fg: #6ee7b7;
+  --link-hover-color: #a7f3d0;
+  --button-bg: #0b5c43;
+  --button-hover-bg: #0f4a38;
+  --selected-bg: #13302a;
+  --selected-row: #1b4034;
+}
+
+/* ── Branding ─────────────────────────────────────────────────── */
+#header {
+  padding: 12px 28px;
+}
+
+#branding h1,
+#branding h1 a:link,
+#branding h1 a:visited {
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #ffffff;
+}
+
+.gabstep-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.gabstep-brand img {
+  height: 26px;
+  width: auto;
+  display: block;
+}
+
+.gabstep-brand .gabstep-brand-sub {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #6ee7b7;
+  padding-left: 10px;
+  margin-left: 4px;
+  border-left: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+/* ── Changelist ───────────────────────────────────────────────── */
+#changelist table thead th {
+  background: #f8fafc;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+#changelist-form .results {
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+}
+
+#changelist .actions {
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+/* The action dropdown is where most of the work happens, so give it room. */
+#changelist .actions select {
+  min-width: 320px;
+  padding: 6px 10px;
+  border-radius: 8px;
+}
+
+#changelist .actions .button {
+  border-radius: 8px;
+  padding: 6px 14px;
+}
+
+/* ── Forms ────────────────────────────────────────────────────── */
+.module {
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+}
+
+.module h2,
+.module caption,
+.inline-group h2 {
+  background: #064e3b;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.button,
+input[type='submit'],
+input[type='button'],
+.submit-row input,
+a.button {
+  border-radius: 8px;
+  font-weight: 600;
+}
+
+.submit-row {
+  border-radius: 10px;
+}
+
+/* A file already attached should be easy to spot and open. */
+.file-upload a {
+  font-weight: 600;
+}
+
+/* ── Messages ─────────────────────────────────────────────────── */
+ul.messagelist li {
+  border-radius: 8px;
+  font-weight: 500;
+}
+
+ul.messagelist li.success {
+  background: #dcfce7;
+  color: #166534;
+}
+
+ul.messagelist li.warning {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+ul.messagelist li.error {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+/* ── Dashboard index ──────────────────────────────────────────── */
+.dashboard #content-main .module table th a {
+  font-weight: 600;
+}
+
+.gabstep-hint {
+  margin: 0 0 18px;
+  padding: 14px 16px;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  border-radius: 10px;
+  color: #065f46;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.gabstep-hint strong {
+  color: #064e3b;
+}
+
+/* ── Orientation note on the index ───────────────────────────────── */
+.gabstep-steps {
+  margin: 10px 0 12px;
+  padding-left: 20px;
+  display: grid;
+  gap: 7px;
+}
+
+.gabstep-steps li {
+  padding: 0;
+  line-height: 1.6;
+}
+
+.gabstep-steps strong {
+  color: #064e3b;
+}
+
+/* Section headings on the index, so the groups read as separate areas. */
+.dashboard .module caption,
+.dashboard .module h2 {
+  letter-spacing: 0.06em;
+}
+
+.dashboard #content-main .module {
+  margin-bottom: 18px;
+}
