@@ -232,9 +232,22 @@ SPECTACULAR_SETTINGS = {
     "SERVE_INCLUDE_SCHEMA": False,
 }
 
-CORS_ALLOWED_ORIGINS = env_list(
+def _clean_origin(raw_origin):
+    raw_origin = raw_origin.strip()
+    if not raw_origin:
+        return ""
+    if "://" in raw_origin:
+        from urllib.parse import urlparse
+        p = urlparse(raw_origin)
+        return f"{p.scheme}://{p.netloc}"
+    return raw_origin
+
+_raw_cors = env_list(
     "CORS_ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173"
 )
+CORS_ALLOWED_ORIGINS = [_clean_origin(o) for o in _raw_cors if _clean_origin(o)]
+CORS_ALLOW_ALL_ORIGINS = env_bool("CORS_ALLOW_ALL_ORIGINS", False)
+
 # The API is authenticated with a bearer token in the Authorization header, never
 # with a cookie, so the browser has no credentials to attach to a cross-origin
 # call. Allowing them would widen what a hostile page could ask the browser to
@@ -244,7 +257,8 @@ CORS_ALLOW_CREDENTIALS = False
 # its own trusted origins. Those are the site's own addresses, not the API's
 # callers, which is why this is its own setting rather than a copy of the CORS
 # list.
-CSRF_TRUSTED_ORIGINS = env_list("CSRF_TRUSTED_ORIGINS", ",".join(CORS_ALLOWED_ORIGINS))
+_raw_csrf = env_list("CSRF_TRUSTED_ORIGINS", ",".join(CORS_ALLOWED_ORIGINS))
+CSRF_TRUSTED_ORIGINS = [_clean_origin(o) for o in _raw_csrf if _clean_origin(o)]
 
 # File upload ceilings. The wizard accepts PDFs and scans; anything larger than
 # this is refused before it reaches a serializer.
@@ -276,11 +290,16 @@ LOGGING = {
 }
 
 # ── Email / SMTP (cPanel) ─────────────────────────────────────────
-EMAIL_BACKEND = env("EMAIL_BACKEND", "django.core.mail.backends.smtp.EmailBackend")
 EMAIL_HOST = env("EMAIL_HOST", "mail.gabstep.com")
 EMAIL_PORT = int(env("EMAIL_PORT", "465"))
 EMAIL_HOST_USER = env("EMAIL_HOST_USER", "support@gabstep.com")
 EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD")
+default_email_backend = (
+    "django.core.mail.backends.smtp.EmailBackend"
+    if EMAIL_HOST_PASSWORD
+    else "django.core.mail.backends.console.EmailBackend"
+)
+EMAIL_BACKEND = env("EMAIL_BACKEND", default_email_backend)
 EMAIL_USE_SSL = env_bool("EMAIL_USE_SSL", True)
 EMAIL_USE_TLS = env_bool("EMAIL_USE_TLS", False)
 EMAIL_TIMEOUT = int(env("EMAIL_TIMEOUT", "15"))

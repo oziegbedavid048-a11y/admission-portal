@@ -74,11 +74,11 @@ def check_email_is_configured(app_configs, **kwargs):
 
     if not settings.EMAIL_HOST_PASSWORD:
         issues.append(
-            Error(
+            Warning(
                 "EMAIL_HOST_PASSWORD is not set, so no email can be sent: no welcome "
                 "message, no status update, no letter notification.",
                 hint="Set EMAIL_HOST_PASSWORD in the environment.",
-                id="accounts.E003",
+                id="accounts.W003",
             )
         )
     return issues
