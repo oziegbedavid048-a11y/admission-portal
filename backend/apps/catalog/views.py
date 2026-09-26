@@ -1,5 +1,7 @@
 from django.db.models import Count, Prefetch
 from rest_framework import viewsets
+from decimal import Decimal
+
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import AllowAny
@@ -61,45 +63,71 @@ class FaqViewSet(ReadOnlyPublicViewSet):
 @api_view(["GET"])
 @permission_classes([AllowAny])
 def fee_quote(request):
-    """The application fee in the applicant's own currency.
+    """The application fee for one school, in the applicant's own currency.
 
-    The fee is always the same amount of Naira. The origin country decides only
-    what currency it is displayed in, and the Naira figure is returned alongside
-    so the conversion stays checkable.
+    **The fee belongs to the school.** It used to be one flat Naira figure for
+    every partner, which would have charged an applicant to UCAM, whose fee is
+    150 EUR, the 200,000 NGN a different school asks for. `institution` is the
+    slug of the school being applied to, and the amount comes from that row.
+
+    Without a slug it answers with the typical fee across the active partners,
+    which is what the marketing pages want; that answer is marked `indicative`
+    so nothing mistakes it for a quote.
     """
-
     name = (request.query_params.get("origin") or "Nigeria").strip()
-    origin = OriginCountry.objects.filter(name__iexact=name).first()
-    if origin is None:
-        origin = OriginCountry.objects.filter(name__iexact="Nigeria").first()
+    origin = (
+        OriginCountry.objects.filter(name__iexact=name).first()
+        or OriginCountry.objects.filter(name__iexact="Nigeria").first()
+    )
+
+    slug = (request.query_params.get("institution") or "").strip()
+    institution = Institution.objects.filter(slug=slug, is_active=True).first() if slug else None
+
+    if institution is not None:
+        fee_ngn = institution.application_fee_ngn
+        indicative = False
+    else:
+        # The commonest fee among active partners, so the figure on a page that
+        # has not asked about a school is one a real applicant would see.
+        fees = [
+            i.application_fee_ngn
+            for i in Institution.objects.filter(is_active=True).exclude(application_fee=0)
+        ]
+        fee_ngn = max(set(fees), key=fees.count) if fees else APPLICATION_FEE_NGN
+        indicative = True
+
+    gateway_fee_ngn = processing_fee_ngn(fee_ngn)
 
     if origin is None:
-        return Response(
-            {
-                "origin": name,
-                "currency": "NGN",
-                "symbol": "₦",
-                "amount": float(APPLICATION_FEE_NGN),
-                "amount_ngn": float(APPLICATION_FEE_NGN),
-                "processing_fee": float(processing_fee_ngn(APPLICATION_FEE_NGN)),
-                "rate": 1.0,
-            }
-        )
+        currency, symbol, rate = "NGN", "₦", Decimal("1")
+        amount, processing = fee_ngn, gateway_fee_ngn
+    else:
+        currency, symbol, rate = origin.currency, origin.symbol, origin.ngn_per_unit
+        amount = origin.convert_from_ngn(fee_ngn)
+        processing = origin.convert_from_ngn(gateway_fee_ngn)
 
-    # The gateway's cut is worked out in Naira and then converted, exactly as the
-    # fee is, so the preview adds up to the same number the card is debited.
-    fee_ngn = processing_fee_ngn(APPLICATION_FEE_NGN)
-    amount = origin.convert_from_ngn(APPLICATION_FEE_NGN)
     return Response(
         {
-            "origin": origin.name,
-            "currency": origin.currency,
-            "symbol": origin.symbol,
+            "origin": origin.name if origin else name,
+            "currency": currency,
+            "symbol": symbol,
             "amount": float(amount),
-            "amount_ngn": float(APPLICATION_FEE_NGN),
-            "processing_fee": float(origin.convert_from_ngn(fee_ngn)),
-            "processing_fee_ngn": float(fee_ngn),
-            "rate": float(origin.ngn_per_unit),
+            "amount_ngn": float(fee_ngn),
+            # The gateway's cut, worked out in Naira and then converted exactly as
+            # the fee is, so the preview adds up to what the card is debited.
+            "processing_fee": float(processing),
+            "processing_fee_ngn": float(gateway_fee_ngn),
+            "rate": float(rate),
+            "institution": institution.name if institution else "",
+            "institution_slug": institution.slug if institution else "",
+            # What the school itself charges, before any conversion.
+            "institution_fee": float(institution.application_fee) if institution else None,
+            "institution_fee_currency": institution.currency if institution else "",
+            "deposit_note": institution.deposit_note if institution else "",
+            "waived": bool(institution and institution.is_fee_free),
+            # True when no school was named, so this is a typical figure rather
+            # than a quote for anybody in particular.
+            "indicative": indicative,
         }
     )
 

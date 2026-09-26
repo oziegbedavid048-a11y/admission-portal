@@ -32,7 +32,10 @@ export const catalog = {
   programLevels: () => api.get('/catalog/programs/levels/'),
   exchangeRates: (base = 'NGN', refresh = false) =>
     api.get('/catalog/exchange-rates/', { params: { base, refresh: refresh || undefined } }),
-  feeQuote: (origin) => api.get('/catalog/fee-quote/', { params: { origin } }),
+  // The fee belongs to the school, so the slug is not optional in the wizard:
+  // without it the answer is a typical figure, not this applicant's.
+  feeQuote: (origin, institution) =>
+    api.get('/catalog/fee-quote/', { params: { origin, institution } }),
 };
 
 export const applications = {

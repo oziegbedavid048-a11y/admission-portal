@@ -42,6 +42,30 @@ class OriginCountry(models.Model):
         return (Decimal(amount_ngn) / self.ngn_per_unit).quantize(Decimal("0.01"))
 
 
+def ngn_per_unit(currency):
+    """How many Naira one unit of `currency` is worth.
+
+    The application fee is not the same everywhere: most partners charge a flat
+    Naira amount, but UCAM charges 150 EUR, and the card is always debited in
+    Naira. So a fee has to be convertible from whatever the school quotes it in.
+
+    The rate comes from the same table the applicant's own currency uses, keyed
+    by currency rather than by country because several countries share the euro.
+    Unknown currency raises rather than guessing: charging the wrong amount is
+    worse than refusing to quote.
+    """
+    code = (currency or "NGN").upper()
+    if code == "NGN":
+        return Decimal("1")
+    row = OriginCountry.objects.filter(currency__iexact=code).first()
+    if row is None:
+        raise ValueError(
+            f"No exchange rate on file for {code}. Add a country using it under "
+            "Exchange rates before quoting a fee in that currency."
+        )
+    return row.ngn_per_unit
+
+
 class DestinationCountry(models.Model):
     """A study destination, which decides which institutions show in step 3."""
 
@@ -80,6 +104,25 @@ class Institution(models.Model):
         help_text="Charged once per institution, never per course. 0 means fee-free.",
     )
     tuition_summary = models.CharField(max_length=200, blank=True)
+
+    # The deposit a school asks for on top of the application fee. Recorded so
+    # the applicant is told what is coming; it is not collected here, because it
+    # is paid to the school rather than to us.
+    tuition_deposit_percent = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=Decimal("0.00"),
+        help_text="Share of the total tuition taken as a deposit, e.g. 50 for half.",
+    )
+    tuition_deposit_amount = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal("0.00"),
+        help_text=(
+            "A flat deposit in this school's currency, for schools that ask for "
+            "a fixed sum rather than a share. Leave at 0 when a percentage is used."
+        ),
+    )
     features = models.JSONField(default=list, blank=True)
     display_order = models.PositiveSmallIntegerField(default=0)
     is_active = models.BooleanField(default=True)
@@ -93,6 +136,28 @@ class Institution(models.Model):
     @property
     def is_fee_free(self):
         return self.application_fee == 0
+
+    @property
+    def application_fee_ngn(self):
+        """This school's application fee in Naira, which is what is charged.
+
+        Every school sets its own. Quoting one school's fee against another is
+        the mistake this property exists to make impossible: there is one place
+        the number comes from, and it is the row for the school being applied to.
+        """
+        if self.application_fee == 0:
+            return Decimal("0.00")
+        rate = ngn_per_unit(self.currency)
+        return (Decimal(self.application_fee) * rate).quantize(Decimal("0.01"))
+
+    @property
+    def deposit_note(self):
+        """How the school describes its tuition deposit, or empty if it has none."""
+        if self.tuition_deposit_amount:
+            return f"{self.currency} {self.tuition_deposit_amount:,.0f} tuition deposit"
+        if self.tuition_deposit_percent:
+            return f"{self.tuition_deposit_percent:g}% of total tuition as a deposit"
+        return ""
 
 
 class Program(models.Model):

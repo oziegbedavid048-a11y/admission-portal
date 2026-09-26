@@ -260,6 +260,21 @@ CORS_ALLOW_CREDENTIALS = False
 _raw_csrf = env_list("CSRF_TRUSTED_ORIGINS", ",".join(CORS_ALLOWED_ORIGINS))
 CSRF_TRUSTED_ORIGINS = [_clean_origin(o) for o in _raw_csrf if _clean_origin(o)]
 
+# Automatically trust Render and Vercel domains for Django admin CSRF verification
+if "https://*.onrender.com" not in CSRF_TRUSTED_ORIGINS:
+    CSRF_TRUSTED_ORIGINS.append("https://*.onrender.com")
+if "https://*.vercel.app" not in CSRF_TRUSTED_ORIGINS:
+    CSRF_TRUSTED_ORIGINS.append("https://*.vercel.app")
+_render_url = env("RENDER_EXTERNAL_URL")
+if _render_url:
+    _cleaned_render = _clean_origin(_render_url)
+    if _cleaned_render and _cleaned_render not in CSRF_TRUSTED_ORIGINS:
+        CSRF_TRUSTED_ORIGINS.append(_cleaned_render)
+
+# Reverse proxy SSL header support for Render and managed hosts
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+USE_X_FORWARDED_HOST = True
+
 # File upload ceilings. The wizard accepts PDFs and scans; anything larger than
 # this is refused before it reaches a serializer.
 MAX_UPLOAD_SIZE_MB = int(env("MAX_UPLOAD_SIZE_MB", "10"))

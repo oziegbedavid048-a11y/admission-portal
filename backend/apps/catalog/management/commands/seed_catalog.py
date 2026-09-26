@@ -1,195 +1,159 @@
-"""Load the reference catalogue: origin countries, destinations, schools, FAQs.
+"""Load the partner catalogue.
 
-The data lives in ``apps/catalog/data/catalog.json``, which was lifted from the
-original prototype's ``js/data.js``. The command is idempotent, so running it
-again after editing the JSON updates rows in place rather than duplicating them.
+Safe to run repeatedly. A school or course already on file is updated in place
+rather than duplicated, so re-running after an edit in the admin only corrects
+what the seed actually owns.
+
+`--prune` additionally removes schools and courses that are not in the seed. It
+is how the catalogue is brought back to exactly what the admissions desk
+supplied, and it refuses to delete anything an applicant has applied to, because
+that would take their application with it.
 """
 
-import json
-import re
 from decimal import Decimal
-from pathlib import Path
 
 from django.core.management.base import BaseCommand
 from django.db import transaction
-from django.utils.text import slugify
 
-from apps.catalog.models import (
-    DestinationCountry,
-    FaqItem,
-    Institution,
-    OriginCountry,
-    Program,
-)
-
-DATA_FILE = Path(__file__).resolve().parents[2] / "data" / "catalog.json"
-
-# Same buckets the prototype used, in the order they are shown.
-LEVEL_PATTERNS = [
-    (
-        Program.Level.PHD,
-        re.compile(r"\bphd\b|ph\.d|doctoral|doctor\s+of", re.I),
-    ),
-    (
-        Program.Level.MASTERS,
-        re.compile(r"master|mast[eè]re?|mba|msc\b|m\.sc|\bma\b|mphil|postgrad(uate)?", re.I),
-    ),
-    (
-        Program.Level.BACHELORS,
-        re.compile(
-            r"bachelor|bba|\bba\s*\(|\bbsc\b|\bb\.sc|beng|b\.eng|bcomm|b\.comm|\bba\s+in|^degree\s+in",
-            re.I,
-        ),
-    ),
-    (
-        Program.Level.DIPLOMAS,
-        re.compile(r"diploma|certificate|othm|ncc\s*level", re.I),
-    ),
-]
-
-
-def classify(name):
-    for level, pattern in LEVEL_PATTERNS:
-        if pattern.search(name):
-            return level
-    return Program.Level.OTHER
+from apps.catalog.catalogue_data import COUNTRIES, SCHOOLS, course_fields
+from apps.catalog.models import DestinationCountry, Institution, Program
 
 
 class Command(BaseCommand):
-    help = "Seed origin countries, destinations, partner institutions and FAQs."
+    help = "Create or update the partner catalogue."
 
     def add_arguments(self, parser):
         parser.add_argument(
-            "--flush",
+            "--prune",
             action="store_true",
-            help="Delete existing institutions and programs before loading.",
+            help="Also remove schools and courses that are not part of the seed.",
         )
 
     @transaction.atomic
     def handle(self, *args, **options):
-        if not DATA_FILE.exists():
-            self.stderr.write(f"Catalogue file not found: {DATA_FILE}")
-            return
+        counts = {"countries": 0, "schools": 0, "courses": 0, "updated": 0}
 
-        payload = json.loads(DATA_FILE.read_text(encoding="utf-8"))
-
-        if options["flush"]:
-            Program.objects.all().delete()
-            Institution.objects.all().delete()
-
-        origins = self._load_origins(payload["ORIGIN_COUNTRIES"])
-        destinations = self._load_destinations(payload["DESTINATION_COUNTRIES"])
-        schools, programs = self._load_institutions(
-            payload["INSTITUTIONS_BY_COUNTRY"], destinations
-        )
-        faqs = self._load_faqs(payload["FAQ_ITEMS"])
-
-        self.stdout.write(
-            self.style.SUCCESS(
-                f"Catalogue loaded: {origins} origin countries, {destinations and len(destinations)} "
-                f"destinations, {schools} institutions, {programs} programmes, {faqs} FAQs."
-            )
-        )
-
-    def _load_origins(self, rows):
-        for row in rows:
-            OriginCountry.objects.update_or_create(
-                name=row["name"],
-                defaults={
-                    "currency": row["currency"],
-                    "symbol": row["symbol"],
-                    "ngn_per_unit": Decimal(str(row["ngnPerUnit"])),
-                },
-            )
-        return len(rows)
-
-    def _load_destinations(self, rows):
-        mapping = {}
-        for order, row in enumerate(rows):
-            country, _ = DestinationCountry.objects.update_or_create(
+        for order, row in enumerate(COUNTRIES):
+            country, created = DestinationCountry.objects.update_or_create(
                 name=row["name"],
                 defaults={
                     "code": row["code"],
                     "currency": row["currency"],
-                    "currency_symbol": row.get("currencySymbol", ""),
-                    "is_european": bool(row.get("isEuropean")),
+                    "currency_symbol": row["symbol"],
+                    "is_european": row["european"],
+                    "display_order": row.get("order", order),
+                    "is_active": True,
+                },
+            )
+            counts["countries"] += 1 if created else 0
+
+        seeded_slugs = []
+        for order, school in enumerate(SCHOOLS):
+            country = DestinationCountry.objects.get(name=school["country"])
+            institution, created = Institution.objects.update_or_create(
+                slug=school["slug"],
+                defaults={
+                    "name": school["name"],
+                    "country": country,
+                    "location": school["location"],
+                    "tagline": school["tagline"],
+                    "badge": school["badge"],
+                    "currency": school["fee_currency"],
+                    "application_fee": Decimal(str(school["fee"])),
+                    "tuition_deposit_percent": Decimal(str(school.get("deposit_percent", 0))),
+                    "tuition_deposit_amount": Decimal(str(school.get("deposit_amount", 0))),
+                    "tuition_summary": school["tuition_summary"],
                     "display_order": order,
                     "is_active": True,
                 },
             )
-            mapping[row["name"]] = country
-        return mapping
+            seeded_slugs.append(institution.slug)
+            counts["schools"] += 1 if created else 0
 
-    def _load_institutions(self, by_country, destinations):
-        school_count = 0
-        program_count = 0
-
-        for country_name, schools in by_country.items():
-            country = destinations.get(country_name)
-            if country is None:
-                country, _ = DestinationCountry.objects.get_or_create(
-                    name=country_name,
-                    defaults={"code": country_name[:2].upper(), "currency": "USD"},
-                )
-                destinations[country_name] = country
-
-            for order, row in enumerate(schools):
-                institution, _ = Institution.objects.update_or_create(
-                    slug=slugify(row["id"]) or slugify(row["name"]),
+            seeded_names = []
+            for position, row in enumerate(school["courses"]):
+                fields = course_fields(row)
+                tuition = fields.pop("tuition")
+                name = fields.pop("name")
+                _, made = Program.objects.update_or_create(
+                    institution=institution,
+                    name=name,
                     defaults={
-                        "name": row["name"],
-                        "country": country,
-                        "location": row.get("location", ""),
-                        "tagline": row.get("tagline", ""),
-                        "badge": row.get("badge", "Partner School"),
-                        "currency": row.get("currency", country.currency),
-                        "application_fee": Decimal(str(row.get("appFee", 0) or 0)),
-                        "tuition_summary": row.get("tuition", ""),
-                        "features": row.get("features", []),
-                        "display_order": order,
-                        "is_active": True,
+                        **fields,
+                        "tuition": None if tuition is None else Decimal(str(tuition)),
+                        "display_order": position,
                     },
                 )
-                school_count += 1
-                program_count += self._load_programs(institution, row.get("programs", []))
+                seeded_names.append(name)
+                counts["courses"] += 1 if made else 0
+                counts["updated"] += 0 if made else 1
 
-        return school_count, program_count
+            if options["prune"]:
+                stale = institution.programs.exclude(name__in=seeded_names)
+                blocked, removed = self._drop_courses(stale)
+                if removed:
+                    self.stdout.write(
+                        f"  {institution.name}: removed {removed} course(s) not in the seed"
+                    )
+                for course in blocked:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"  {institution.name}: kept {course} because an application uses it"
+                        )
+                    )
 
-    def _load_programs(self, institution, entries):
-        count = 0
-        seen = set()
-        for order, entry in enumerate(entries):
-            if isinstance(entry, str):
-                name, details = entry, {}
-            else:
-                name, details = entry.get("name", ""), entry
-            name = (name or "").strip()
-            if not name or name in seen:
+        if options["prune"]:
+            self._prune_schools(seeded_slugs)
+
+        self.stdout.write(
+            self.style.SUCCESS(
+                "Catalogue loaded. "
+                f"{DestinationCountry.objects.count()} countries, "
+                f"{Institution.objects.count()} schools, "
+                f"{Program.objects.count()} courses "
+                f"({counts['courses']} new, {counts['updated']} updated)."
+            )
+        )
+
+    def _drop_courses(self, queryset):
+        """Remove courses nobody has applied to. Returns (kept, removed)."""
+        kept, removed = [], 0
+        for course in queryset:
+            if course.applications.exists():
+                kept.append(course.name)
                 continue
-            seen.add(name)
+            course.delete()
+            removed += 1
+        return kept, removed
 
-            tuition = details.get("tuition")
-            Program.objects.update_or_create(
-                institution=institution,
-                name=name,
-                defaults={
-                    "level": classify(name),
-                    "duration": details.get("duration", ""),
-                    "qualification_level": details.get("level", ""),
-                    "tuition": Decimal(str(tuition)) if tuition else None,
-                    "intake": details.get("intake", ""),
-                    "note": details.get("note", ""),
-                    "scholarship": details.get("scholarship", ""),
-                    "display_order": order,
-                },
-            )
-            count += 1
-        return count
+    def _prune_schools(self, keep_slugs):
+        for institution in Institution.objects.exclude(slug__in=keep_slugs):
+            if institution.applications.exists():
+                # Deleting it would take live applications with it, so it is
+                # hidden instead: gone from the site, intact in the records.
+                institution.is_active = False
+                institution.save(update_fields=["is_active"])
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"  {institution.name} has applications, so it was hidden "
+                        "rather than deleted."
+                    )
+                )
+                continue
+            name = institution.name
+            institution.delete()
+            self.stdout.write(f"  removed {name}, which is not in the seed")
 
-    def _load_faqs(self, rows):
-        for order, row in enumerate(rows):
-            FaqItem.objects.update_or_create(
-                question=row["q"],
-                defaults={"answer": row["a"], "display_order": order, "is_active": True},
-            )
-        return len(rows)
+        for country in DestinationCountry.objects.exclude(
+            name__in=[c["name"] for c in COUNTRIES]
+        ):
+            if country.institutions.exists():
+                country.is_active = False
+                country.save(update_fields=["is_active"])
+                self.stdout.write(
+                    self.style.WARNING(f"  {country.name} still has schools, so it was hidden.")
+                )
+                continue
+            name = country.name
+            country.delete()
+            self.stdout.write(f"  removed {name}, which is not in the seed")

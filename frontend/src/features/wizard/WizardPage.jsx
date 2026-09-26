@@ -133,7 +133,7 @@ export default function WizardPage({ onOpenLogin }) {
     if (step !== 5 || !form.originCountry) return;
     let cancelled = false;
     catalog
-      .feeQuote(form.originCountry)
+      .feeQuote(form.originCountry, form.institution)
       .then(({ data }) => {
         if (cancelled) return;
         const amount = feeWaived ? 0 : data.amount;
@@ -155,7 +155,7 @@ export default function WizardPage({ onOpenLogin }) {
     return () => {
       cancelled = true;
     };
-  }, [step, form.originCountry, feeWaived]);
+  }, [step, form.originCountry, form.institution, feeWaived]);
 
   const validate = (which) => {
     const found = {};

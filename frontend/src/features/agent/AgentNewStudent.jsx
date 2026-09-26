@@ -91,7 +91,7 @@ export default function AgentNewStudent() {
     if (step !== 5 || !form.originCountry) return;
     let cancelled = false;
     catalog
-      .feeQuote(form.originCountry)
+      .feeQuote(form.originCountry, form.institution)
       .then(({ data }) => {
         if (cancelled) return;
         const waived = institution ? institution.is_fee_free : false;

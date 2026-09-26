@@ -59,21 +59,22 @@ def find_payment(gateway_reference):
 def quote_for(application):
     """What this applicant owes, in their own currency and in Naira.
 
-    The fee is a fixed amount of Naira. The origin country decides the display
-    currency; a fee-free partner institution waives it entirely.
+    **The fee belongs to the school they chose, not to the platform.** It used to
+    be one flat APPLICATION_FEE_NGN for everybody, so an applicant to UCAM, whose
+    fee is 150 EUR, would have been charged the 200,000 NGN another school
+    charges. The amount now comes from the institution row on this application
+    and from nowhere else, which is what stops one school's fee reaching another
+    school's applicant.
 
-    Both currencies are returned because the card is debited in Naira and the
-    applicant reads the total in theirs. Everything is computed in Naira first and
-    converted for display, never the other way round: the old version added a
-    flat processing fee in the display currency and then asked the gateway for the
-    fee alone, so the number on screen was never the number debited.
+    Everything is computed in Naira first and converted for display, never the
+    other way round, because Naira is what the card is debited.
     """
     origin = application.origin_country
     institution = application.institution
 
-    if getattr(application, "is_custom_course", False) or (
-        institution is not None and institution.application_fee == 0
-    ):
+    fee_ngn = institution.application_fee_ngn if institution is not None else Decimal("0.00")
+
+    if fee_ngn <= 0:
         return {
             "currency": origin.currency,
             "symbol": origin.symbol,
@@ -83,19 +84,27 @@ def quote_for(application):
             "processing_fee_ngn": Decimal("0.00"),
             "total_ngn": Decimal("0.00"),
             "fx_rate": origin.ngn_per_unit,
+            "institution": institution.name if institution else "",
+            "institution_fee": Decimal("0.00"),
+            "institution_fee_currency": institution.currency if institution else "",
             "waived": True,
         }
 
-    fee_ngn = processing_fee_ngn(APPLICATION_FEE_NGN)
+    gateway_fee_ngn = processing_fee_ngn(fee_ngn)
     return {
         "currency": origin.currency,
         "symbol": origin.symbol,
-        "amount": origin.convert_from_ngn(APPLICATION_FEE_NGN),
-        "processing_fee": origin.convert_from_ngn(fee_ngn),
-        "amount_ngn": APPLICATION_FEE_NGN,
-        "processing_fee_ngn": fee_ngn,
-        "total_ngn": APPLICATION_FEE_NGN + fee_ngn,
+        "amount": origin.convert_from_ngn(fee_ngn),
+        "processing_fee": origin.convert_from_ngn(gateway_fee_ngn),
+        "amount_ngn": fee_ngn,
+        "processing_fee_ngn": gateway_fee_ngn,
+        "total_ngn": fee_ngn + gateway_fee_ngn,
         "fx_rate": origin.ngn_per_unit,
+        # Stated so the applicant can see whose fee this is and what the school
+        # itself calls it, rather than only the converted number.
+        "institution": institution.name,
+        "institution_fee": institution.application_fee,
+        "institution_fee_currency": institution.currency,
         "waived": False,
     }
 
