@@ -772,3 +772,10 @@
   line-height: 1.5;
   color: var(--g-ink-3);
 }
+
+/* A waived fee is still the brand green: one green means one thing, and here it
+   means "this is settled". */
+.invoice-amount-free {
+  font-weight: 800;
+  color: var(--g-accent);
+}

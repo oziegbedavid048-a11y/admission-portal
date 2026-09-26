@@ -35,14 +35,6 @@ export default function ProvisioningModal({ open, details, onContinue }) {
           <span className="cred-label">Email / Login ID</span>
           <span className="cred-val">{details.email}</span>
         </div>
-        {details.generatedPassword ? (
-          <div className="cred-row" style={{ background: '#eff6ff', padding: '8px 12px', borderRadius: '6px', marginTop: '8px' }}>
-            <span className="cred-label" style={{ fontWeight: 700, color: '#1d4ed8' }}>Temporary Password</span>
-            <span className="cred-val" style={{ fontFamily: 'monospace', fontWeight: 800, fontSize: '0.95rem', color: '#1e3a8a' }}>
-              {details.generatedPassword}
-            </span>
-          </div>
-        ) : null}
       </div>
 
       {details.isCustomCourse ? (

@@ -58,7 +58,11 @@ class Command(BaseCommand):
                     "location": school["location"],
                     "tagline": school["tagline"],
                     "badge": school["badge"],
-                    "currency": school["fee_currency"],
+                    # What the school quotes tuition and its deposit in.
+                    "currency": school["currency"],
+                    # What its application fee is quoted in, which is usually
+                    # Naira even for a school that teaches in euros.
+                    "application_fee_currency": school["fee_currency"],
                     "application_fee": Decimal(str(school["fee"])),
                     "tuition_deposit_percent": Decimal(str(school.get("deposit_percent", 0))),
                     "tuition_deposit_amount": Decimal(str(school.get("deposit_amount", 0))),

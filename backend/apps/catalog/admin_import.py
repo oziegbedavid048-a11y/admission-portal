@@ -41,6 +41,10 @@ def _initial_from_parse(parsed):
         "tagline": parsed.tagline,
         "badge": parsed.badge,
         "currency": parsed.currency or (country.currency if country else "EUR"),
+        # Almost every partner quotes its application fee in Naira even when it
+        # teaches in euros, so that is the default staff have to override rather
+        # than one they have to set.
+        "application_fee_currency": "NGN",
         "tuition_summary": parsed.tuition_summary,
         "application_fee": parsed.application_fee if parsed.application_fee is not None else 0,
     }

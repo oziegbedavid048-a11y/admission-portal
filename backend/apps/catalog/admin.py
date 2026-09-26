@@ -64,11 +64,22 @@ class InstitutionAdmin(HiddenFromIndex, admin.ModelAdmin):
         (
             "Fees and tuition",
             {
-                "fields": ("currency", "application_fee", "tuition_summary"),
+                "fields": (
+                    "currency",
+                    ("application_fee_currency", "application_fee"),
+                    ("tuition_deposit_percent", "tuition_deposit_amount"),
+                    "tuition_summary",
+                ),
                 "description": (
-                    "An application fee of 0 marks the institution fee-free. The "
-                    "applicant then pays nothing, and no registration commission "
-                    "is earned on their file."
+                    "Two currencies, on purpose. <b>Currency</b> is what this "
+                    "school quotes its tuition and deposit in, and tuition is "
+                    "never converted: it is shown to every applicant exactly as "
+                    "the school states it. <b>Fee currency</b> is what the "
+                    "application fee is quoted in, usually NGN, and that one is "
+                    "converted into the applicant's own currency and charged in "
+                    "Naira.<br><br>An application fee of 0 marks the school "
+                    "fee-free: the applicant pays nothing and no registration "
+                    "commission is earned on their file."
                 ),
             },
         ),
@@ -89,12 +100,25 @@ class InstitutionAdmin(HiddenFromIndex, admin.ModelAdmin):
 
     @admin.display(description="Application fee", ordering="application_fee")
     def fee(self, obj):
+        """What this school charges, and what that is in Naira.
+
+        The Naira figure is shown beside it because that is what the card is
+        actually debited, and a fee quoted in another currency moves with the
+        rate.
+        """
         if obj.is_fee_free:
             return format_html(
-                '<span style="background:#dcfce7;color:#166534;border-radius:999px;'
+                '<span style="background:#e1f6dd;color:#0b5c43;border-radius:999px;'
                 'padding:2px 9px;font-size:11px;font-weight:700">Fee-free</span>'
             )
-        return f"{obj.currency} {obj.application_fee:,.2f}"
+        own = f"{obj.application_fee_currency} {obj.application_fee:,.2f}"
+        if obj.application_fee_currency.upper() == "NGN":
+            return own
+        return format_html(
+            "{}<br><small style=\"color:#5f6f69\">≈ ₦{}</small>",
+            own,
+            f"{obj.application_fee_ngn:,.0f}",
+        )
 
     @admin.action(description="Show on the site")
     def action_activate(self, request, queryset):

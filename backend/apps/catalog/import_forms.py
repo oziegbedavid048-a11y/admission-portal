@@ -77,7 +77,37 @@ class DestinationForm(forms.Form):
         max_length=400, required=False, label="Tagline", widget=forms.TextInput
     )
     badge = forms.CharField(max_length=80, required=False, label="Badge")
-    currency = forms.CharField(max_length=8, required=False, label="Currency")
+    currency = forms.CharField(
+        max_length=8,
+        required=False,
+        label="School currency",
+        help_text="What the school quotes tuition in, e.g. EUR or CAD.",
+    )
+    application_fee_currency = forms.CharField(
+        max_length=8,
+        required=False,
+        initial="NGN",
+        label="Fee currency",
+        help_text=(
+            "What the application fee is quoted in. Usually NGN, even for a "
+            "school that teaches in euros. A fee in another currency is "
+            "converted at the rate on file when the applicant is shown it."
+        ),
+    )
+    tuition_deposit_percent = forms.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        required=False,
+        label="Tuition deposit %",
+        help_text="Share of total tuition the school asks for up front, e.g. 50.",
+    )
+    tuition_deposit_amount = forms.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        required=False,
+        label="Flat tuition deposit",
+        help_text="For a school asking a fixed sum instead, in the school currency.",
+    )
     application_fee = forms.DecimalField(
         max_digits=10,
         decimal_places=2,
@@ -184,7 +214,12 @@ class DestinationForm(forms.Form):
                         tagline=data.get("tagline", ""),
                         badge=data.get("badge") or "Partner School",
                         currency=(data.get("currency") or country.currency or "EUR").upper(),
+                        application_fee_currency=(
+                            data.get("application_fee_currency") or "NGN"
+                        ).upper(),
                         application_fee=data["application_fee"],
+                        tuition_deposit_percent=data.get("tuition_deposit_percent") or 0,
+                        tuition_deposit_amount=data.get("tuition_deposit_amount") or 0,
                         tuition_summary=data.get("tuition_summary", ""),
                         display_order=Institution.objects.filter(country=country).count(),
                         is_active=True,
@@ -204,6 +239,17 @@ class DestinationForm(forms.Form):
         if currency and currency != institution.currency:
             institution.currency = currency
             changed.append("currency")
+
+        fee_currency = (data.get("application_fee_currency") or "").strip().upper()
+        if fee_currency and fee_currency != institution.application_fee_currency:
+            institution.application_fee_currency = fee_currency
+            changed.append("application_fee_currency")
+
+        for field in ("tuition_deposit_percent", "tuition_deposit_amount"):
+            value = data.get(field)
+            if value is not None and value != getattr(institution, field):
+                setattr(institution, field, value)
+                changed.append(field)
 
         if data["application_fee"] != institution.application_fee:
             institution.application_fee = data["application_fee"]

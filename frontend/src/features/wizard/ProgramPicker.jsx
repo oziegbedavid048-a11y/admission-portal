@@ -134,7 +134,7 @@ export default function ProgramPicker({
                 alignItems: 'center',
                 gap: 6,
                 fontSize: '0.85rem',
-                color: 'var(--brand-700)',
+                color: 'var(--g-accent)',
                 fontWeight: 600,
                 padding: '6px 12px',
               }}
@@ -147,8 +147,8 @@ export default function ProgramPicker({
 
         <div
           style={{
-            background: 'var(--slate-50, #f8fafc)',
-            border: '1.5px solid var(--slate-200, #e2e8f0)',
+            background: 'var(--g-surface-2)',
+            border: '1.5px solid var(--g-line)',
             borderRadius: '12px',
             padding: '24px',
           }}
@@ -156,8 +156,8 @@ export default function ProgramPicker({
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px', marginBottom: '18px' }}>
             <div
               style={{
-                background: '#eff6ff',
-                color: '#2563eb',
+                background: 'var(--g-accent-tint)',
+                color: 'var(--g-accent)',
                 width: '42px',
                 height: '42px',
                 borderRadius: '50%',
@@ -170,10 +170,10 @@ export default function ProgramPicker({
               <Icon name="cap" size={22} strokeWidth={2} />
             </div>
             <div>
-              <h4 style={{ margin: '0 0 4px', fontSize: '1.05rem', color: 'var(--slate-900)', fontWeight: 700 }}>
+              <h4 style={{ margin: '0 0 4px', fontSize: '1.05rem', color: 'var(--g-ink)', fontWeight: 700 }}>
                 Specify your desired course in {countryName}
               </h4>
-              <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--slate-600)', lineHeight: 1.5 }}>
+              <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--g-ink-2)', lineHeight: 1.5 }}>
                 {safeInstitutions.length === 0
                   ? `There are no pre-cataloged partner universities for ${countryName} yet. Type your desired course or degree programme below to continue. Our admissions desk will review your submission and contact you directly.`
                   : 'Cannot find your desired university or course in the catalog? Enter the course you want to study below and our team will assist you.'}
@@ -210,11 +210,11 @@ export default function ProgramPicker({
                 gap: '8px',
                 marginTop: '12px',
                 padding: '10px 14px',
-                background: '#f0fdf4',
-                border: '1px solid #bbf7d0',
+                background: 'var(--g-accent-tint)',
+                border: '1px solid var(--g-accent-line)',
                 borderRadius: '8px',
                 fontSize: '0.8125rem',
-                color: '#166534',
+                color: 'var(--g-accent)',
                 fontWeight: 600,
               }}
             >
@@ -348,11 +348,11 @@ export default function ProgramPicker({
         style={{
           marginTop: 20,
           paddingTop: 16,
-          borderTop: '1px dashed var(--slate-200, #e2e8f0)',
+          borderTop: '1px dashed var(--g-line)',
           textAlign: 'center',
         }}
       >
-        <span style={{ fontSize: '0.875rem', color: 'var(--slate-500)' }}>
+        <span style={{ fontSize: '0.875rem', color: 'var(--g-ink-3)' }}>
           Can't find your desired institution or course?{' '}
         </span>
         <button
@@ -361,7 +361,7 @@ export default function ProgramPicker({
           style={{
             fontSize: '0.875rem',
             fontWeight: 700,
-            color: 'var(--brand-700)',
+            color: 'var(--g-accent)',
             padding: 0,
             textDecoration: 'underline',
             cursor: 'pointer',

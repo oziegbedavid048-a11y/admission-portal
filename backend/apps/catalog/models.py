@@ -97,6 +97,12 @@ class Institution(models.Model):
     tagline = models.CharField(max_length=400, blank=True)
     badge = models.CharField(max_length=80, blank=True, default="Partner School")
     currency = models.CharField(max_length=8, default="EUR")
+    # The currency the APPLICATION FEE is quoted in, which is not always the
+    # school's own. Most partners set their fee in Naira; UCAM sets it at 150
+    # EUR. Kept apart from `currency` above, which is what the school quotes its
+    # tuition and its deposit in, because conflating the two made every euro
+    # tuition figure render as Naira.
+    application_fee_currency = models.CharField(max_length=8, default="NGN")
     application_fee = models.DecimalField(
         max_digits=10,
         decimal_places=2,
@@ -147,16 +153,21 @@ class Institution(models.Model):
         """
         if self.application_fee == 0:
             return Decimal("0.00")
-        rate = ngn_per_unit(self.currency)
+        rate = ngn_per_unit(self.application_fee_currency)
         return (Decimal(self.application_fee) * rate).quantize(Decimal("0.01"))
 
     @property
     def deposit_note(self):
-        """How the school describes its tuition deposit, or empty if it has none."""
+        """How the school describes its tuition deposit, or empty if it has none.
+
+        Quoted in the school's own currency, which is what its tuition is in,
+        not in whatever the application fee happens to be denominated in.
+        """
         if self.tuition_deposit_amount:
             return f"{self.currency} {self.tuition_deposit_amount:,.0f} tuition deposit"
         if self.tuition_deposit_percent:
-            return f"{self.tuition_deposit_percent:g}% of total tuition as a deposit"
+            percent = self.tuition_deposit_percent.normalize()
+            return f"{percent:f}% of total tuition as a deposit"
         return ""
 
 

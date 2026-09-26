@@ -638,21 +638,21 @@ export default function WizardPage({ onOpenLogin }) {
                     </div>
                     <div className="invoice-row">
                       <span>Destination country</span>
-                      <span style={{ fontWeight: 600 }}>{form.destinationCountry}</span>
+                      <span className="invoice-amount">{form.destinationCountry}</span>
                     </div>
                     <div className="invoice-row">
                       <span>Desired course / programme</span>
-                      <span style={{ fontWeight: 700, color: 'var(--brand-700, #1d4ed8)' }}>
+                      <span className="invoice-amount-total">
                         {form.custom_course || 'Custom Course'}
                       </span>
                     </div>
                     <div className="invoice-row">
                       <span>Applicant</span>
-                      <span style={{ fontWeight: 600 }}>{form.fullName}</span>
+                      <span className="invoice-amount">{form.fullName}</span>
                     </div>
                     <div className="invoice-row total">
                       <span>Application fee</span>
-                      <span style={{ color: '#16a34a', fontWeight: 800 }}>
+                      <span className="invoice-amount-free">
                         FREE (Direct Admissions Review)
                       </span>
                     </div>
@@ -673,13 +673,13 @@ export default function WizardPage({ onOpenLogin }) {
                     </div>
                     <div className="invoice-row">
                       <span>Application fee</span>
-                      <span style={{ fontWeight: 600 }}>
+                      <span className="invoice-amount">
                         {quote ? formatMoney(quote.amount, quote.currency) : 'Calculating'}
                       </span>
                     </div>
                     <div className="invoice-row">
                       <span>Gateway processing</span>
-                      <span style={{ fontWeight: 600 }}>
+                      <span className="invoice-amount">
                         {quote ? formatMoney(quote.processing_fee, quote.currency) : 'Calculating'}
                       </span>
                     </div>

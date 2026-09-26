@@ -5,6 +5,9 @@ from .models import Payment
 
 class PaymentSerializer(serializers.ModelSerializer):
     total = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
+    # What the card is actually debited. Exposed beside the converted figures so
+    # a receipt can state the number that will appear on the statement.
+    total_ngn = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
     display_total = serializers.CharField(read_only=True)
 
     class Meta:
@@ -21,6 +24,8 @@ class PaymentSerializer(serializers.ModelSerializer):
             "total",
             "display_total",
             "amount_ngn",
+            "processing_fee_ngn",
+            "total_ngn",
             "fx_rate",
             "created_at",
             "paid_at",
