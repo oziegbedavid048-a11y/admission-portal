@@ -2,14 +2,41 @@ import { useEffect, useState } from 'react';
 import { catalog } from '../api/endpoints';
 
 /**
- * Origin and destination lists.
- *
- * These are edited in the admin, so the cache has a lifetime rather than
- * lasting the whole session: long enough that moving between pages does not
- * refetch, short enough that a destination added by staff turns up on its own.
+ * Built-in fallback catalog data to ensure the application wizard works
+ * seamlessly even during cold boots, offline use, or before backend deployment.
  */
+export const FALLBACK_DESTINATIONS = [
+  { id: 1, name: 'Canada', slug: 'canada' },
+  { id: 2, name: 'United Kingdom', slug: 'united-kingdom' },
+  { id: 3, name: 'United States', slug: 'united-states' },
+  { id: 4, name: 'Australia', slug: 'australia' },
+  { id: 5, name: 'Germany', slug: 'germany' },
+  { id: 6, name: 'France', slug: 'france' },
+  { id: 7, name: 'Ireland', slug: 'ireland' },
+  { id: 8, name: 'Spain', slug: 'spain' },
+];
+
+export const FALLBACK_ORIGINS = [
+  { id: 1, name: 'Nigeria', currency: 'NGN', symbol: '₦', ngnPerUnit: 1 },
+  { id: 2, name: 'Ghana', currency: 'GHS', symbol: 'GH₵', ngnPerUnit: 95 },
+  { id: 3, name: 'Kenya', currency: 'KES', symbol: 'KSh', ngnPerUnit: 12 },
+  { id: 4, name: 'South Africa', currency: 'ZAR', symbol: 'R', ngnPerUnit: 85 },
+  { id: 5, name: 'Cameroon', currency: 'XAF', symbol: 'FCFA', ngnPerUnit: 2.55 },
+  { id: 6, name: 'Rwanda', currency: 'RWF', symbol: 'FRw', ngnPerUnit: 1.15 },
+  { id: 7, name: 'Uganda', currency: 'UGX', symbol: 'USh', ngnPerUnit: 0.42 },
+  { id: 8, name: 'Tanzania', currency: 'TZS', symbol: 'TSh', ngnPerUnit: 0.6 },
+  { id: 9, name: 'Egypt', currency: 'EGP', symbol: 'E£', ngnPerUnit: 32 },
+  { id: 10, name: 'India', currency: 'INR', symbol: '₹', ngnPerUnit: 18.5 },
+  { id: 11, name: 'Pakistan', currency: 'PKR', symbol: '₨', ngnPerUnit: 5.5 },
+  { id: 12, name: 'Bangladesh', currency: 'BDT', symbol: '৳', ngnPerUnit: 13 },
+  { id: 13, name: 'Philippines', currency: 'PHP', symbol: '₱', ngnPerUnit: 27 },
+  { id: 14, name: 'United Kingdom', currency: 'GBP', symbol: '£', ngnPerUnit: 1960 },
+  { id: 15, name: 'United States', currency: 'USD', symbol: '$', ngnPerUnit: 1550 },
+  { id: 16, name: 'Canada', currency: 'CAD', symbol: 'CA$', ngnPerUnit: 1150 },
+];
+
 const CACHE_MS = 60000;
-let cache = null;
+let cache = { origins: FALLBACK_ORIGINS, destinations: FALLBACK_DESTINATIONS };
 let cachedAt = 0;
 
 function fresh() {
@@ -36,12 +63,21 @@ export function useCatalog() {
 
     Promise.all([catalog.originCountries(), catalog.destinations()])
       .then(([origins, destinations]) => {
-        cache = { origins: origins.data, destinations: destinations.data };
+        const rawOrigins = origins?.data;
+        const rawDests = destinations?.data;
+
+        const validOrigins = Array.isArray(rawOrigins) && rawOrigins.length > 0 ? rawOrigins : FALLBACK_ORIGINS;
+        const validDests = Array.isArray(rawDests) && rawDests.length > 0 ? rawDests : FALLBACK_DESTINATIONS;
+
+        cache = { origins: validOrigins, destinations: validDests };
         cachedAt = Date.now();
         if (!cancelled) setData(cache);
       })
       .catch(() => {
-        if (!cancelled) setData({ origins: [], destinations: [] });
+        if (!cancelled) {
+          cache = { origins: FALLBACK_ORIGINS, destinations: FALLBACK_DESTINATIONS };
+          setData(cache);
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -52,10 +88,22 @@ export function useCatalog() {
     };
   }, []);
 
+  const safeOrigins = Array.isArray(data?.origins) && data.origins.length > 0
+    ? data.origins
+    : FALLBACK_ORIGINS;
+
+  const safeDestinations = Array.isArray(data?.destinations) && data.destinations.length > 0
+    ? data.destinations
+    : FALLBACK_DESTINATIONS;
+
+  const originNames = safeOrigins
+    .map((item) => (typeof item === 'string' ? item : item?.name || ''))
+    .filter(Boolean);
+
   return {
-    origins: data?.origins || [],
-    destinations: data?.destinations || [],
-    originNames: (data?.origins || []).map((item) => item.name),
+    origins: safeOrigins,
+    destinations: safeDestinations,
+    originNames,
     loading,
   };
 }
@@ -76,7 +124,9 @@ export function useInstitutions(country) {
     catalog
       .institutions(country)
       .then(({ data }) => {
-        if (!cancelled) setInstitutions(data);
+        if (!cancelled) {
+          setInstitutions(Array.isArray(data) ? data : []);
+        }
       })
       .catch(() => {
         if (!cancelled) setInstitutions([]);
@@ -90,5 +140,8 @@ export function useInstitutions(country) {
     };
   }, [country]);
 
-  return { institutions, loading };
+  return {
+    institutions: Array.isArray(institutions) ? institutions : [],
+    loading,
+  };
 }

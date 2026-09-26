@@ -7,13 +7,14 @@ import Icon from '../../lib/icons';
  * so it works without a mouse.
  */
 export default function SearchableSelect({
-  options,
+  options = [],
   value,
   onChange,
   placeholder = 'Select an option',
   id,
   labelledBy,
 }) {
+  const safeOptions = Array.isArray(options) ? options : [];
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [cursor, setCursor] = useState(0);
@@ -23,9 +24,11 @@ export default function SearchableSelect({
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    if (!needle) return options;
-    return options.filter((option) => option.toLowerCase().includes(needle));
-  }, [options, query]);
+    if (!needle) return safeOptions;
+    return safeOptions.filter((option) =>
+      String(option || '').toLowerCase().includes(needle)
+    );
+  }, [safeOptions, query]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -39,10 +42,10 @@ export default function SearchableSelect({
   useEffect(() => {
     if (open) {
       setQuery('');
-      setCursor(Math.max(0, options.indexOf(value)));
+      setCursor(Math.max(0, safeOptions.indexOf(value)));
       window.setTimeout(() => searchRef.current?.focus(), 30);
     }
-  }, [open, options, value]);
+  }, [open, safeOptions, value]);
 
   useEffect(() => {
     if (!open || !listRef.current) return;

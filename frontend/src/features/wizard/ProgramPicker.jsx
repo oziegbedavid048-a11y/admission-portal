@@ -43,13 +43,14 @@ export default function ProgramPicker({
   // the applicant asks to change it.
   const [schoolOpen, setSchoolOpen] = useState(!selection.institution);
 
+  const safeInstitutions = Array.isArray(institutions) ? institutions : [];
   const institution = useMemo(
-    () => institutions.find((item) => item.slug === selection.institution) || null,
-    [institutions, selection.institution],
+    () => safeInstitutions.find((item) => item.slug === selection?.institution) || null,
+    [safeInstitutions, selection?.institution],
   );
 
   const groups = useMemo(() => {
-    if (!institution) return [];
+    if (!institution || !Array.isArray(institution.programs)) return [];
     const buckets = new Map();
     institution.programs.forEach((program) => {
       const key = LEVEL_LABELS[program.level] ? program.level : 'other';
@@ -113,7 +114,7 @@ export default function ProgramPicker({
     );
   }
 
-  if (!institutions.length) {
+  if (!safeInstitutions.length) {
     return (
       <div className="callout callout-info">
         <Icon name="info" size={20} className="callout-icon" strokeWidth={2} />
@@ -140,7 +141,7 @@ export default function ProgramPicker({
               onChange={(event) => pickInstitution(event.target.value)}
             >
               <option value="">Select a school</option>
-              {institutions.map((item) => (
+              {safeInstitutions.map((item) => (
                 <option key={item.slug} value={item.slug}>
                   {item.name} &mdash; {item.location}
                 </option>

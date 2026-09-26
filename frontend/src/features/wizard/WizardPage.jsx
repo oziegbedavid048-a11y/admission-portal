@@ -113,9 +113,10 @@ export default function WizardPage({ onOpenLogin }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const safeInstitutions = Array.isArray(institutions) ? institutions : [];
   const institution = useMemo(
-    () => institutions.find((item) => item.slug === form.institution) || null,
-    [institutions, form.institution],
+    () => safeInstitutions.find((item) => item.slug === form.institution) || null,
+    [safeInstitutions, form.institution],
   );
 
   const feeWaived = institution ? institution.is_fee_free : false;
@@ -407,8 +408,8 @@ export default function WizardPage({ onOpenLogin }) {
                     })
                   }
                 >
-                  {destinations.map((destination) => (
-                    <option key={destination.id} value={destination.name}>
+                  {(Array.isArray(destinations) ? destinations : []).map((destination) => (
+                    <option key={destination.id || destination.name} value={destination.name}>
                       {destination.name}
                     </option>
                   ))}

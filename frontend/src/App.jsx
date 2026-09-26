@@ -5,6 +5,7 @@ import PaymentReturnPage from './features/wizard/PaymentReturnPage';
 import Loading from './components/ui/Loading';
 import LoginModal from './features/auth/LoginModal';
 import LandingPage from './features/landing/LandingPage';
+import ErrorBoundary from './components/ui/ErrorBoundary';
 
 // The portals and the wizard are big and most visitors never open them, so
 // they are split out of the first download.
@@ -23,7 +24,7 @@ export default function App() {
   const closeLogin = useCallback(() => setLoginOpen(false), []);
 
   return (
-    <>
+    <ErrorBoundary>
       <Suspense fallback={<Loading />}>
         <Routes>
           <Route path="/" element={<LandingPage onOpenLogin={openLogin} />} />
@@ -75,6 +76,6 @@ export default function App() {
       </Suspense>
 
       <LoginModal open={loginOpen} onClose={closeLogin} />
-    </>
+    </ErrorBoundary>
   );
 }

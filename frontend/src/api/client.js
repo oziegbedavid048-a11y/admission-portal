@@ -63,7 +63,16 @@ export async function restoreSession() {
 }
 
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // If the server returned HTML when JSON was expected (e.g. Vercel SPA rewrite fallback for /api)
+    const contentType = response.headers?.['content-type'] || '';
+    if (typeof response.data === 'string' && (contentType.includes('text/html') || response.data.trim().startsWith('<!doctype') || response.data.trim().startsWith('<html'))) {
+      const error = new Error('API returned HTML instead of JSON.');
+      error.response = { ...response, status: 502, data: { detail: 'Cannot connect to backend API.' } };
+      return Promise.reject(error);
+    }
+    return response;
+  },
   async (error) => {
     const original = error.config;
     const status = error.response?.status;
