@@ -1,26 +1,16 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "comment": [
-    "The catch-all rewrite sends every path to the SPA, because the app routes",
-    "on the client and a deep link must not 404. It used to match /api too, so",
-    "every API call on the deployed site was answered with index.html and the",
-    "app saw HTML where it expected JSON: no courses, no destinations, nothing.",
-    "The negative lookahead keeps /api out of it.",
-    "",
-    "To put the API on the same origin as the site, which is what the httpOnly",
-    "refresh cookie needs, add a rewrite ABOVE the catch-all pointing at the",
-    "backend, and leave VITE_API_URL as /api:",
-    "",
-    "  { \"source\": \"/api/:path*\",",
-    "    \"destination\": \"https://YOUR-BACKEND.onrender.com/api/:path*\" }",
-    "",
-    "Without that proxy the site and the API are separate origins, so set",
-    "VITE_API_URL to the backend URL and REFRESH_COOKIE_SAMESITE=None on the",
-    "backend, or the session is lost on every reload."
-  ],
   "rewrites": [
     {
-      "source": "/((?!api/).*)",
+      "source": "/api/:path*",
+      "destination": "https://gabstep-backend.onrender.com/api/:path*"
+    },
+    {
+      "source": "/media/:path*",
+      "destination": "https://gabstep-backend.onrender.com/media/:path*"
+    },
+    {
+      "source": "/((?!api/|media/).*)",
       "destination": "/"
     }
   ]

@@ -41,6 +41,13 @@ class InstitutionSerializer(serializers.ModelSerializer):
     programs = ProgramSerializer(many=True, read_only=True)
     country = serializers.CharField(source="country.name", read_only=True)
     is_fee_free = serializers.BooleanField(read_only=True)
+    # The fee in Naira, which is what the card is debited whatever the school
+    # quotes it in. Sent alongside the school's own figure so a screen can show
+    # "150 EUR" without having to know the rate.
+    application_fee_ngn = serializers.DecimalField(
+        max_digits=12, decimal_places=2, read_only=True
+    )
+    deposit_note = serializers.CharField(read_only=True)
 
     class Meta:
         model = Institution
@@ -52,9 +59,18 @@ class InstitutionSerializer(serializers.ModelSerializer):
             "location",
             "tagline",
             "badge",
+            # What the school quotes tuition and its deposit in. Tuition is
+            # never converted, so this is only ever a label.
             "currency",
+            # What its application fee is quoted in, which is a different thing
+            # and is the one figure that gets converted.
+            "application_fee_currency",
             "application_fee",
+            "application_fee_ngn",
             "is_fee_free",
+            "tuition_deposit_percent",
+            "tuition_deposit_amount",
+            "deposit_note",
             "tuition_summary",
             "features",
             "programs",
