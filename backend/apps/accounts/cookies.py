@@ -26,24 +26,39 @@ COOKIE_NAME = "gabstep_refresh"
 COOKIE_PATH = "/api/auth/"
 
 
+def _samesite():
+    """`Lax` when the site and the API share an origin, `None` when they do not.
+
+    Same-origin is the deployment to aim for: the browser sends the cookie, no
+    CORS is involved, and `Lax` keeps it off other sites' requests entirely.
+
+    But a frontend on one host and an API on another is a normal shape too, and
+    there the browser will not send a `Lax` cookie at all, so every reload would
+    sign the person out. `REFRESH_COOKIE_SAMESITE=None` covers that, and the
+    browser then requires `Secure`, which is why it is forced on below.
+    """
+    value = (getattr(settings, "REFRESH_COOKIE_SAMESITE", "") or "Lax").strip().capitalize()
+    return value if value in {"Lax", "Strict", "None"} else "Lax"
+
+
 def set_refresh_cookie(response, token):
+    samesite = _samesite()
     response.set_cookie(
         COOKIE_NAME,
         token,
         max_age=int(settings.SIMPLE_JWT["REFRESH_TOKEN_LIFETIME"].total_seconds()),
         httponly=True,
-        # Sent over plain HTTP only while developing; required over TLS otherwise.
-        secure=not settings.DEBUG,
-        # Lax rather than Strict so following a link back into the site keeps the
-        # session, and rather than None because the API is same-origin.
-        samesite="Lax",
+        # Plain HTTP is only ever allowed while developing. A cross-site cookie
+        # is refused by the browser without Secure, whatever DEBUG says.
+        secure=(not settings.DEBUG) or samesite == "None",
+        samesite=samesite,
         path=COOKIE_PATH,
     )
     return response
 
 
 def clear_refresh_cookie(response):
-    response.delete_cookie(COOKIE_NAME, path=COOKIE_PATH, samesite="Lax")
+    response.delete_cookie(COOKIE_NAME, path=COOKIE_PATH, samesite=_samesite())
     return response
 
 

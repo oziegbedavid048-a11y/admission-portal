@@ -252,7 +252,12 @@ CORS_ALLOW_ALL_ORIGINS = env_bool("CORS_ALLOW_ALL_ORIGINS", False)
 # with a cookie, so the browser has no credentials to attach to a cross-origin
 # call. Allowing them would widen what a hostile page could ask the browser to
 # send on a signed-in person's behalf, and buy nothing.
-CORS_ALLOW_CREDENTIALS = False
+# The refresh cookie is the only credential the browser sends, and it is only
+# sent cross-origin when the site and the API sit on different hosts. Declaring
+# that shape turns both halves on together: without the CORS flag the browser
+# drops the cookie, and without SameSite=None it never attaches it.
+REFRESH_COOKIE_SAMESITE = env("REFRESH_COOKIE_SAMESITE", "Lax")
+CORS_ALLOW_CREDENTIALS = REFRESH_COOKIE_SAMESITE.strip().capitalize() == "None"
 # The admin is a session-cookie app served from this same origin, so it does need
 # its own trusted origins. Those are the site's own addresses, not the API's
 # callers, which is why this is its own setting rather than a copy of the CORS
