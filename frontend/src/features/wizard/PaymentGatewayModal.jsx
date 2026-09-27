@@ -47,10 +47,24 @@ export default function PaymentGatewayModal({ open, onClose, onConfirm, quote, e
           disabled={busy}
         >
           {busy ? <span className="spinner-sm" aria-hidden="true" /> : null}
-          {busy ? 'Submitting' : online ? 'Continue to payment' : 'Submit application'}
+          {busy
+            ? 'Uploading your documents'
+            : online
+              ? 'Proceed to payment'
+              : 'Submit application'}
         </button>
       }
     >
+      {busy ? (
+        <div className="callout callout-info">
+          <Icon name="clock" size={20} className="callout-icon" strokeWidth={2} />
+          <div className="callout-content">
+            Your documents are uploading. This takes a few seconds, then you go
+            straight to the payment page. Do not close this.
+          </div>
+        </div>
+      ) : null}
+
       <div className="pay-summary">
         <div className="pay-summary-left">
           <span className="pay-summary-label">Paying as</span>

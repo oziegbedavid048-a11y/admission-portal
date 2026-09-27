@@ -43,6 +43,27 @@ ZEPTOMAIL_DEFAULT_HOST = "cpaas.zoho.com"
 ZEPTOMAIL_SCHEME = "Zoho-enczapikey"
 
 
+def _clean_host(value, fallback):
+    """A bare hostname, whatever shape it arrived in.
+
+    The provider's console shows a host, and a host is what this needs, but it is
+    natural to paste the whole URL. Left alone, "https://cpaas.zoho.com" builds
+    "https://https://cpaas.zoho.com/v1.1/email", and the failure is a DNS error
+    that says nothing about a stray scheme:
+
+        <urlopen error [Errno -2] Name or service not known>
+
+    So the scheme, any path, and any stray whitespace come off.
+    """
+    host = (value or "").strip()
+    if not host:
+        return fallback
+    if "//" in host:
+        host = host.split("//", 1)[1]
+    host = host.split("/", 1)[0].strip().strip(".")
+    return host or fallback
+
+
 def _provider_detail(body):
     """The human-readable part of a provider's error response.
 
@@ -182,9 +203,10 @@ class HttpEmailBackend(BaseEmailBackend):
             self.last_error = detail
         except (error.URLError, TimeoutError, OSError, ValueError) as exc:
             logger.error(
-                "Could not reach %s to send %r to %s: %s",
-                self.provider, message.subject, recipients, exc,
+                "Could not reach %s at %s to send %r to %s: %s",
+                self.provider, url, message.subject, recipients, exc,
             )
+            self.last_error = f"could not reach {url}: {exc}"
 
         if not self.fail_silently:
             raise RuntimeError(
@@ -232,7 +254,9 @@ class HttpEmailBackend(BaseEmailBackend):
             if message.reply_to:
                 reply = _split_address(message.reply_to[0])[1]
                 payload["reply_to"] = [{"address": reply}]
-            host = getattr(settings, "ZEPTOMAIL_HOST", "") or ZEPTOMAIL_DEFAULT_HOST
+            host = _clean_host(
+                getattr(settings, "ZEPTOMAIL_HOST", ""), ZEPTOMAIL_DEFAULT_HOST
+            )
             return (
                 ENDPOINTS["zeptomail"].format(host=host),
                 payload,

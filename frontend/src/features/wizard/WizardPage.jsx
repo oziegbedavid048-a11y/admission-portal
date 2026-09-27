@@ -363,8 +363,14 @@ export default function WizardPage({ onOpenLogin }) {
         initial_password: requiresPayment ? generatedPassword : '',
       });
 
-      await uploadDocuments(application.reference);
-      const { data: settlement } = await payments.checkout(application.reference);
+      // The gateway call does not depend on the documents, so the two run
+      // together: the wait is the slower of them rather than their sum. The
+      // uploads are the slow half on a phone, and they have to finish before the
+      // page navigates away to the provider, or they would be cut off.
+      const [settlement] = await Promise.all([
+        payments.checkout(application.reference).then((response) => response.data),
+        uploadDocuments(application.reference),
+      ]);
 
       localStorage.removeItem(DRAFT_KEY);
       setGatewayOpen(false);
@@ -779,7 +785,7 @@ export default function WizardPage({ onOpenLogin }) {
                     ? 'Complete registration & receive login'
                     : feeWaived
                       ? 'Submit application'
-                      : `Submit and pay ${activeQuote ? formatMoney(activeQuote.amount, activeQuote.currency) : ''}`}
+                      : `Proceed to payment${activeQuote ? ` · ${formatMoney(activeQuote.amount, activeQuote.currency)}` : ''}`}
                 </button>
               </div>
             </div>

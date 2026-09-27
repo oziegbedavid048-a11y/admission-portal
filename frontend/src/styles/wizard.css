@@ -796,3 +796,11 @@
   font-weight: 800;
   color: var(--g-accent);
 }
+
+/* The callout on the return page is the message, not an aside, so it reads
+   left-aligned inside a centred card. */
+.return-callout {
+  width: 100%;
+  text-align: left;
+  margin: 4px 0 8px;
+}

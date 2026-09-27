@@ -82,28 +82,32 @@ export default function PaymentReturnPage() {
                 <span className="return-mark is-ok" aria-hidden="true">
                   <Icon name="checkCircle" size={26} strokeWidth={2} />
                 </span>
-                <h1 className="return-title">Application fee paid</h1>
+                <h1 className="return-title">Payment successful</h1>
                 <p className="return-note">
                   {result?.display_total ? `${result.display_total} received. ` : ''}
-                  Your application {result?.application || reference} is submitted and
-                  with the admissions desk.
+                  Application {result?.application || reference} is submitted and with
+                  the admissions desk.
                 </p>
 
                 {result?.credentials_sent === false ? (
                   <div className="callout callout-warning return-callout">
                     <Icon name="alert" size={20} className="callout-icon" strokeWidth={2} />
                     <div className="callout-content">
-                      Your payment is safe and your application is filed. We could not
-                      send your sign-in details just now, so the admissions desk will
-                      email them to you shortly.
+                      <strong>Your sign-in details are on their way.</strong> We could
+                      not send them this moment. Your payment and your application are
+                      both recorded, and the admissions desk will email your login
+                      shortly. Quote {result?.application || reference} if you need to
+                      contact us.
                     </div>
                   </div>
                 ) : (
                   <div className="callout callout-success return-callout">
                     <Icon name="mail" size={20} className="callout-icon" strokeWidth={2} />
                     <div className="callout-content">
-                      Your sign-in details have been emailed to you. Use them to log in
-                      and follow your application.
+                      <strong>Your login details have been sent to your email.</strong>{' '}
+                      Check your inbox, then sign in to track your application and
+                      download any letters we issue. You can change the password from
+                      your profile.
                     </div>
                   </div>
                 )}
