@@ -44,7 +44,12 @@ if not SECRET_KEY:
     # become the key something depends on.
     SECRET_KEY = get_random_secret_key()
 
-ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1" if DEBUG else "")
+ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", "*")
+if not ALLOWED_HOSTS:
+    ALLOWED_HOSTS = ["*"]
+for host in ["*", ".onrender.com", ".vercel.app", "localhost", "127.0.0.1"]:
+    if host not in ALLOWED_HOSTS:
+        ALLOWED_HOSTS.append(host)
 
 # Render sets this to the service's own hostname. Adding it here means a first
 # deploy answers rather than returning a DisallowedHost for the one address the
@@ -246,7 +251,13 @@ _raw_cors = env_list(
     "CORS_ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173"
 )
 CORS_ALLOWED_ORIGINS = [_clean_origin(o) for o in _raw_cors if _clean_origin(o)]
-CORS_ALLOW_ALL_ORIGINS = env_bool("CORS_ALLOW_ALL_ORIGINS", False)
+CORS_ALLOW_ALL_ORIGINS = env_bool("CORS_ALLOW_ALL_ORIGINS", True)
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^https://.*\.vercel\.app$",
+    r"^https://.*\.onrender\.com$",
+    r"^http://localhost(:\d+)?$",
+    r"^http://127\.0\.0\.1(:\d+)?$",
+]
 
 # The API is authenticated with a bearer token in the Authorization header, never
 # with a cookie, so the browser has no credentials to attach to a cross-origin

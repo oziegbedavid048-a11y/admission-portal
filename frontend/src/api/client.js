@@ -94,9 +94,47 @@ api.interceptors.response.use(
       }
     }
 
+    // If error response data is HTML (e.g. 400 Bad Request, 500 Server Error, 502/504)
+    const errData = error.response?.data;
+    const errContentType = error.response?.headers?.['content-type'] || '';
+    if (
+      typeof errData === 'string' &&
+      (errContentType.includes('text/html') ||
+        errData.trim().startsWith('<!doctype') ||
+        errData.trim().startsWith('<html') ||
+        errData.trim().startsWith('<?xml') ||
+        errData.includes('Traceback (most recent call last)'))
+    ) {
+      if (error.response) {
+        error.response.data = {
+          detail: 'Unable to connect to the admissions server. Please try again in a moment.',
+        };
+      }
+    }
+
     return Promise.reject(error);
   },
 );
+
+function stripHtml(input) {
+  if (typeof input !== 'string') return '';
+  return input.replace(/<[^>]*>?/gm, '').replace(/&nbsp;/g, ' ').trim();
+}
+
+function isHtmlOrCode(str) {
+  if (typeof str !== 'string') return false;
+  const lower = str.toLowerCase().trim();
+  return (
+    lower.startsWith('<!doctype') ||
+    lower.startsWith('<html') ||
+    lower.startsWith('<?xml') ||
+    lower.includes('<body') ||
+    lower.includes('<div') ||
+    lower.includes('<title>') ||
+    lower.includes('traceback (most recent call last)') ||
+    lower.includes('django.core.exceptions')
+  );
+}
 
 /** Turns a DRF error body into one sentence a person can act on. */
 export function errorMessage(error, fallback = 'Something went wrong. Please try again.') {
@@ -105,15 +143,33 @@ export function errorMessage(error, fallback = 'Something went wrong. Please try
     return 'Too many attempts. Wait a minute and try again.';
   }
   if (!data) return error?.message === 'Network Error' ? 'Cannot reach the server.' : fallback;
-  if (typeof data === 'string') return data;
-  if (data.detail) return data.detail;
 
-  const first = Object.entries(data)[0];
-  if (!first) return fallback;
-  const [field, value] = first;
-  const text = Array.isArray(value) ? value[0] : value;
-  if (field === 'non_field_errors') return String(text);
-  return typeof text === 'string' ? text : fallback;
+  if (typeof data === 'string') {
+    if (isHtmlOrCode(data)) return fallback;
+    const clean = stripHtml(data);
+    return clean && clean.length < 250 ? clean : fallback;
+  }
+
+  if (typeof data === 'object') {
+    if (data.detail && typeof data.detail === 'string') {
+      if (isHtmlOrCode(data.detail)) return fallback;
+      const cleanDetail = stripHtml(data.detail);
+      return cleanDetail || fallback;
+    }
+
+    const first = Object.entries(data)[0];
+    if (!first) return fallback;
+    const [field, value] = first;
+    const text = Array.isArray(value) ? value[0] : value;
+    if (typeof text === 'string') {
+      if (isHtmlOrCode(text)) return fallback;
+      const cleanText = stripHtml(text);
+      if (field === 'non_field_errors') return cleanText || fallback;
+      return cleanText || fallback;
+    }
+  }
+
+  return fallback;
 }
 
 /** Field-level errors, keyed the way the forms key their inputs. */

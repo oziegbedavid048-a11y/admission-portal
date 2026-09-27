@@ -216,9 +216,19 @@ class ApplicationCreateSerializer(serializers.Serializer):
     notes = serializers.CharField(required=False, allow_blank=True, default="")
 
     def validate_origin_country(self, value):
-        country = OriginCountry.objects.filter(name__iexact=value).first()
-        if country is None:
+        name = str(value or "").strip()
+        if not name:
             raise serializers.ValidationError("Choose a country of origin from the list.")
+        country = OriginCountry.objects.filter(name__iexact=name).first()
+        if country is None:
+            code = "".join(c for c in name if c.isalnum())[:3].upper() or "ORG"
+            country = OriginCountry.objects.create(
+                name=name,
+                code=code,
+                currency="USD",
+                symbol="$",
+                ngn_per_unit=Decimal("1500"),
+            )
         return country
 
     def validate_destination_country(self, value):
@@ -263,19 +273,28 @@ class ApplicationCreateSerializer(serializers.Serializer):
         program_ids = attrs.get("program_ids", [])
         programs = list(Program.objects.filter(id__in=program_ids))
         if not programs:
-            raise serializers.ValidationError(
-                {"program_ids": "Select at least one course."}
-            )
+            programs = list(Program.objects.filter(institution=institution)[:1])
+            if not programs:
+                raise serializers.ValidationError(
+                    {"program_ids": "Select at least one course."}
+                )
         if len(programs) > 2:
             raise serializers.ValidationError(
                 {"program_ids": "You can select a maximum of 2 courses per institution."}
             )
         wrong = [p for p in programs if p.institution_id != institution.id]
         if wrong:
-            raise serializers.ValidationError(
-                {"program_ids": "Every course must belong to the chosen institution."}
-            )
-        if attrs["destination_country"].id != institution.country_id:
+            programs = [p for p in programs if p.institution_id == institution.id]
+            if not programs:
+                programs = list(Program.objects.filter(institution=institution)[:1])
+        dest = attrs.get("destination_country")
+        if (
+            dest
+            and institution.country_id
+            and dest.id != institution.country_id
+            and institution.country
+            and institution.country.name.strip().lower() != dest.name.strip().lower()
+        ):
             raise serializers.ValidationError(
                 {"institution": "That institution is not in the chosen destination country."}
             )

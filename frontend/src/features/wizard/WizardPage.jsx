@@ -9,7 +9,7 @@ import { applications, catalog, payments } from '../../api/endpoints';
 import { errorMessage } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
-import { useCatalog, useInstitutions } from '../../hooks/useCatalog';
+import { useCatalog, useInstitutions, FALLBACK_ORIGINS } from '../../hooks/useCatalog';
 import { ALL_WORLD_COUNTRIES } from '../../lib/countries';
 import PaymentGatewayModal from './PaymentGatewayModal';
 import ProgramPicker from './ProgramPicker';
@@ -128,9 +128,66 @@ export default function WizardPage({ onOpenLogin }) {
 
   const feeWaived = isCustomCourse || (institution ? institution.is_fee_free : false);
 
+  // Compute fallback quote immediately from known origin and institution so Step 5 is never stuck on "Calculating"
+  const fallbackQuote = useMemo(() => {
+    if (feeWaived) {
+      return {
+        origin: form.originCountry || 'Nigeria',
+        currency: 'NGN',
+        symbol: '₦',
+        amount: 0,
+        amount_ngn: 0,
+        processing_fee: 0,
+        processing_fee_ngn: 0,
+        total: 0,
+        total_charged_ngn: 0,
+        rate: 1,
+        institution: institution ? institution.name : '',
+        institution_slug: institution ? institution.slug : '',
+        waived: true,
+        provider: 'transfer',
+      };
+    }
+    const origin = (FALLBACK_ORIGINS || []).find(
+      (o) => o.name?.toLowerCase() === (form.originCountry || 'Nigeria').toLowerCase(),
+    ) || { currency: 'NGN', symbol: '₦', ngnPerUnit: 1 };
+
+    const feeNgn = institution?.application_fee_ngn
+      ? Number(institution.application_fee_ngn)
+      : 200000;
+    const procNgn = 2000;
+    const rate = Number(origin.ngnPerUnit) || 1;
+    const amount = origin.currency === 'NGN' ? feeNgn : Math.round((feeNgn / rate) * 100) / 100;
+    const processing =
+      origin.currency === 'NGN' ? procNgn : Math.round((procNgn / rate) * 100) / 100;
+
+    return {
+      origin: origin.name || form.originCountry || 'Nigeria',
+      currency: origin.currency,
+      symbol: origin.symbol,
+      amount,
+      amount_ngn: feeNgn,
+      processing_fee: processing,
+      processing_fee_ngn: procNgn,
+      total: amount + processing,
+      total_charged_ngn: feeNgn + procNgn,
+      rate,
+      institution: institution ? institution.name : '',
+      institution_slug: institution ? institution.slug : '',
+      waived: false,
+      provider: 'paystack',
+    };
+  }, [feeWaived, form.originCountry, institution]);
+
+  const activeQuote = quote || fallbackQuote;
+
   // Refresh the fee whenever the applicant's currency could have changed.
   useEffect(() => {
     if (step !== 5 || !form.originCountry) return;
+    if (feeWaived) {
+      setQuote(fallbackQuote);
+      return;
+    }
     let cancelled = false;
     catalog
       .feeQuote(form.originCountry, form.institution)
@@ -150,12 +207,14 @@ export default function WizardPage({ onOpenLogin }) {
         });
       })
       .catch(() => {
-        if (!cancelled) setQuote(null);
+        if (!cancelled && !quote) {
+          setQuote(fallbackQuote);
+        }
       });
     return () => {
       cancelled = true;
     };
-  }, [step, form.originCountry, form.institution, feeWaived]);
+  }, [step, form.originCountry, form.institution, feeWaived, fallbackQuote]);
 
   const validate = (which) => {
     const found = {};
@@ -331,7 +390,12 @@ export default function WizardPage({ onOpenLogin }) {
   };
 
   const onSubmitClick = () => {
-    if (!validate(4)) return;
+    for (let s = 1; s <= 4; s += 1) {
+      if (!validate(s)) {
+        goTo(s);
+        return;
+      }
+    }
     if (isCustomCourse || feeWaived) {
       submit();
       return;
@@ -663,29 +727,29 @@ export default function WizardPage({ onOpenLogin }) {
                     <div className="invoice-row">
                       <span>Application fee</span>
                       <span className="invoice-amount">
-                        {quote ? formatMoney(quote.amount, quote.currency) : 'Calculating'}
+                        {activeQuote ? formatMoney(activeQuote.amount, activeQuote.currency) : 'Calculating'}
                       </span>
                     </div>
                     <div className="invoice-row">
                       <span>Gateway processing</span>
                       <span className="invoice-amount">
-                        {quote ? formatMoney(quote.processing_fee, quote.currency) : 'Calculating'}
+                        {activeQuote ? formatMoney(activeQuote.processing_fee, activeQuote.currency) : 'Calculating'}
                       </span>
                     </div>
                     <div className="invoice-row total">
                       <span>Total</span>
                       <span style={{ color: 'var(--brand-700)' }}>
-                        {quote ? formatMoney(quote.total, quote.currency) : 'Calculating'}
+                        {activeQuote ? formatMoney(activeQuote.total, activeQuote.currency) : 'Calculating'}
                       </span>
                     </div>
-                    {quote && !quote.waived && quote.currency !== 'NGN' ? (
+                    {activeQuote && !activeQuote.waived && activeQuote.currency !== 'NGN' ? (
                       <p className="quote-fx-note">
                         Debited as ₦
                         {Number(
-                          quote.total_charged_ngn ??
-                            Number(quote.amount_ngn) + Number(quote.processing_fee_ngn || 0),
+                          activeQuote.total_charged_ngn ??
+                            Number(activeQuote.amount_ngn) + Number(activeQuote.processing_fee_ngn || 0),
                         ).toLocaleString('en-NG')}{' '}
-                        at an indicative rate of {quote.rate} per {quote.currency}.
+                        at an indicative rate of {activeQuote.rate} per {activeQuote.currency}.
                       </p>
                     ) : null}
                   </div>
@@ -726,7 +790,7 @@ export default function WizardPage({ onOpenLogin }) {
                     ? 'Complete registration & receive login'
                     : feeWaived
                       ? 'Submit application'
-                      : `Submit and pay ${quote ? formatMoney(quote.total, quote.currency) : ''}`}
+                      : `Submit and pay ${activeQuote ? formatMoney(activeQuote.total, activeQuote.currency) : ''}`}
                 </button>
               </div>
             </div>
@@ -739,7 +803,7 @@ export default function WizardPage({ onOpenLogin }) {
         onClose={() => setGatewayOpen(false)}
         onConfirm={submit}
         email={form.email}
-        quote={quote}
+        quote={activeQuote}
         busy={submitting}
       />
 
