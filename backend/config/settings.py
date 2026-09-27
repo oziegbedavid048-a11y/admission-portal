@@ -343,8 +343,22 @@ SERVER_EMAIL = DEFAULT_FROM_EMAIL
 # payment without a human. With no key the platform runs in transfer mode: the
 # fee is recorded as outstanding and the admissions desk confirms the transfer
 # in the admin. Both credit the agent's commission; nothing else does.
-PAYSTACK_SECRET_KEY = env("PAYSTACK_SECRET_KEY")
-PAYSTACK_PUBLIC_KEY = env("PAYSTACK_PUBLIC_KEY")
+PAYSTACK_SECRET_KEY = (
+    env("PAYSTACK_SECRET_KEY")
+    or env("PAYSTACK_TEST_SECRET_KEY")
+    or env("PAYSTACK_LIVE_SECRET_KEY")
+    or env("PAYSTACK_SECRET")
+    or env("PAYSTACK_KEY")
+    or env("PAYSTACK_PRIVATE_KEY")
+    or ""
+).strip()
+PAYSTACK_PUBLIC_KEY = (
+    env("PAYSTACK_PUBLIC_KEY")
+    or env("PAYSTACK_TEST_PUBLIC_KEY")
+    or env("PAYSTACK_LIVE_PUBLIC_KEY")
+    or env("PAYSTACK_PUBLIC")
+    or ""
+).strip()
 
 # Paystack's own charge, from paystack.com/pricing. Overridable because a
 # negotiated rate is normal. The applicant is shown this on top of the fee and the

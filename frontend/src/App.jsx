@@ -60,16 +60,8 @@ export default function App() {
             }
           />
 
-          {/* Paystack sends the applicant back here. Behind the applicant guard,
-              because confirming a payment means reading that application. */}
-          <Route
-            path="/payment/:reference"
-            element={
-              <ProtectedRoute role="applicant">
-                <PaymentReturnPage />
-              </ProtectedRoute>
-            }
-          />
+          {/* Paystack sends the applicant back here. Unprotected so applicants returning from Paystack on any device or tab can confirm payment and auto-sign in. */}
+          <Route path="/payment/:reference" element={<PaymentReturnPage />} />
 
           <Route path="*" element={<NotFoundPage />} />
         </Routes>

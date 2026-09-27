@@ -104,8 +104,9 @@ export function AuthProvider({ children }) {
       registerAgent,
       refreshUser,
       setUser,
+      adopt,
     }),
-    [user, loading, signIn, signOut, registerApplicant, registerAgent, refreshUser],
+    [user, loading, signIn, signOut, registerApplicant, registerAgent, refreshUser, adopt],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

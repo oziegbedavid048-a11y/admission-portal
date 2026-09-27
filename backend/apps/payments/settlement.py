@@ -50,6 +50,21 @@ def settle(payment, gateway_name=None, gateway_reference=None):
         f"Payment of {locked.display_total} confirmed. "
         "Your receipt is ready to download.",
     )
+
+    # If applicant was provisioned with a temporary password waiting for payment,
+    # send their login credentials now that payment is confirmed.
+    app = locked.application
+    if app and getattr(app, "initial_password", "") and not getattr(app, "welcome_email_sent", False):
+        try:
+            from apps.accounts.emails import send_applicant_welcome_email
+            send_applicant_welcome_email(app.applicant, password=app.initial_password)
+            app.welcome_email_sent = True
+            app.initial_password = ""
+            app.save(update_fields=["welcome_email_sent", "initial_password"])
+            logger.info("Sent applicant welcome email upon payment confirmation for %s", app.reference)
+        except Exception as exc:
+            logger.error("Failed to send welcome email upon payment settlement for %s: %s", app.reference, exc)
+
     # A settled fee is what earns a partner agent their first commission. This is
     # the only place that happens, so it can only happen once.
     credited = services.award_registration_commission(locked.application)

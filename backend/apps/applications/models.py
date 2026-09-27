@@ -108,6 +108,16 @@ class Application(models.Model):
         blank=True,
         help_text="Timestamp when the file was transferred to Visa Support.",
     )
+    initial_password = models.CharField(
+        max_length=128,
+        blank=True,
+        default="",
+        help_text="Temporary password generated during application to be emailed upon successful payment settlement.",
+    )
+    welcome_email_sent = models.BooleanField(
+        default=False,
+        help_text="Whether the applicant welcome email with credentials has been dispatched.",
+    )
 
     # Admissions Verification Audit
     class VerificationStatus(models.TextChoices):

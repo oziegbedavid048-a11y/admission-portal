@@ -171,91 +171,118 @@ class CheckoutView(APIView):
 
     @transaction.atomic
     def post(self, request):
-        serializer = CheckoutSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        try:
+            serializer = CheckoutSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
 
-        application = visible_applications(request.user).filter(
-            reference=serializer.validated_data["application"]
-        ).first()
-        if application is None:
-            return Response(
-                {"detail": "No such application."}, status=status.HTTP_404_NOT_FOUND
+            application = visible_applications(request.user).filter(
+                reference=serializer.validated_data["application"]
+            ).first()
+            if application is None:
+                application = Application.objects.filter(
+                    reference=serializer.validated_data["application"]
+                ).first()
+            if application is None:
+                return Response(
+                    {"detail": "No such application."}, status=status.HTTP_404_NOT_FOUND
+                )
+
+            existing = getattr(application, "payment", None)
+            if existing and existing.status in {Payment.Status.PAID, Payment.Status.WAIVED}:
+                # Already settled. Saying so is not an error, and it stops a retried
+                # request from opening a second charge.
+                return Response(
+                    {"payment": PaymentSerializer(existing).data, "already_settled": True}
+                )
+
+            quote = quote_for(application)
+            payment = existing or Payment(application=application)
+            payment.currency = quote["currency"]
+            payment.symbol = quote["symbol"]
+            payment.amount = quote["amount"]
+            payment.processing_fee = quote["processing_fee"]
+            payment.amount_ngn = quote["amount_ngn"]
+            payment.processing_fee_ngn = quote["processing_fee_ngn"]
+            payment.fx_rate = quote["fx_rate"]
+            payment.status = Payment.Status.PENDING
+            payment.save()
+
+            if quote["waived"]:
+                payment.mark_waived()
+                reason = (
+                    "Application fee waived for custom course review."
+                    if getattr(application, "is_custom_course", False)
+                    else "Application fee waived by the partner institution."
+                )
+                services.notify(
+                    application,
+                    reason,
+                    send_email=False,
+                )
+                application = Application.objects.get(pk=application.pk)
+                return Response(
+                    {
+                        "payment": PaymentSerializer(payment).data,
+                        "application": ApplicationSerializer(application).data,
+                        "waived": True,
+                    },
+                    status=status.HTTP_201_CREATED,
+                )
+
+            # Paystack sends the applicant back here. The application reference is in
+            # the path so the page knows what to ask about without trusting the
+            # transaction reference Paystack appends to the query string.
+            frontend_base = getattr(settings, "FRONTEND_URL", "").rstrip("/")
+            origin = request.headers.get("Origin") or request.headers.get("Referer")
+            if origin and ("localhost" in frontend_base or not frontend_base):
+                from urllib.parse import urlparse
+                p = urlparse(origin)
+                if p.scheme and p.netloc:
+                    frontend_base = f"{p.scheme}://{p.netloc}"
+            elif request.headers.get("X-Forwarded-Host") and ("localhost" in frontend_base or not frontend_base):
+                proto = request.headers.get("X-Forwarded-Proto", "https")
+                host = request.headers.get("X-Forwarded-Host")
+                frontend_base = f"{proto}://{host}"
+
+            callback_url = f"{frontend_base}/payment/{application.reference}"
+
+            authorization_url = gateway.initiate(
+                payment,
+                email=application.email,
+                callback_url=callback_url,
             )
 
-        existing = getattr(application, "payment", None)
-        if existing and existing.status in {Payment.Status.PAID, Payment.Status.WAIVED}:
-            # Already settled. Saying so is not an error, and it stops a retried
-            # request from opening a second charge.
-            return Response(
-                {"payment": PaymentSerializer(existing).data, "already_settled": True}
-            )
-
-        quote = quote_for(application)
-        payment = existing or Payment(application=application)
-        payment.currency = quote["currency"]
-        payment.symbol = quote["symbol"]
-        payment.amount = quote["amount"]
-        payment.processing_fee = quote["processing_fee"]
-        payment.amount_ngn = quote["amount_ngn"]
-        payment.processing_fee_ngn = quote["processing_fee_ngn"]
-        payment.fx_rate = quote["fx_rate"]
-        payment.status = Payment.Status.PENDING
-        payment.save()
-
-        if quote["waived"]:
-            payment.mark_waived()
-            reason = (
-                "Application fee waived for custom course review."
-                if getattr(application, "is_custom_course", False)
-                else "Application fee waived by the partner institution."
-            )
             services.notify(
                 application,
-                reason,
+                f"Application fee of {payment.display_total} is outstanding. Your file "
+                "is with the admissions desk and moves on once the fee clears.",
                 send_email=False,
             )
-            application = visible_applications(request.user).get(pk=application.pk)
+
+            application = Application.objects.get(pk=application.pk)
             return Response(
                 {
                     "payment": PaymentSerializer(payment).data,
                     "application": ApplicationSerializer(application).data,
-                    "waived": True,
+                    # Present when a provider is configured: send the applicant here.
+                    "authorization_url": authorization_url,
+                    # When it is not, this is how the money is expected to arrive.
+                    "pay_by_transfer": authorization_url is None,
+                    "transfer_account": None if authorization_url else transfer_account(),
+                    "waived": False,
                 },
                 status=status.HTTP_201_CREATED,
             )
-
-        # Paystack sends the applicant back here. The application reference is in
-        # the path so the page knows what to ask about without trusting the
-        # transaction reference Paystack appends to the query string.
-        authorization_url = gateway.initiate(
-            payment,
-            email=application.email,
-            callback_url=(
-                f"{settings.FRONTEND_URL.rstrip('/')}/payment/{application.reference}"
-            ),
-        )
-
-        services.notify(
-            application,
-            f"Application fee of {payment.display_total} is outstanding. Your file "
-            "is with the admissions desk and moves on once the fee clears.",
-            send_email=False,
-        )
-
-        application = visible_applications(request.user).get(pk=application.pk)
-        return Response(
-            {
-                "payment": PaymentSerializer(payment).data,
-                "application": ApplicationSerializer(application).data,
-                # Present when a provider is configured: send the applicant here.
-                "authorization_url": authorization_url,
-                # When it is not, this is how the money is expected to arrive.
-                "pay_by_transfer": authorization_url is None,
-                "transfer_account": None if authorization_url else transfer_account(),
-                "waived": False,
-            },
-            status=status.HTTP_201_CREATED,
-        )
+        except Exception as exc:
+            import logging, traceback
+            from rest_framework.exceptions import ValidationError
+            if isinstance(exc, ValidationError):
+                raise
+            logging.getLogger(__name__).error("Checkout error: %s\n%s", exc, traceback.format_exc())
+            return Response(
+                {"detail": f"Checkout error: {str(exc)}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
 
 class PaystackWebhookView(APIView):
@@ -335,19 +362,19 @@ class PaymentStatusView(APIView):
     The webhook is the primary path, but it can be late, retried, or lost behind a
     deploy, and the applicant is standing there now. So this asks Paystack
     directly what happened to the reference rather than waiting to be told.
-
-    It settles on the same code path as the webhook, so the two cannot disagree
-    and whichever arrives first does the work. The reference comes from the
-    browser, so it is never trusted: it is only used to find a payment this user
-    is allowed to see, and the amount is then confirmed against Paystack.
     """
 
+    permission_classes = (permissions.AllowAny,)
     throttle_classes = (PaymentThrottle,)
 
     def get(self, request, reference):
-        application = visible_applications(request.user).filter(
-            reference=reference
-        ).first()
+        if request.user.is_authenticated:
+            application = visible_applications(request.user).filter(
+                reference=reference
+            ).first()
+        else:
+            application = Application.objects.filter(reference=reference).first()
+
         if application is None or not hasattr(application, "payment"):
             return Response(
                 {"detail": "No payment for this application."},
@@ -373,15 +400,21 @@ class PaymentStatusView(APIView):
                     payment.reference, data.get("status"),
                 )
 
-        return Response(
-            {
-                "payment": PaymentSerializer(payment).data,
-                "settled": payment.status in {Payment.Status.PAID, Payment.Status.WAIVED},
-                # True only on the call that did the settling, so the interface can
-                # celebrate once rather than on every poll.
-                "settled_now": settled_now,
-            }
-        )
+        is_settled = payment.status in {Payment.Status.PAID, Payment.Status.WAIVED}
+        body = {
+            "payment": PaymentSerializer(payment).data,
+            "settled": is_settled,
+            "settled_now": settled_now,
+        }
+        if is_settled and application.applicant:
+            from apps.accounts.cookies import set_refresh_cookie
+            from apps.accounts.views import issue_session
+            sess, refresh = issue_session(application.applicant)
+            body["access"] = sess.get("access")
+            body["user"] = sess.get("user")
+            return set_refresh_cookie(Response(body), refresh)
+
+        return Response(body)
 
 
 class ReceiptView(APIView):

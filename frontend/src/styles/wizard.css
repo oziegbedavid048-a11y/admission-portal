@@ -658,16 +658,37 @@
 
 .pay-summary {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 16px;
+  flex-direction: column;
+  gap: 14px;
   margin-bottom: 20px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--g-line);
+  padding: 16px;
+  background: var(--slate-50, #f8fafc);
+  border: 1px solid var(--slate-200, #e2e8f0);
+  border-radius: var(--radius-lg, 12px);
+}
+
+@media (min-width: 480px) {
+  .pay-summary {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+}
+
+.pay-summary-left {
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .pay-summary-right {
-  text-align: right;
+  flex-shrink: 0;
+  text-align: left;
+}
+
+@media (min-width: 480px) {
+  .pay-summary-right {
+    text-align: right;
+  }
 }
 
 .pay-summary-label {
@@ -675,23 +696,25 @@
   font-size: 0.75rem;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: var(--g-ink-3);
+  color: var(--slate-500, #64748b);
+  margin-bottom: 2px;
 }
 
 .pay-summary-value {
   display: block;
   font-size: 0.9375rem;
   font-weight: 600;
-  color: var(--g-ink);
+  color: var(--slate-900, #0f172a);
+  word-break: break-all;
   overflow-wrap: anywhere;
 }
 
 .pay-summary-amount {
   display: block;
-  font-size: 1.25rem;
+  font-size: 1.35rem;
   font-weight: 800;
   letter-spacing: -0.02em;
-  color: var(--g-accent);
+  color: var(--brand-700, #047857);
 }
 
 .pay-row-label { color: var(--g-ink-3); }
@@ -704,12 +727,6 @@
 .pay-note {
   font-size: 0.8125rem;
   color: var(--g-ink-2);
-}
-
-/* The two halves stack before the email address and the amount collide. */
-@media (max-width: 420px) {
-  .pay-summary { flex-direction: column; }
-  .pay-summary-right { text-align: left; }
 }
 
 /* ─── Coming back from the payment provider ───────────────────────────

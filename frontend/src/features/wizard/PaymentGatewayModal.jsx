@@ -52,55 +52,42 @@ export default function PaymentGatewayModal({ open, onClose, onConfirm, quote, e
       }
     >
       <div className="pay-summary">
-        <div>
+        <div className="pay-summary-left">
           <span className="pay-summary-label">Paying as</span>
           <span className="pay-summary-value">{email}</span>
         </div>
         <div className="pay-summary-right">
           <span className="pay-summary-label">Amount due</span>
           <span className="pay-summary-amount">
-            {quote ? formatMoney(quote.total, quote.currency) : 'Calculating'}
+            {quote ? formatMoney(quote.amount, quote.currency) : ''}
           </span>
         </div>
       </div>
 
-      {online ? (
-        <div className="callout callout-info">
-          <Icon name="lock" size={20} className="callout-icon" strokeWidth={2} />
-          <div className="callout-content">
-            Your application is submitted first, then you are taken to our payment
-            provider to pay. Your card details are entered on their page and never
-            reach us.
-          </div>
-        </div>
-      ) : (
+      {!online && account ? (
         <>
-          {account ? (
-            <div className="bank-transfer-box">
-              <div className="bank-row">
-                <span className="pay-row-label">Bank</span>
-                <strong>{account.bank}</strong>
-              </div>
-              <div className="bank-row">
-                <span className="pay-row-label">Account number</span>
-                <strong className="pay-row-account">{account.account_number}</strong>
-              </div>
-              <div className="bank-row">
-                <span className="pay-row-label">Beneficiary</span>
-                <strong>{account.beneficiary}</strong>
-              </div>
+          <div className="bank-transfer-box">
+            <div className="bank-row">
+              <span className="pay-row-label">Bank</span>
+              <strong>{account.bank}</strong>
             </div>
-          ) : null}
+            <div className="bank-row">
+              <span className="pay-row-label">Account number</span>
+              <strong className="pay-row-account">{account.account_number}</strong>
+            </div>
+            <div className="bank-row">
+              <span className="pay-row-label">Beneficiary</span>
+              <strong>{account.beneficiary}</strong>
+            </div>
+          </div>
           <div className="callout callout-info">
             <Icon name="info" size={20} className="callout-icon" strokeWidth={2} />
             <div className="callout-content">
-              {account
-                ? 'Quote your application reference on the transfer. The desk confirms it and your file moves on; you will get an email either way.'
-                : 'Your application is submitted with the fee outstanding. The admissions desk will send you the payment details.'}
+              Quote your application reference on the transfer. The desk confirms it and your file moves on; you will get an email either way.
             </div>
           </div>
         </>
-      )}
+      ) : null}
     </Modal>
   );
 }

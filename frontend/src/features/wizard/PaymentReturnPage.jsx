@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import SiteHeader from '../../components/layout/SiteHeader';
 import Icon from '../../lib/icons';
 import { payments } from '../../api/endpoints';
+import { useAuth } from '../../context/AuthContext';
 
 /**
  * Where Paystack sends the applicant back to.
@@ -24,6 +25,7 @@ const GAP_MS = 2500;
 
 export default function PaymentReturnPage() {
   const { reference } = useParams();
+  const { adopt } = useAuth();
   const [state, setState] = useState('checking');
   const [payment, setPayment] = useState(null);
   const attempt = useRef(0);
@@ -35,6 +37,9 @@ export default function PaymentReturnPage() {
       const { data } = await payments.status(reference);
       setPayment(data.payment);
       if (data.settled) {
+        if (data.access && adopt) {
+          adopt({ access: data.access, user: data.user });
+        }
         setState('settled');
         return;
       }
@@ -76,12 +81,18 @@ export default function PaymentReturnPage() {
                 <span className="return-mark is-ok" aria-hidden="true">
                   <Icon name="checkCircle" size={26} strokeWidth={2} />
                 </span>
-                <h1 className="return-title">Payment confirmed</h1>
+                <h1 className="return-title">Payment Confirmed</h1>
                 <p className="return-note">
-                  {payment?.display_total} received for {reference}. Your receipt is
-                  ready and your file is with the admissions desk.
+                  {payment?.display_total ? `${payment.display_total} received for ${reference}. ` : ''}
+                  Your file is now submitted and your login details have been sent to your email.
                 </p>
-                <Link to="/portal" className="btn btn-accent btn-lg">
+                <div className="callout callout-success" style={{ margin: '18px 0', textAlign: 'left' }}>
+                  <Icon name="checkCircle" size={20} className="callout-icon" strokeWidth={2} />
+                  <div className="callout-content" style={{ fontSize: '0.875rem' }}>
+                    <strong>Account activated:</strong> Check your inbox for your login credentials. You can access and track your application status anytime from your student dashboard.
+                  </div>
+                </div>
+                <Link to="/portal" className="btn btn-accent btn-lg" style={{ marginTop: 8 }}>
                   Open my dashboard
                   <Icon name="arrowRight" size={16} strokeWidth={2} />
                 </Link>

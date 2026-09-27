@@ -107,9 +107,18 @@ def initiate(payment, email, callback_url):
             },
             method="POST",
         )
-    except (error.URLError, error.HTTPError, ValueError, TimeoutError, OSError) as exc:
-        # A provider that cannot be reached must not stop the application being
-        # filed. The file stays submitted with the fee outstanding.
+    except error.HTTPError as exc:
+        err_body = ""
+        try:
+            err_body = exc.read().decode()
+        except Exception:
+            pass
+        logger.error(
+            "Paystack HTTPError %s initializing payment %s: %s",
+            exc.code, payment.reference, err_body or exc
+        )
+        return None
+    except (error.URLError, ValueError, TimeoutError, OSError) as exc:
         logger.error("Could not initialise payment %s: %s", payment.reference, exc)
         return None
 

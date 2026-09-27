@@ -74,14 +74,25 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         return ApplicationSerializer
 
     def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        application = serializer.save()
-        ApplicationDraft.objects.filter(user=request.user).delete()
-        return Response(
-            ApplicationSerializer(application, context=self.get_serializer_context()).data,
-            status=status.HTTP_201_CREATED,
-        )
+        try:
+            serializer = self.get_serializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            application = serializer.save()
+            ApplicationDraft.objects.filter(user=request.user).delete()
+            return Response(
+                ApplicationSerializer(application, context=self.get_serializer_context()).data,
+                status=status.HTTP_201_CREATED,
+            )
+        except Exception as exc:
+            import logging, traceback
+            from rest_framework.exceptions import ValidationError
+            if isinstance(exc, ValidationError):
+                raise
+            logging.getLogger(__name__).error("Failed creating application: %s\n%s", exc, traceback.format_exc())
+            return Response(
+                {"detail": f"Application submission error: {str(exc)}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
     def partial_update(self, request, *args, **kwargs):
         application = self.get_object()

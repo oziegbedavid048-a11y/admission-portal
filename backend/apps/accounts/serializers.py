@@ -44,10 +44,11 @@ class UserSerializer(serializers.ModelSerializer):
 
 class ApplicantRegistrationSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=8)
+    send_welcome_email = serializers.BooleanField(required=False, default=True, write_only=True)
 
     class Meta:
         model = User
-        fields = ("email", "full_name", "phone", "country", "password")
+        fields = ("email", "full_name", "phone", "country", "password", "send_welcome_email")
 
     def validate_email(self, value):
         if User.objects.filter(email__iexact=value).exists():
@@ -60,13 +61,15 @@ class ApplicantRegistrationSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         raw_password = validated_data.get("password")
+        send_email = validated_data.pop("send_welcome_email", True)
         user = User.objects.create_user(role=User.Role.APPLICANT, **validated_data)
-        try:
-            from .emails import send_applicant_welcome_email
-            send_applicant_welcome_email(user, password=raw_password)
-        except Exception as exc:
-            import logging
-            logging.getLogger(__name__).error("Failed to send applicant welcome email: %s", exc)
+        if send_email:
+            try:
+                from .emails import send_applicant_welcome_email
+                send_applicant_welcome_email(user, password=raw_password)
+            except Exception as exc:
+                import logging
+                logging.getLogger(__name__).error("Failed to send applicant welcome email: %s", exc)
         return user
 
 

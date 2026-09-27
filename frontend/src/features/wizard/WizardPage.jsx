@@ -316,6 +316,8 @@ export default function WizardPage({ onOpenLogin }) {
     let generatedPassword = null;
 
     try {
+      const requiresPayment = !isCustomCourse && !feeWaived;
+
       // Anonymous applicants get an account built from what they just typed.
       if (!isAuthenticated) {
         generatedPassword = generatePassword();
@@ -326,6 +328,7 @@ export default function WizardPage({ onOpenLogin }) {
             phone: form.phone.trim(),
             country: form.originCountry,
             password: generatedPassword,
+            send_welcome_email: !requiresPayment,
           });
         } catch (error) {
           const message = errorMessage(error, 'Could not create your account.');
@@ -354,6 +357,7 @@ export default function WizardPage({ onOpenLogin }) {
         program_ids: isCustomCourse ? [] : form.programs.map((program) => program.id),
         is_custom_course: isCustomCourse,
         custom_course_name: isCustomCourse ? form.custom_course.trim() : '',
+        initial_password: requiresPayment ? generatedPassword : '',
       });
 
       await uploadDocuments(application.reference);
@@ -730,28 +734,12 @@ export default function WizardPage({ onOpenLogin }) {
                         {activeQuote ? formatMoney(activeQuote.amount, activeQuote.currency) : 'Calculating'}
                       </span>
                     </div>
-                    <div className="invoice-row">
-                      <span>Gateway processing</span>
-                      <span className="invoice-amount">
-                        {activeQuote ? formatMoney(activeQuote.processing_fee, activeQuote.currency) : 'Calculating'}
-                      </span>
-                    </div>
                     <div className="invoice-row total">
                       <span>Total</span>
                       <span style={{ color: 'var(--brand-700)' }}>
-                        {activeQuote ? formatMoney(activeQuote.total, activeQuote.currency) : 'Calculating'}
+                        {activeQuote ? formatMoney(activeQuote.amount, activeQuote.currency) : 'Calculating'}
                       </span>
                     </div>
-                    {activeQuote && !activeQuote.waived && activeQuote.currency !== 'NGN' ? (
-                      <p className="quote-fx-note">
-                        Debited as ₦
-                        {Number(
-                          activeQuote.total_charged_ngn ??
-                            Number(activeQuote.amount_ngn) + Number(activeQuote.processing_fee_ngn || 0),
-                        ).toLocaleString('en-NG')}{' '}
-                        at an indicative rate of {activeQuote.rate} per {activeQuote.currency}.
-                      </p>
-                    ) : null}
                   </div>
 
                   {feeWaived ? (
@@ -762,15 +750,7 @@ export default function WizardPage({ onOpenLogin }) {
                         so your file goes straight through.
                       </div>
                     </div>
-                  ) : (
-                    <div className="callout callout-info">
-                      <Icon name="lock" size={20} className="callout-icon" strokeWidth={2} />
-                      <div className="callout-content">
-                        Your file is submitted first. How the fee is collected is shown
-                        on the next screen, and your card details never reach us.
-                      </div>
-                    </div>
-                  )}
+                  ) : null}
                 </>
               )}
 
@@ -790,7 +770,7 @@ export default function WizardPage({ onOpenLogin }) {
                     ? 'Complete registration & receive login'
                     : feeWaived
                       ? 'Submit application'
-                      : `Submit and pay ${activeQuote ? formatMoney(activeQuote.total, activeQuote.currency) : ''}`}
+                      : `Submit and pay ${activeQuote ? formatMoney(activeQuote.amount, activeQuote.currency) : ''}`}
                 </button>
               </div>
             </div>
