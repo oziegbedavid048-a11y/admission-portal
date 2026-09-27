@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { catalog } from '../api/endpoints';
+import { getLocalInstitutions } from '../lib/catalogData';
 
 /**
  * Built-in fallback catalog data to ensure the application wizard works
@@ -110,8 +111,9 @@ export function useCatalog() {
 
 /** Partner institutions for one destination, refetched when it changes. */
 export function useInstitutions(country) {
-  const [institutions, setInstitutions] = useState([]);
-  const [loading, setLoading] = useState(Boolean(country));
+  const localFallback = useMemo(() => getLocalInstitutions(country), [country]);
+  const [institutions, setInstitutions] = useState(localFallback);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (!country) {
@@ -119,17 +121,22 @@ export function useInstitutions(country) {
       return undefined;
     }
 
+    const fallback = getLocalInstitutions(country);
+    // Initialize immediately with local fallback so user NEVER waits or sees blank
+    if (fallback.length > 0) {
+      setInstitutions(fallback);
+    }
+
     let cancelled = false;
-    setLoading(true);
     catalog
       .institutions(country)
       .then(({ data }) => {
-        if (!cancelled) {
-          setInstitutions(Array.isArray(data) ? data : []);
+        if (!cancelled && Array.isArray(data) && data.length > 0) {
+          setInstitutions(data);
         }
       })
       .catch(() => {
-        if (!cancelled) setInstitutions([]);
+        // Keep fallback on network error/timeout - never wipe out the courses
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -140,8 +147,12 @@ export function useInstitutions(country) {
     };
   }, [country]);
 
+  const resolved = Array.isArray(institutions) && institutions.length > 0
+    ? institutions
+    : localFallback;
+
   return {
-    institutions: Array.isArray(institutions) ? institutions : [],
-    loading,
+    institutions: resolved,
+    loading: loading && resolved.length === 0,
   };
 }
