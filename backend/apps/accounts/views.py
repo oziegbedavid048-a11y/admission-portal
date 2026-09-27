@@ -18,7 +18,7 @@ from .serializers import (
 )
 
 
-def issue_session(user):
+def issue_session(user, request=None):
     """A new pair of tokens for this user.
 
     The refresh token is returned separately from the body so the caller can put
@@ -27,12 +27,13 @@ def issue_session(user):
     refresh = RefreshToken.for_user(user)
     refresh["role"] = user.role
     refresh["full_name"] = user.full_name
-    body = {"access": str(refresh.access_token), "user": UserSerializer(user).data}
+    context = {"request": request} if request else {}
+    body = {"access": str(refresh.access_token), "user": UserSerializer(user, context=context).data}
     return body, str(refresh)
 
 
-def session_response(user, status_code=status.HTTP_200_OK):
-    body, refresh = issue_session(user)
+def session_response(user, request=None, status_code=status.HTTP_200_OK):
+    body, refresh = issue_session(user, request=request)
     return set_refresh_cookie(Response(body, status=status_code), refresh)
 
 
@@ -71,7 +72,7 @@ class LoginView(TokenObtainPairView):
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        return session_response(serializer.user)
+        return session_response(serializer.user, request=request)
 
 
 class SessionRefreshView(APIView):
@@ -103,7 +104,7 @@ class SessionRefreshView(APIView):
                 Response({"detail": "Session expired."}, status=status.HTTP_401_UNAUTHORIZED)
             )
 
-        return session_response(user)
+        return session_response(user, request=request)
 
 
 class LogoutView(APIView):
@@ -125,7 +126,7 @@ class ApplicantRegisterView(generics.CreateAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
-        return session_response(user, status.HTTP_201_CREATED)
+        return session_response(user, request=request, status_code=status.HTTP_201_CREATED)
 
 
 class AgentRegisterView(generics.CreateAPIView):
@@ -137,7 +138,7 @@ class AgentRegisterView(generics.CreateAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
-        return session_response(user, status.HTTP_201_CREATED)
+        return session_response(user, request=request, status_code=status.HTTP_201_CREATED)
 
 
 class MeView(generics.RetrieveUpdateAPIView):

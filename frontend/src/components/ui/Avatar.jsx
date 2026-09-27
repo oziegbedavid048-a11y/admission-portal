@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Icon from '../../lib/icons';
+import { compressImageFile } from '../../lib/compress';
+import { resolveMediaUrl } from '../../lib/format';
 
 /**
  * A profile picture that updates the instant a new one is chosen.
@@ -14,6 +16,7 @@ export default function Avatar({ src, initials, onSelect, label = 'Change photo'
   const [preview, setPreview] = useState(null);
   const [version, setVersion] = useState(0);
   const [busy, setBusy] = useState(false);
+  const [imgError, setImgError] = useState(false);
   const inputRef = useRef(null);
   const lastSaved = useRef(src);
 
@@ -23,6 +26,7 @@ export default function Avatar({ src, initials, onSelect, label = 'Change photo'
     if (src !== lastSaved.current) {
       lastSaved.current = src;
       setVersion((current) => current + 1);
+      setImgError(false);
       setPreview((current) => {
         if (current) URL.revokeObjectURL(current);
         return null;
@@ -37,14 +41,17 @@ export default function Avatar({ src, initials, onSelect, label = 'Change photo'
     [preview],
   );
 
-  const choose = async (file) => {
-    if (!file) return;
+  const choose = async (rawFile) => {
+    if (!rawFile) return;
 
+    // Compress large camera photos in the browser before sending
+    const file = await compressImageFile(rawFile, { maxWidth: 800, maxHeight: 800, quality: 0.85 });
     const objectUrl = URL.createObjectURL(file);
     setPreview((current) => {
       if (current) URL.revokeObjectURL(current);
       return objectUrl;
     });
+    setImgError(false);
     setBusy(true);
 
     try {
@@ -60,14 +67,25 @@ export default function Avatar({ src, initials, onSelect, label = 'Change photo'
     }
   };
 
+  const resolvedSrc = src ? resolveMediaUrl(src) : null;
   // A saved URL is cache-busted; an object URL must be left exactly as it is.
   const shown =
-    preview || (src ? `${src}${src.includes('?') ? '&' : '?'}v=${version}` : null);
+    preview || (resolvedSrc ? `${resolvedSrc}${resolvedSrc.includes('?') ? '&' : '?'}v=${version}` : null);
+
+  const hasImage = shown && !imgError;
 
   return (
     <div className="profile-avatar-wrap">
       <span className={`profile-avatar ${busy ? 'is-saving' : ''}`.trim()}>
-        {shown ? <img src={shown} alt="" /> : <span>{initials}</span>}
+        {hasImage ? (
+          <img
+            src={shown}
+            alt=""
+            onError={() => setImgError(true)}
+          />
+        ) : (
+          <span>{initials}</span>
+        )}
         {busy ? <span className="avatar-spinner" aria-hidden="true" /> : null}
       </span>
 

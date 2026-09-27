@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import Icon from '../../lib/icons';
-import { formatLongDate } from '../../lib/format';
+import { formatLongDate, resolveMediaUrl } from '../../lib/format';
 import Modal from '../../components/ui/Modal';
 import { useApplication } from './ApplicationContext';
 import CorrectionBottomSheetModal from './CorrectionBottomSheetModal';
@@ -10,13 +10,13 @@ export default function DetailsPanel() {
   const [correctionOpen, setCorrectionOpen] = useState(false);
   const [previewDoc, setPreviewDoc] = useState(null);
 
-  const programs = application.programs || [];
-  const documents = application.documents || [];
-  const corrections = application.corrections || [];
+  const programs = application?.programs || [];
+  const documents = application?.documents || [];
+  const corrections = application?.corrections || [];
 
   return (
     <div className="portal-stack applicant-details-container">
-      {/* ── Page Banner ── */}
+      {/* ── Page Banner (Request correction button removed as requested) ── */}
       <section className="app-banner">
         <span className="app-greet-icon" aria-hidden="true">
           <Icon name="fileText" size={22} />
@@ -24,16 +24,6 @@ export default function DetailsPanel() {
         <div className="app-banner-text">
           <h2>Applicant Details</h2>
           <p>Your official application dossier, academic background, and institution selections.</p>
-        </div>
-        <div className="app-banner-actions">
-          <button
-            type="button"
-            className="g-btn g-btn-primary"
-            onClick={() => setCorrectionOpen(true)}
-          >
-            <Icon name="pencil" size={16} />
-            <span>Request a Correction</span>
-          </button>
         </div>
       </section>
 
@@ -52,142 +42,142 @@ export default function DetailsPanel() {
         </div>
       )}
 
-      {/* ── Card 1: Personal Information ── */}
-      <section className="card">
+      {/* ── Section 1: Personal Information ── */}
+      <section className="card details-clean-card">
         <div className="card-head">
           <h2>Personal Information</h2>
           <span className="card-note">Verified applicant identity</span>
         </div>
 
-        <div className="facts-grid">
-          <div className="fact-item">
-            <span className="fact-item-label">Full Legal Name</span>
-            <span className="fact-item-value">{application.full_name || 'Not provided'}</span>
+        <div className="facts-clean-grid">
+          <div className="fact-clean-item">
+            <span className="fact-clean-label">Full Legal Name</span>
+            <span className="fact-clean-value">{application?.full_name || 'Not provided'}</span>
           </div>
 
-          <div className="fact-item">
-            <span className="fact-item-label">Email Address</span>
-            <span className="fact-item-value">{application.email || 'Not provided'}</span>
+          <div className="fact-clean-item">
+            <span className="fact-clean-label">Email Address</span>
+            <span className="fact-clean-value">{application?.email || 'Not provided'}</span>
           </div>
 
-          <div className="fact-item">
-            <span className="fact-item-label">Phone Number</span>
-            <span className="fact-item-value">{application.phone || 'Not provided'}</span>
+          <div className="fact-clean-item">
+            <span className="fact-clean-label">Phone Number</span>
+            <span className="fact-clean-value">{application?.phone || 'Not provided'}</span>
           </div>
 
-          <div className="fact-item">
-            <span className="fact-item-label">Residential Address</span>
-            <span className="fact-item-value">{application.address || 'Not provided'}</span>
+          <div className="fact-clean-item">
+            <span className="fact-clean-label">Residential Address</span>
+            <span className="fact-clean-value">{application?.address || 'Not provided'}</span>
           </div>
 
-          <div className="fact-item">
-            <span className="fact-item-label">Country of Origin</span>
-            <span className="fact-item-value">{application.origin_country || 'Not set'}</span>
+          <div className="fact-clean-item">
+            <span className="fact-clean-label">Country of Origin</span>
+            <span className="fact-clean-value">{application?.origin_country || 'Not set'}</span>
           </div>
 
-          <div className="fact-item">
-            <span className="fact-item-label">Destination Country</span>
-            <span className="fact-item-value">{application.destination_country || 'Not set'}</span>
+          <div className="fact-clean-item">
+            <span className="fact-clean-label">Destination Country</span>
+            <span className="fact-clean-value">{application?.destination_country || 'Not set'}</span>
           </div>
 
-          <div className="fact-item">
-            <span className="fact-item-label">Application Reference</span>
-            <span className="fact-item-value fact-mono">{application.reference}</span>
+          <div className="fact-clean-item">
+            <span className="fact-clean-label">Application Reference</span>
+            <span className="fact-clean-value fact-mono">{application?.reference}</span>
           </div>
 
-          <div className="fact-item">
-            <span className="fact-item-label">Submission Date</span>
-            <span className="fact-item-value">
-              {formatLongDate(application.submitted_at || new Date().toISOString())}
+          <div className="fact-clean-item">
+            <span className="fact-clean-label">Submission Date</span>
+            <span className="fact-clean-value">
+              {formatLongDate(application?.submitted_at || new Date().toISOString())}
             </span>
           </div>
         </div>
       </section>
 
-      {/* ── Card 2: Academic Record ── */}
-      <section className="card">
+      {/* ── Section 2: Academic Record ── */}
+      <section className="card details-clean-card">
         <div className="card-head">
           <h2>Academic Record</h2>
           <span className="card-note">Prior qualification history</span>
         </div>
 
-        <div className="facts-grid">
-          <div className="fact-item">
-            <span className="fact-item-label">Highest Qualification</span>
-            <span className="fact-item-value">{application.qualification || 'Not provided'}</span>
+        <div className="facts-clean-grid">
+          <div className="fact-clean-item">
+            <span className="fact-clean-label">Highest Qualification</span>
+            <span className="fact-clean-value">{application?.qualification || 'Not provided'}</span>
           </div>
 
-          <div className="fact-item">
-            <span className="fact-item-label">Previous School / Institution</span>
-            <span className="fact-item-value">{application.previous_schools || 'Not provided'}</span>
+          <div className="fact-clean-item">
+            <span className="fact-clean-label">Previous School / Institution</span>
+            <span className="fact-clean-value">{application?.previous_schools || 'Not provided'}</span>
           </div>
 
-          <div className="fact-item">
-            <span className="fact-item-label">Year Graduated</span>
-            <span className="fact-item-value">{application.year_graduated || 'Not provided'}</span>
+          <div className="fact-clean-item">
+            <span className="fact-clean-label">Year Graduated</span>
+            <span className="fact-clean-value">{application?.year_graduated || 'Not provided'}</span>
           </div>
 
-          <div className="fact-item">
-            <span className="fact-item-label">Grade / GPA</span>
-            <span className="fact-item-value">{application.grade_gpa || 'Not provided'}</span>
+          <div className="fact-clean-item">
+            <span className="fact-clean-label">Grade / GPA</span>
+            <span className="fact-clean-value">{application?.grade_gpa || 'Not provided'}</span>
           </div>
         </div>
       </section>
 
-      {/* ── Card 3: Selected University & Programme ── */}
-      <section className="card">
+      {/* ── Section 3: Selected University & Programme ── */}
+      <section className="card details-clean-card">
         <div className="card-head">
           <h2>Selected University & Programme</h2>
           <span className="card-note">Choice of institution</span>
         </div>
 
-        <div className="facts-grid">
-          <div className="fact-item fact-item-full">
-            <span className="fact-item-label">Target Institution</span>
-            <span className="fact-item-value fact-highlight">
-              {application.institution?.name || 'Selected University'}
+        <div className="facts-clean-grid">
+          <div className="fact-clean-item fact-clean-full">
+            <span className="fact-clean-label">Target Institution</span>
+            <span className="fact-clean-value fact-highlight">
+              {application?.institution?.name || 'Selected University'}
             </span>
           </div>
 
-          {application.institution?.city ? (
-            <div className="fact-item">
-              <span className="fact-item-label">Campus Location</span>
-              <span className="fact-item-value">
+          {application?.institution?.city ? (
+            <div className="fact-clean-item">
+              <span className="fact-clean-label">Campus Location</span>
+              <span className="fact-clean-value">
                 {application.institution.city}, {application.destination_country}
               </span>
             </div>
           ) : null}
 
-          <div className="fact-item">
-            <span className="fact-item-label">Destination Country</span>
-            <span className="fact-item-value">{application.destination_country}</span>
+          <div className="fact-clean-item">
+            <span className="fact-clean-label">Destination Country</span>
+            <span className="fact-clean-value">{application?.destination_country}</span>
           </div>
 
-          <div className="fact-item fact-item-full">
-            <span className="fact-item-label">Selected Courses / Programmes</span>
-            <div className="details-course-chips">
+          <div className="fact-clean-item fact-clean-full">
+            <span className="fact-clean-label">Selected Courses / Programmes</span>
+            <div className="details-course-clean-list">
               {programs.length === 0 ? (
                 <span className="empty-text">No courses on record.</span>
               ) : (
                 programs.map((prog) => (
-                  <div className="details-course-chip" key={prog.id}>
-                    <div className="details-course-chip-title">{prog.name}</div>
-                    {prog.level && (
-                      <span className="details-course-chip-level">{prog.level}</span>
-                    )}
-                    {prog.duration && (
-                      <span className="details-course-chip-duration">{prog.duration}</span>
-                    )}
+                  <div className="details-course-clean-item" key={prog.id}>
+                    <div className="details-course-info">
+                      <strong className="details-course-name">{prog.name}</strong>
+                      <div className="details-course-tags">
+                        {prog.level && <span className="details-course-badge">{prog.level}</span>}
+                        {prog.duration && <span className="details-course-duration">{prog.duration}</span>}
+                      </div>
+                    </div>
                   </div>
                 ))
               )}
             </div>
           </div>
 
-          {application.institution?.tuition_summary ? (
-            <div className="fact-item fact-item-full">
-              <span className="fact-item-label">Tuition Summary</span>
-              <span className="fact-item-value">
+          {application?.institution?.tuition_summary ? (
+            <div className="fact-clean-item fact-clean-full">
+              <span className="fact-clean-label">Tuition Summary</span>
+              <span className="fact-clean-value">
                 {application.institution.tuition_summary}
               </span>
             </div>
@@ -195,14 +185,14 @@ export default function DetailsPanel() {
         </div>
       </section>
 
-      {/* ── Card 4: Uploaded Credentials & Documents ── */}
-      <section className="card">
+      {/* ── Section 4: Uploaded Credentials & Documents ── */}
+      <section className="card details-clean-card">
         <div className="card-head">
           <h2>Uploaded Supporting Documents</h2>
           <span className="card-note">{documents.length} document(s) on file</span>
         </div>
 
-        <div className="details-docs-list">
+        <div className="details-docs-clean-list">
           {documents.length === 0 ? (
             <p className="empty-text empty-text-inset">
               No supporting documents uploaded yet.
@@ -211,30 +201,32 @@ export default function DetailsPanel() {
             documents.map((doc) => {
               const verified = doc.status === 'Verified';
               return (
-                <div className="details-doc-card" key={doc.id}>
-                  <div className="details-doc-main">
-                    <div className="details-doc-icon">
-                      <Icon name="document" size={20} />
+                <div className="details-doc-row" key={doc.id}>
+                  <div className="details-doc-left">
+                    <div className="details-doc-avatar">
+                      <Icon name="document" size={18} />
                     </div>
-                    <div>
+                    <div className="details-doc-text">
                       <h4 className="details-doc-title">{doc.name}</h4>
-                      <p className="details-doc-meta">
-                        {doc.original_filename || 'Uploaded Document'} · {doc.human_size || 'PDF'}
-                      </p>
+                      <span className="details-doc-sub">
+                        {doc.original_filename || 'Uploaded Document'} · {doc.human_size || 'File'}
+                      </span>
                     </div>
                   </div>
 
-                  <div className="details-doc-actions">
+                  <div className="details-doc-right">
                     <span className={`pill ${verified ? 'pill-ok' : 'pill-wait'}`}>
                       <Icon name={verified ? 'check' : 'clock'} size={12} strokeWidth={2.6} />
                       {verified ? 'Verified' : 'In review'}
                     </span>
                     <button
                       type="button"
-                      className="g-btn g-btn-quiet g-btn-sm"
+                      className="g-btn g-btn-secondary g-btn-sm"
                       onClick={() => setPreviewDoc(doc)}
+                      title="View document in portal"
                     >
-                      Open Document
+                      <Icon name="document" size={14} />
+                      <span>Open Document</span>
                     </button>
                   </div>
                 </div>
@@ -244,36 +236,36 @@ export default function DetailsPanel() {
         </div>
       </section>
 
-      {/* ── Card 5: Correction Requests History (Only when submitted) ── */}
+      {/* ── Section 5: Correction Requests History (Only when present) ── */}
       {corrections.length > 0 && (
-        <section className="card">
+        <section className="card details-clean-card">
           <div className="card-head">
             <h2>Correction Requests Log</h2>
             <span className="card-note">{corrections.length} request(s) recorded</span>
           </div>
 
-          <div className="details-corrections-list">
+          <div className="details-corrections-clean-list">
             {corrections.map((corr) => {
               const isOpen = corr.status === 'open';
               const isVerified = corr.status === 'verified';
 
               return (
-                <div className="details-corr-row" key={corr.id || corr.ticket}>
-                  <div className="details-corr-info">
-                    <div className="details-corr-header">
+                <div className="details-corr-clean-row" key={corr.id || corr.ticket}>
+                  <div className="details-corr-main">
+                    <div className="details-corr-heading">
                       <span className="details-corr-ticket">{corr.ticket}</span>
-                      <span className="details-corr-field">{corr.field}</span>
+                      <strong className="details-corr-field">{corr.field}</strong>
                     </div>
-                    <div className="details-corr-values">
+                    <div className="details-corr-change">
                       <span className="details-corr-lbl">Requested change:</span>{' '}
-                      <strong>{corr.corrected_value}</strong>
+                      <span className="details-corr-val">{corr.corrected_value}</span>
                     </div>
                     {corr.reason ? (
                       <p className="details-corr-reason">Note: {corr.reason}</p>
                     ) : null}
                   </div>
 
-                  <div className="details-corr-side">
+                  <div className="details-corr-meta">
                     <span
                       className={`pill ${
                         isVerified ? 'pill-ok' : isOpen ? 'pill-wait' : 'pill-bad'
@@ -297,7 +289,7 @@ export default function DetailsPanel() {
         </section>
       )}
 
-      {/* ── Bottom Call To Action ── */}
+      {/* ── Section 6: Request a Correction Action Card ── */}
       <section className="card details-cta-card">
         <div className="details-cta-content">
           <div>
@@ -318,7 +310,7 @@ export default function DetailsPanel() {
         </div>
       </section>
 
-      {/* ── Correction Bottom Sheet Modal (Slides from under) ── */}
+      {/* ── Correction Bottom Sheet Modal (Responsive) ── */}
       <CorrectionBottomSheetModal
         open={correctionOpen}
         onClose={() => setCorrectionOpen(false)}
@@ -326,55 +318,117 @@ export default function DetailsPanel() {
         onSuccess={reload}
       />
 
-      {/* ── Document Preview Modal ── */}
+      {/* ── In-App Document Preview Modal (No external page or new tab needed) ── */}
       <Modal
         open={Boolean(previewDoc)}
         onClose={() => setPreviewDoc(null)}
-        title={previewDoc?.name || 'Document Preview'}
+        title={previewDoc?.name || 'Document Viewer'}
+        subtitle={previewDoc?.original_filename || ''}
         labelledBy="doc-preview-modal-title"
-        size={600}
+        size={760}
         footer={
-          previewDoc?.file ? (
-            <a
-              className="g-btn g-btn-primary"
-              href={previewDoc.file}
-              target="_blank"
-              rel="noopener noreferrer"
-              download
+          <div className="doc-modal-footer">
+            <button
+              type="button"
+              className="g-btn g-btn-plain"
+              onClick={() => setPreviewDoc(null)}
             >
-              <Icon name="download" size={16} />
-              <span>Download File</span>
-            </a>
-          ) : null
+              Close
+            </button>
+            {previewDoc?.file ? (
+              <a
+                className="g-btn g-btn-primary"
+                href={resolveMediaUrl(previewDoc.file)}
+                download={previewDoc.original_filename || 'document'}
+              >
+                <Icon name="download" size={16} />
+                <span>Download Document</span>
+              </a>
+            ) : null}
+          </div>
         }
       >
-        <div className="doc-preview-modal-content">
-          <div className="doc-preview-info-bar">
-            <div>
-              <strong>{previewDoc?.original_filename || 'File'}</strong>
-              <div className="doc-preview-size">
-                {previewDoc?.human_size}
+        {previewDoc && (
+          <div className="doc-inapp-viewer">
+            <div className="doc-inapp-bar">
+              <div className="doc-inapp-fileinfo">
+                <strong>{previewDoc.original_filename || previewDoc.name}</strong>
+                {previewDoc.human_size ? (
+                  <span className="doc-inapp-filesize">({previewDoc.human_size})</span>
+                ) : null}
               </div>
+              <span
+                className={`pill ${
+                  previewDoc.status === 'Verified' ? 'pill-ok' : 'pill-wait'
+                }`}
+              >
+                <Icon
+                  name={previewDoc.status === 'Verified' ? 'check' : 'clock'}
+                  size={12}
+                  strokeWidth={2.6}
+                />
+                {previewDoc.status === 'Verified' ? 'Verified' : 'In review'}
+              </span>
             </div>
-            <span
-              className={`pill ${
-                previewDoc?.status === 'Verified' ? 'pill-ok' : 'pill-wait'
-              }`}
-            >
-              <Icon
-                name={previewDoc?.status === 'Verified' ? 'check' : 'clock'}
-                size={12}
-                strokeWidth={2.6}
-              />
-              {previewDoc?.status === 'Verified' ? 'Verified' : 'In review'}
-            </span>
-          </div>
 
-          <div className="doc-preview-placeholder">
-            <Icon name="document" size={48} />
-            <p>Stored securely on Gabstep Admissions servers.</p>
+            <div className="doc-inapp-body">
+              {(() => {
+                const url = resolveMediaUrl(previewDoc.file);
+                if (!url) {
+                  return (
+                    <div className="doc-inapp-empty">
+                      <Icon name="document" size={44} />
+                      <p>No document file attached.</p>
+                    </div>
+                  );
+                }
+
+                const isPdf =
+                  url.toLowerCase().includes('.pdf') ||
+                  (previewDoc.original_filename &&
+                    previewDoc.original_filename.toLowerCase().endsWith('.pdf'));
+
+                const isImg =
+                  !isPdf &&
+                  (/\.(jpe?g|png|webp|gif|svg)(\?.*)?$/i.test(url) ||
+                    (previewDoc.original_filename &&
+                      /\.(jpe?g|png|webp|gif|svg)$/i.test(previewDoc.original_filename)));
+
+                if (isImg) {
+                  return (
+                    <div className="doc-inapp-img-frame">
+                      <img
+                        src={url}
+                        alt={previewDoc.name}
+                        className="doc-inapp-preview-img"
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
+                          const errEl = document.getElementById('doc-preview-error');
+                          if (errEl) errEl.style.display = 'flex';
+                        }}
+                      />
+                      <div id="doc-preview-error" className="doc-inapp-empty" style={{ display: 'none' }}>
+                        <Icon name="alertCircle" size={40} />
+                        <p>Image preview unavailable. Use download button below.</p>
+                      </div>
+                    </div>
+                  );
+                }
+
+                // For PDF or documents, render an embedded iframe viewer directly on the website
+                return (
+                  <div className="doc-inapp-pdf-frame">
+                    <iframe
+                      src={`${url}#toolbar=0&navpanes=0`}
+                      title={previewDoc.name}
+                      className="doc-inapp-iframe"
+                    />
+                  </div>
+                );
+              })()}
+            </div>
           </div>
-        </div>
+        )}
       </Modal>
     </div>
   );

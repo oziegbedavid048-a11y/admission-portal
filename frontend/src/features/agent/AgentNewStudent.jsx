@@ -4,6 +4,7 @@ import Modal from '../../components/ui/Modal';
 import SearchableSelect from '../../components/ui/SearchableSelect';
 import Icon from '../../lib/icons';
 import { formatMoney, formatNaira } from '../../lib/format';
+import { compressImageFile } from '../../lib/compress';
 import { errorMessage } from '../../api/client';
 import { applications, catalog, partners, payments } from '../../api/endpoints';
 import { useToast } from '../../context/ToastContext';
@@ -225,9 +226,11 @@ export default function AgentNewStudent() {
         type="file"
         className="dropzone-file-input"
         accept={accept}
-        onChange={(event) =>
-          setFiles((current) => ({ ...current, [key]: event.target.files?.[0] || null }))
-        }
+        onChange={async (event) => {
+          const raw = event.target.files?.[0] || null;
+          const processed = raw ? await compressImageFile(raw) : null;
+          setFiles((current) => ({ ...current, [key]: processed }));
+        }}
       />
       <Icon name={icon} size={34} className="dropzone-icon" strokeWidth={1.6} />
       <div className="dropzone-title">{label}</div>
@@ -238,8 +241,8 @@ export default function AgentNewStudent() {
       <div className={`uploaded-file-tag ${files[key] ? 'visible' : ''}`.trim()}>
         <div className="uploaded-file-info">
           <Icon name="check" size={16} className="file-status-icon" strokeWidth={2.4} />
-          <div>
-            <span className="file-name-display">{files[key]?.name || ''}</span>
+          <div className="uploaded-file-text">
+            <span className="file-name-display" title={files[key]?.name || ''}>{files[key]?.name || ''}</span>
           </div>
         </div>
         <span className="badge badge-success">Ready</span>

@@ -17,13 +17,13 @@ export default function SiteHeader({ onOpenLogin }) {
   return (
     <header className="site-header">
       <div className="container nav-container">
-        <Link to="/" className="brand-logo" aria-label="Gabstep Visa Application home">
+        <Link to="/" className="brand-logo" aria-label="Gabstep Application Portal home">
           <span className="brand-icon-wrap">
             <img src="/assets/logo.png" alt="" className="brand-logo-img" />
           </span>
           <span className="brand-name">
             Gabstep
-            <span className="sub">Visa Application</span>
+            <span className="sub">Application Portal</span>
           </span>
         </Link>
 
@@ -42,7 +42,16 @@ export default function SiteHeader({ onOpenLogin }) {
               }
             >
               <span className="chip-avatar">
-                {user.avatar ? <img src={user.avatar} alt="" /> : user.initials}
+                {user.avatar ? (
+                  <img
+                    src={user.avatar}
+                    alt=""
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none';
+                    }}
+                  />
+                ) : null}
+                <span>{user.initials}</span>
               </span>
               <span className="chip-name">
                 {isSupervisor ? 'Sales Manager portal' : isAgent ? 'Partner portal' : 'My application'}

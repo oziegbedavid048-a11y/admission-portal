@@ -123,3 +123,11 @@ export const STATUS_LABELS = {
 export function statusTone(status) {
   return STATUS_LABELS[status] || ['na', String(status || 'Not set')];
 }
+
+export function resolveMediaUrl(url) {
+  if (!url) return '';
+  const s = String(url).trim();
+  if (!s) return '';
+  if (/^(https?:|\/\/|blob:|data:)/i.test(s)) return s;
+  return s.startsWith('/') ? s : `/${s}`;
+}

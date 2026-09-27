@@ -94,14 +94,23 @@ function PortalRoutes() {
   return (
     <PortalShell
       prefix="portal"
-      brandLabel="Applicant portal"
-      title="Gabstep Applicant Portal"
+      brandLabel="Application Portal"
+      title="Gabstep Application Portal"
       nav={NAV}
       topbarRight={
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <Link className="agent-topbar-profile-btn" to="/portal/profile" title="Your profile">
             <span className="agent-topbar-avatar">
-              {user?.avatar ? <img src={user.avatar} alt="" /> : <span>{initials}</span>}
+              {user?.avatar ? (
+                <img
+                  src={user.avatar}
+                  alt=""
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                  }}
+                />
+              ) : null}
+              <span>{initials}</span>
             </span>
             <span className="agent-topbar-name">{displayName}</span>
           </Link>

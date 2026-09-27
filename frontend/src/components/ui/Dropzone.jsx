@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import Icon from '../../lib/icons';
 import { fileSize } from '../../lib/format';
+import { compressImageFile } from '../../lib/compress';
 
 /**
  * One document slot: click or drop a file, see what is attached, replace it.
@@ -27,18 +28,20 @@ export default function Dropzone({
     .map((item) => item.trim().toLowerCase())
     .filter(Boolean);
 
-  const take = (candidate) => {
+  const take = async (candidate) => {
     if (!candidate) return;
     const extension = `.${candidate.name.split('.').pop().toLowerCase()}`;
     if (accepted.length && !accepted.includes(extension)) {
       onReject?.(`${title} must be one of: ${accepted.join(', ')}.`);
       return;
     }
-    if (candidate.size > maxMb * 1024 * 1024) {
+    // Compress image if applicable before checking maxMb
+    const processed = await compressImageFile(candidate);
+    if (processed.size > maxMb * 1024 * 1024) {
       onReject?.(`Keep ${title.toLowerCase()} under ${maxMb}MB.`);
       return;
     }
-    onSelect(candidate);
+    onSelect(processed);
   };
 
   return (
@@ -77,8 +80,8 @@ export default function Dropzone({
       <div className={`uploaded-file-tag ${file ? 'visible' : ''}`.trim()}>
         <div className="uploaded-file-info">
           <Icon name="check" size={16} className="file-status-icon" strokeWidth={2.4} />
-          <div>
-            <span className="file-name-display">{file?.name || ''}</span>
+          <div className="uploaded-file-text">
+            <span className="file-name-display" title={file?.name || ''}>{file?.name || ''}</span>
             <span className="file-size-display">{file ? fileSize(file.size) : ''}</span>
           </div>
         </div>

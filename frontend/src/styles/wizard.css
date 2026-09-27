@@ -223,6 +223,10 @@
   transition: all var(--transition-fast);
   cursor: pointer;
   position: relative;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 @media (min-width: 640px) {
@@ -292,8 +296,11 @@
   border: 1px solid var(--success-500);
   border-radius: var(--radius-md);
   margin-top: var(--space-2);
-  flex-wrap: wrap;
   gap: var(--space-2);
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .uploaded-file-tag.visible {
@@ -305,6 +312,18 @@
   align-items: center;
   gap: var(--space-2);
   min-width: 0;
+  flex: 1 1 0%;
+  overflow: hidden;
+}
+
+.uploaded-file-text,
+.uploaded-file-info > div {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
 }
 
 .file-status-icon {
@@ -315,18 +334,26 @@
 }
 
 .file-name-display {
+  display: block;
   font-size: 0.8125rem;
   font-weight: 600;
   color: var(--slate-900);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  max-width: 100%;
+  word-break: break-all;
 }
 
 .file-size-display {
+  display: block;
   font-size: 0.6875rem;
   color: var(--slate-500);
-  margin-left: 4px;
+  white-space: nowrap;
+}
+
+.uploaded-file-tag .badge {
+  flex-shrink: 0;
 }
 
 /* ================= Step 5: Payment Breakdown & Gateways ================= */

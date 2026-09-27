@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import Avatar from '../../components/ui/Avatar';
 import { errorMessage } from '../../api/client';
 import { auth } from '../../api/endpoints';
+import { compressImageFile } from '../../lib/compress';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { useCatalog } from '../../hooks/useCatalog';
@@ -73,18 +74,20 @@ export default function ProfilePanel() {
     }
   };
 
-  const uploadAvatar = async (file) => {
-    if (!file.type.startsWith('image/')) {
+  const uploadAvatar = async (rawFile) => {
+    if (!rawFile.type.startsWith('image/')) {
       toast.warning('Choose an image file.');
       throw new Error('Not an image');
     }
+    const file = await compressImageFile(rawFile, { maxWidth: 800, maxHeight: 800, quality: 0.85 });
     if (file.size > 2 * 1024 * 1024) {
       toast.warning('Keep the photo under 2MB.');
       throw new Error('Too large');
     }
 
     try {
-      await auth.updateAvatar(file);
+      const { data } = await auth.updateAvatar(file);
+      if (data) setUser(data);
       await refreshUser();
       toast.success('Photo updated.');
     } catch (error) {
