@@ -51,19 +51,36 @@ def settle(payment, gateway_name=None, gateway_reference=None):
         "Your receipt is ready to download.",
     )
 
-    # If applicant was provisioned with a temporary password waiting for payment,
-    # send their login credentials now that payment is confirmed.
+    # The applicant was given a password when they applied, and it is held back
+    # until the fee is settled. Send it now.
+    #
+    # Sent on this thread, and the flag is only set once the send has actually
+    # succeeded. The previous version queued it on a daemon thread, which cannot
+    # report a failure, and then immediately recorded it as sent and cleared the
+    # password. A send that failed therefore looked exactly like one that worked,
+    # and the password was gone: the applicant could not be told their login and
+    # nobody could recover it. Keeping the password until the mail is away is what
+    # makes a retry, or a resend from the admin, possible at all.
     app = locked.application
     if app and getattr(app, "initial_password", "") and not getattr(app, "welcome_email_sent", False):
-        try:
-            from apps.accounts.emails import send_applicant_welcome_email
-            send_applicant_welcome_email(app.applicant, password=app.initial_password)
+        from apps.accounts.emails import send_applicant_welcome_email
+
+        delivered = send_applicant_welcome_email(
+            app.applicant, password=app.initial_password, wait=True
+        )
+        if delivered:
             app.welcome_email_sent = True
             app.initial_password = ""
             app.save(update_fields=["welcome_email_sent", "initial_password"])
-            logger.info("Sent applicant welcome email upon payment confirmation for %s", app.reference)
-        except Exception as exc:
-            logger.error("Failed to send welcome email upon payment settlement for %s: %s", app.reference, exc)
+            logger.info("Login details emailed to %s for %s", app.email, app.reference)
+        else:
+            # Left for a retry: the password stays, the flag stays down, and
+            # "Resend login details" in the admin can pick it up.
+            logger.error(
+                "Could not email login details for %s to %s. The password is kept "
+                "so it can be resent.",
+                app.reference, app.email,
+            )
 
     # A settled fee is what earns a partner agent their first commission. This is
     # the only place that happens, so it can only happen once.

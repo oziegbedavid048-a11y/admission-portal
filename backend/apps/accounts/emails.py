@@ -37,15 +37,53 @@ def _send_mail_worker(subject, text_content, html_content, recipient_list):
         logger.error("Email failed: %r to %s: %s", subject, recipient_list, exc)
 
 
-def send_async_email(subject, text_content, html_content, recipient_list):
+def _send_mail_now(subject, text_content, html_content, recipient_list):
+    """Send on this thread and say whether it worked.
+
+    For the messages where "did it arrive" decides what happens next. The
+    credentials email is the one that matters: the caller records that it was sent
+    and throws the password away, so it has to know rather than assume.
+    """
+    try:
+        message = EmailMultiAlternatives(
+            subject=subject,
+            body=text_content,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            to=recipient_list,
+        )
+        if html_content:
+            message.attach_alternative(html_content, "text/html")
+        message.send(fail_silently=False)
+        logger.info("Email sent: %r to %s", subject, recipient_list)
+        return True
+    except Exception as exc:
+        logger.error("Email failed: %r to %s: %s", subject, recipient_list, exc)
+        return False
+
+
+def send_async_email(subject, text_content, html_content, recipient_list, wait=False):
+    """Queue a message, or send it now and report the outcome.
+
+    The default is a daemon thread, so an HTTP response is never held up by SMTP.
+    That is right for a status update, and wrong for anything whose success the
+    caller records: a daemon thread cannot raise into the caller, and it dies
+    silently if the worker process exits first, which is easy to arrange on a
+    host that recycles workers between requests. Both of those looked like a sent
+    email and were not one.
+
+    `wait=True` sends on this thread and returns True or False.
+    """
     recipients = [address for address in dict.fromkeys(recipient_list) if address]
     if not recipients:
-        return
+        return False
+    if wait:
+        return _send_mail_now(subject, text_content, html_content, recipients)
     threading.Thread(
         target=_send_mail_worker,
         args=(subject, text_content, html_content, recipients),
         daemon=True,
     ).start()
+    return None
 
 
 def _url(path="/"):
@@ -124,20 +162,26 @@ def _plain(greeting, paragraphs, facts=None, action=None):
     return "\n".join(lines)
 
 
-def _send(subject, recipients, greeting, paragraphs, facts=None, action=None):
-    send_async_email(
+def _send(subject, recipients, greeting, paragraphs, facts=None, action=None, wait=False):
+    return send_async_email(
         subject,
         _plain(greeting, paragraphs, facts, action),
         _render(greeting, paragraphs, facts, action),
         recipients,
+        wait=wait,
     )
 
 
 # ── Accounts ─────────────────────────────────────────────────────────
 
 
-def send_applicant_welcome_email(user, password=None):
-    """The one email an applicant gets when their account is made."""
+def send_applicant_welcome_email(user, password=None, wait=False):
+    """The one email an applicant gets when their account is made.
+
+    `wait=True` sends on this thread and returns whether it worked. The caller
+    that clears the stored password uses that, because a password thrown away
+    after a send that silently failed cannot be recovered by anybody.
+    """
     facts = [("Email", user.email)]
     if password:
         facts.append(("Password", password))
@@ -149,13 +193,14 @@ def send_applicant_welcome_email(user, password=None):
     if password:
         paragraphs.append("You can change this password from your profile at any time.")
 
-    _send(
+    return _send(
         subject="Your Gabstep account",
         recipients=[user.email],
         greeting=f"Hello {_first_name(user.full_name)},",
         paragraphs=paragraphs,
         facts=facts,
         action=("Sign in", _url("/portal")),
+        wait=wait,
     )
 
 

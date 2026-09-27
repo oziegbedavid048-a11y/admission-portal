@@ -335,6 +335,7 @@ class ApplicationAdmin(admin.ModelAdmin):
         "action_mark_visa_verified",
         "action_mark_rejected",
         "action_approve_all_pending_corrections",
+        "action_resend_login",
     )
 
     def get_queryset(self, request):
@@ -625,6 +626,73 @@ class ApplicationAdmin(admin.ModelAdmin):
                 "applicants": queryset,
             },
         )
+
+    @admin.action(description="Resend login details (sets a new password)")
+    def action_resend_login(self, request, queryset):
+        """Email an applicant their sign-in details again.
+
+        For the applicants whose credentials email never arrived. A fresh password
+        is generated rather than reusing the old one, because the old one is not
+        recoverable once it has been cleared, and because an email that may have
+        gone astray is not a password worth keeping.
+
+        Sent on this thread so the result is real: the count reported is what was
+        delivered, not what was attempted.
+        """
+        from django.utils.crypto import get_random_string
+
+        from apps.accounts.emails import send_applicant_welcome_email
+
+        sent, failed, skipped = 0, [], []
+        for application in queryset.select_related("applicant"):
+            user = application.applicant
+            if user is None or not user.email:
+                skipped.append(application.reference)
+                continue
+            if application.submitted_by_agent is not None:
+                # An agent-filed student is never written to: the agent owns that
+                # relationship and holds no password for the student either.
+                skipped.append(f"{application.reference} (agent-filed)")
+                continue
+
+            password = "Gabstep" + get_random_string(
+                6, "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+            )
+            user.set_password(password)
+            user.save(update_fields=["password"])
+
+            if send_applicant_welcome_email(user, password=password, wait=True):
+                application.welcome_email_sent = True
+                application.initial_password = ""
+                application.save(update_fields=["welcome_email_sent", "initial_password"])
+                sent += 1
+            else:
+                # The new password is already on the account, so it is kept here
+                # for another attempt rather than being lost with the failed send.
+                application.initial_password = password
+                application.welcome_email_sent = False
+                application.save(update_fields=["welcome_email_sent", "initial_password"])
+                failed.append(application.reference)
+
+        if sent:
+            self.message_user(
+                request,
+                f"Login details emailed for {_plural(sent, 'application')}. "
+                "Each one now has a new password; any earlier one no longer works.",
+                messages.SUCCESS,
+            )
+        if failed:
+            self.message_user(
+                request,
+                "Could not send for " + ", ".join(failed) + ". The mail server "
+                "refused or could not be reached; check EMAIL_HOST_PASSWORD and the "
+                "log, then run this again.",
+                messages.ERROR,
+            )
+        if skipped:
+            self.message_user(
+                request, "Skipped " + ", ".join(skipped) + ".", messages.WARNING
+            )
 
     @admin.action(description="Verify documents and send to the institution")
     def action_verify_documents(self, request, queryset):
