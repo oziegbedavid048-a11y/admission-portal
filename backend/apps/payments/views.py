@@ -369,6 +369,19 @@ class PaymentStatusView(APIView):
     throttle_classes = (PaymentThrottle,)
 
     def get(self, request, reference):
+        """Report a payment, and settle it if Paystack says the money is in.
+
+        Reachable without a session, because the applicant comes back from
+        Paystack on a fresh page load and is deliberately not signed in: the
+        password was only ever emailed to them. An application reference is short
+        enough to guess, so an unauthenticated caller has to also present the
+        gateway reference Paystack appended to the return URL, and gets only
+        whether the fee is settled and for how much.
+
+        This never issues a session. It used to, and that put somebody straight
+        into a dashboard for an account whose password had been emailed rather
+        than chosen, which is not a sign-in anybody performed.
+        """
         if request.user.is_authenticated:
             application = visible_applications(request.user).filter(
                 reference=reference
@@ -383,8 +396,18 @@ class PaymentStatusView(APIView):
             )
 
         payment = application.payment
-        settled_now = False
 
+        if not request.user.is_authenticated:
+            supplied = (request.query_params.get("reference") or "").strip()
+            if not supplied or supplied != payment.gateway_reference:
+                # Wrong or missing: answer exactly as for an unknown reference, so
+                # nothing is learned by guessing application numbers.
+                return Response(
+                    {"detail": "No payment for this application."},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+        settled_now = False
         if payment.status == Payment.Status.PENDING and payment.gateway_reference:
             data = gateway.verify(payment.gateway_reference)
             if (
@@ -402,20 +425,28 @@ class PaymentStatusView(APIView):
                 )
 
         is_settled = payment.status in {Payment.Status.PAID, Payment.Status.WAIVED}
-        body = {
-            "payment": PaymentSerializer(payment).data,
-            "settled": is_settled,
-            "settled_now": settled_now,
-        }
-        if is_settled and application.applicant:
-            from apps.accounts.cookies import set_refresh_cookie
-            from apps.accounts.views import issue_session
-            sess, refresh = issue_session(application.applicant)
-            body["access"] = sess.get("access")
-            body["user"] = sess.get("user")
-            return set_refresh_cookie(Response(body), refresh)
 
-        return Response(body)
+        if request.user.is_authenticated:
+            return Response(
+                {
+                    "payment": PaymentSerializer(payment).data,
+                    "settled": is_settled,
+                    "settled_now": settled_now,
+                }
+            )
+
+        # Enough to show a confirmation, and nothing that identifies anybody.
+        return Response(
+            {
+                "settled": is_settled,
+                "settled_now": settled_now,
+                "display_total": payment.display_total,
+                "application": application.reference,
+                # Whether the login has actually gone out, so the page can tell
+                # the applicant to check their inbox or to contact the desk.
+                "credentials_sent": bool(application.welcome_email_sent),
+            }
+        )
 
 
 class ReceiptView(APIView):

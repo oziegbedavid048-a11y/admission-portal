@@ -32,7 +32,7 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        w, s, e = self.stdout.write, self.style.SUCCESS, self.style.ERROR
+        w, s_, e = self.stdout.write, self.style.SUCCESS, self.style.ERROR
         host, port = settings.EMAIL_HOST, settings.EMAIL_PORT
 
         w("Configuration")
@@ -44,8 +44,43 @@ class Command(BaseCommand):
         w(f"  from          {settings.DEFAULT_FROM_EMAIL}")
         w("")
 
+        if "HttpEmailBackend" in settings.EMAIL_BACKEND:
+            w(f"Sending over HTTPS via {settings.EMAIL_PROVIDER}, not SMTP.")
+            w(f"  api key set   {bool(settings.EMAIL_PROVIDER_API_KEY)}")
+            w("")
+            w(f"Sending a message to {options['to']}")
+            try:
+                EmailMultiAlternatives(
+                    subject="Gabstep mail check",
+                    body=(
+                        "If you are reading this, this host can send mail over "
+                        f"HTTPS via {settings.EMAIL_PROVIDER}."
+                    ),
+                    from_email=settings.DEFAULT_FROM_EMAIL,
+                    to=[options["to"]],
+                ).send(fail_silently=False)
+                w(s_("   sent"))
+                w("")
+                w(s_("Mail works from this host."))
+            except Exception as exc:
+                w(e(f"   {type(exc).__name__}: {exc}"))
+                w(self.style.WARNING(
+                    "   The provider rejected it. The usual cause is a sending "
+                    "domain that has not been verified with them yet, in which "
+                    "case their message above says so."
+                ))
+            return
+
+        if "console" in settings.EMAIL_BACKEND:
+            w(self.style.WARNING(
+                "Using the console backend: messages are printed, not sent. Set "
+                "EMAIL_PROVIDER_API_KEY to send over HTTPS, or EMAIL_HOST_PASSWORD "
+                "to send over SMTP."
+            ))
+            return
+
         if "smtp" not in settings.EMAIL_BACKEND:
-            w(self.style.WARNING("Not using the SMTP backend, so nothing leaves this host."))
+            w(self.style.WARNING("Not the SMTP backend, so nothing leaves this host."))
             return
 
         if not settings.EMAIL_HOST_PASSWORD:
@@ -58,7 +93,7 @@ class Command(BaseCommand):
         try:
             sock = socket.create_connection((host, port), timeout=15)
             sock.close()
-            w(s(f"   connected in {time.time() - started:.2f}s"))
+            w(s_(f"   connected in {time.time() - started:.2f}s"))
         except OSError as exc:
             w(e(f"   failed after {time.time() - started:.2f}s: {exc}"))
             w("")
@@ -85,7 +120,7 @@ class Command(BaseCommand):
                     server.starttls()
             server.login(settings.EMAIL_HOST_USER, settings.EMAIL_HOST_PASSWORD)
             server.quit()
-            w(s("   accepted"))
+            w(s_("   accepted"))
         except smtplib.SMTPAuthenticationError as exc:
             w(e(f"   rejected the credentials: {exc}"))
             w(self.style.WARNING("   Check EMAIL_HOST_USER and EMAIL_HOST_PASSWORD."))
@@ -107,8 +142,8 @@ class Command(BaseCommand):
                 to=[options["to"]],
             )
             message.send(fail_silently=False)
-            w(s("   sent"))
+            w(s_("   sent"))
             w("")
-            w(s("Mail works from this host."))
+            w(s_("Mail works from this host."))
         except Exception as exc:
             w(e(f"   {type(exc).__name__}: {exc}"))

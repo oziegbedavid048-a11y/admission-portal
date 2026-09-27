@@ -68,6 +68,27 @@ export function AuthProvider({ children }) {
     [adopt],
   );
 
+  /**
+   * Create an applicant account without signing anybody in.
+   *
+   * The wizard needs an account to hang the application and its documents on, and
+   * it needs a token to make those calls. It does not need a session: an
+   * application is not paid for yet, and being silently logged in while the
+   * payment page loads is how somebody ends up inside a dashboard for a file they
+   * have not paid for. So the token is stored for the submit and the user is not,
+   * which leaves the header signed out. `endSubmitSession` drops the token again.
+   */
+  const registerApplicantForSubmit = useCallback(async (payload) => {
+    const { data } = await auth.registerApplicant(payload);
+    tokenStore.save(data);
+    return data.user;
+  }, []);
+
+  const endSubmitSession = useCallback(() => {
+    tokenStore.clear();
+    setUser(null);
+  }, []);
+
   const registerApplicant = useCallback(
     async (payload) => {
       const { data } = await auth.registerApplicant(payload);
@@ -101,12 +122,25 @@ export function AuthProvider({ children }) {
       signIn,
       signOut,
       registerApplicant,
+      registerApplicantForSubmit,
+      endSubmitSession,
       registerAgent,
       refreshUser,
       setUser,
       adopt,
     }),
-    [user, loading, signIn, signOut, registerApplicant, registerAgent, refreshUser, adopt],
+    [
+      user,
+      loading,
+      signIn,
+      signOut,
+      registerApplicant,
+      registerApplicantForSubmit,
+      endSubmitSession,
+      registerAgent,
+      refreshUser,
+      adopt,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -1,23 +1,25 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import SiteHeader from '../../components/layout/SiteHeader';
 import Icon from '../../lib/icons';
 import { payments } from '../../api/endpoints';
-import { useAuth } from '../../context/AuthContext';
 
 /**
  * Where Paystack sends the applicant back to.
  *
- * The browser is not told whether the payment succeeded and could not be trusted
- * if it were: it asks the server, and the server asks Paystack. Paystack's own
- * webhook is the primary path, so by the time this page loads the payment is
- * often already settled; when it is not, the status endpoint verifies the
- * reference directly rather than leaving the applicant looking at a spinner until
- * a webhook turns up.
+ * Reached without a session, on purpose. The account's password was emailed and
+ * never chosen, so nobody has signed in: this page confirms the payment and sends
+ * them to the sign-in screen with the details from their inbox. It does not put
+ * them inside a dashboard for an account they have not logged into.
  *
- * It retries for a short while because a card can sit in "processing" for a few
- * seconds, then stops and tells the applicant what to do. It never says the fee
- * is unpaid on the strength of one inconclusive answer.
+ * The browser is not told whether the payment succeeded, and could not be trusted
+ * if it were: it asks the server, and the server asks Paystack. Paystack's webhook
+ * is the primary path, so the payment is usually settled before this loads; when
+ * it is not, the status endpoint verifies the reference directly rather than
+ * leaving somebody watching a spinner until a webhook turns up.
+ *
+ * Paystack appends the transaction reference to the return URL, and the server
+ * requires it, because an application number is short enough to guess.
  */
 
 const ATTEMPTS = 6;
@@ -25,21 +27,20 @@ const GAP_MS = 2500;
 
 export default function PaymentReturnPage() {
   const { reference } = useParams();
-  const { adopt } = useAuth();
+  const [params] = useSearchParams();
+  const gatewayReference = params.get('reference') || params.get('trxref') || '';
+
   const [state, setState] = useState('checking');
-  const [payment, setPayment] = useState(null);
+  const [result, setResult] = useState(null);
   const attempt = useRef(0);
   const timer = useRef(null);
 
   const poll = useCallback(async () => {
     attempt.current += 1;
     try {
-      const { data } = await payments.status(reference);
-      setPayment(data.payment);
+      const { data } = await payments.status(reference, gatewayReference);
+      setResult(data);
       if (data.settled) {
-        if (data.access && adopt) {
-          adopt({ access: data.access, user: data.user });
-        }
         setState('settled');
         return;
       }
@@ -53,7 +54,7 @@ export default function PaymentReturnPage() {
       // implying the money is gone.
       setState('unknown');
     }
-  }, [reference]);
+  }, [reference, gatewayReference]);
 
   useEffect(() => {
     poll();
@@ -81,20 +82,35 @@ export default function PaymentReturnPage() {
                 <span className="return-mark is-ok" aria-hidden="true">
                   <Icon name="checkCircle" size={26} strokeWidth={2} />
                 </span>
-                <h1 className="return-title">Payment Confirmed</h1>
+                <h1 className="return-title">Application fee paid</h1>
                 <p className="return-note">
-                  {payment?.display_total ? `${payment.display_total} received for ${reference}. ` : ''}
-                  Your file is now submitted and your login details have been sent to your email.
+                  {result?.display_total ? `${result.display_total} received. ` : ''}
+                  Your application {result?.application || reference} is submitted and
+                  with the admissions desk.
                 </p>
-                <div className="callout callout-success" style={{ margin: '18px 0', textAlign: 'left' }}>
-                  <Icon name="checkCircle" size={20} className="callout-icon" strokeWidth={2} />
-                  <div className="callout-content" style={{ fontSize: '0.875rem' }}>
-                    <strong>Account activated:</strong> Check your inbox for your login credentials. You can access and track your application status anytime from your student dashboard.
+
+                {result?.credentials_sent === false ? (
+                  <div className="callout callout-warning return-callout">
+                    <Icon name="alert" size={20} className="callout-icon" strokeWidth={2} />
+                    <div className="callout-content">
+                      Your payment is safe and your application is filed. We could not
+                      send your sign-in details just now, so the admissions desk will
+                      email them to you shortly.
+                    </div>
                   </div>
-                </div>
-                <Link to="/portal" className="btn btn-accent btn-lg" style={{ marginTop: 8 }}>
-                  Open my dashboard
-                  <Icon name="arrowRight" size={16} strokeWidth={2} />
+                ) : (
+                  <div className="callout callout-success return-callout">
+                    <Icon name="mail" size={20} className="callout-icon" strokeWidth={2} />
+                    <div className="callout-content">
+                      Your sign-in details have been emailed to you. Use them to log in
+                      and follow your application.
+                    </div>
+                  </div>
+                )}
+
+                <Link to="/?signin=1" className="btn btn-accent btn-lg">
+                  <Icon name="signIn" size={16} strokeWidth={2} />
+                  Go to login
                 </Link>
               </>
             ) : null}
@@ -106,12 +122,12 @@ export default function PaymentReturnPage() {
                 </span>
                 <h1 className="return-title">Still settling</h1>
                 <p className="return-note">
-                  Your bank has not confirmed this one yet. Nothing is lost and you
-                  do not need to pay again: it clears on its own, and we email you
-                  the moment it does.
+                  Your bank has not confirmed this one yet. Nothing is lost and you do
+                  not need to pay again: it clears on its own, and we email your
+                  sign-in details the moment it does.
                 </p>
-                <Link to="/portal" className="btn btn-accent btn-lg">
-                  Open my dashboard
+                <Link to="/" className="btn btn-accent btn-lg">
+                  Back to the site
                   <Icon name="arrowRight" size={16} strokeWidth={2} />
                 </Link>
               </>
@@ -124,12 +140,12 @@ export default function PaymentReturnPage() {
                 </span>
                 <h1 className="return-title">We could not check just now</h1>
                 <p className="return-note">
-                  Your payment may well have gone through. Open your dashboard to
-                  see where {reference} stands, and get in touch if it still looks
-                  unpaid in a few minutes.
+                  Your payment may well have gone through. We email your sign-in
+                  details once it clears. Get in touch if nothing arrives in a few
+                  minutes, quoting {reference}.
                 </p>
-                <Link to="/portal" className="btn btn-accent btn-lg">
-                  Open my dashboard
+                <Link to="/" className="btn btn-accent btn-lg">
+                  Back to the site
                   <Icon name="arrowRight" size={16} strokeWidth={2} />
                 </Link>
               </>

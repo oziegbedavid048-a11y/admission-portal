@@ -325,11 +325,30 @@ EMAIL_HOST = env("EMAIL_HOST", "mail.gabstep.com")
 EMAIL_PORT = int(env("EMAIL_PORT", "465"))
 EMAIL_HOST_USER = env("EMAIL_HOST_USER", "support@gabstep.com")
 EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD")
-default_email_backend = (
-    "django.core.mail.backends.smtp.EmailBackend"
-    if EMAIL_HOST_PASSWORD
-    else "django.core.mail.backends.console.EmailBackend"
-)
+# How mail leaves this host.
+#
+# SMTP is the obvious choice and the wrong one on a platform that blocks outbound
+# SMTP. The connection simply times out:
+#
+#     Email failed: 'Your Gabstep account' to [...]: timed out
+#
+# which reads as a mail server problem when it is not one. Setting
+# EMAIL_PROVIDER_API_KEY switches to the provider's HTTPS API instead, which no
+# host blocks because it is ordinary web traffic. EMAIL_PROVIDER picks which API:
+# "resend" or "brevo".
+#
+# Order of preference: an HTTPS provider if a key is set, then SMTP if a password
+# is set, then the console, so a developer with neither still sees the messages.
+EMAIL_PROVIDER = env("EMAIL_PROVIDER", "resend")
+EMAIL_PROVIDER_API_KEY = env("EMAIL_PROVIDER_API_KEY")
+
+if EMAIL_PROVIDER_API_KEY:
+    default_email_backend = "apps.accounts.email_backends.HttpEmailBackend"
+elif EMAIL_HOST_PASSWORD:
+    default_email_backend = "django.core.mail.backends.smtp.EmailBackend"
+else:
+    default_email_backend = "django.core.mail.backends.console.EmailBackend"
+
 EMAIL_BACKEND = env("EMAIL_BACKEND", default_email_backend)
 EMAIL_USE_SSL = env_bool("EMAIL_USE_SSL", True)
 EMAIL_USE_TLS = env_bool("EMAIL_USE_TLS", False)

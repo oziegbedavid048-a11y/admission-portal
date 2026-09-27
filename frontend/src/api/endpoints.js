@@ -75,7 +75,13 @@ export const payments = {
   checkout: (reference) => api.post('/payments/checkout/', { application: reference }),
   // Asks the server what happened to a payment. The server asks Paystack, so the
   // browser is never the thing that decides a payment succeeded.
-  status: (reference) => api.get(`/payments/status/${reference}/`),
+  // `gatewayReference` is the transaction reference Paystack appends to the return
+  // URL. The server requires it when nobody is signed in, because an application
+  // number is short enough to guess.
+  status: (reference, gatewayReference) =>
+    api.get(`/payments/status/${reference}/`, {
+      params: gatewayReference ? { reference: gatewayReference } : undefined,
+    }),
   receipt: (reference) => api.get(`/payments/receipt/${reference}/`),
 };
 

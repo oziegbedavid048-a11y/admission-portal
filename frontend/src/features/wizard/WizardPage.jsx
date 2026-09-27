@@ -64,7 +64,7 @@ export default function WizardPage({ onOpenLogin }) {
   const navigate = useNavigate();
   const location = useLocation();
   const toast = useToast();
-  const { user, isAuthenticated, registerApplicant } = useAuth();
+  const { user, isAuthenticated, registerApplicantForSubmit, endSubmitSession } = useAuth();
   const { originNames, destinations } = useCatalog();
   const { institutions, loading: institutionsLoading } = useInstitutions(
     form.destinationCountry,
@@ -322,7 +322,10 @@ export default function WizardPage({ onOpenLogin }) {
       if (!isAuthenticated) {
         generatedPassword = generatePassword();
         try {
-          await registerApplicant({
+          // Creates the account and keeps a token for the calls below, but does
+          // not sign anybody in: the header stays signed out and nobody is put
+          // inside a dashboard for a file they have not paid for.
+          await registerApplicantForSubmit({
             email: form.email.trim(),
             full_name: form.fullName.trim(),
             phone: form.phone.trim(),
@@ -366,12 +369,18 @@ export default function WizardPage({ onOpenLogin }) {
       localStorage.removeItem(DRAFT_KEY);
       setGatewayOpen(false);
 
-      // A configured provider hands back somewhere to go and pay. Leaving for it
-      // is the last step, so the draft is already cleared and the account made.
+      // A configured provider hands back somewhere to go and pay. The token that
+      // carried the submit is dropped before leaving, so the applicant returns
+      // from the provider signed out and has to use the details emailed to them.
       if (!isCustomCourse && settlement?.authorization_url) {
+        if (!isAuthenticated) endSubmitSession();
         window.location.assign(settlement.authorization_url);
         return;
       }
+
+      // Nothing to pay, so the flow ends here. Same rule: no session is left
+      // behind for an account whose password was only ever emailed.
+      if (!isAuthenticated) endSubmitSession();
 
       setProvisioned({
         reference: application.reference,
