@@ -343,7 +343,16 @@ EMAIL_PROVIDER = env("EMAIL_PROVIDER", "zeptomail")
 # ZeptoMail's REST host depends on the region the account was created in.
 # cpaas.zoho.com for zoho.com; there are .eu and .in equivalents.
 ZEPTOMAIL_HOST = env("ZEPTOMAIL_HOST", "cpaas.zoho.com")
-EMAIL_PROVIDER_API_KEY = env("EMAIL_PROVIDER_API_KEY")
+if "cpass.zoho" in (ZEPTOMAIL_HOST or "").lower():
+    ZEPTOMAIL_HOST = ZEPTOMAIL_HOST.lower().replace("cpass.zoho", "cpaas.zoho")
+ZEPTOMAIL_AGENT_ALIAS = env("ZEPTOMAIL_AGENT_ALIAS", "")
+EMAIL_PROVIDER_API_KEY = (
+    env("EMAIL_PROVIDER_API_KEY")
+    or env("ZEPTOMAIL_API_KEY")
+    or env("ZEPTOMAIL_TOKEN")
+    or env("ZEPTO_API_KEY")
+    or env("ZEPTOMAIL_SEND_MAIL_TOKEN")
+)
 
 if EMAIL_PROVIDER_API_KEY:
     default_email_backend = "apps.accounts.email_backends.HttpEmailBackend"

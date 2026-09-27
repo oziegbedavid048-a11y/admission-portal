@@ -61,6 +61,8 @@ def _clean_host(value, fallback):
     if "//" in host:
         host = host.split("//", 1)[1]
     host = host.split("/", 1)[0].strip().strip(".")
+    if "cpass.zoho" in host.lower():
+        host = host.lower().replace("cpass.zoho", "cpaas.zoho")
     return host or fallback
 
 
