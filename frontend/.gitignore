@@ -2,3 +2,10 @@ node_modules
 dist
 .env
 *.local
+
+# `.env` holds whatever a developer needs locally and stays out. `.env.production`
+# holds only the public API URL, and it is committed on purpose: leaving that to a
+# dashboard variable is how the deployed app ended up pointing at the wrong path
+# twice. It must not be given secrets -- Vite inlines every VITE_ value into the
+# bundle, so anything in here is public the moment it ships.
+!.env.production

@@ -120,20 +120,34 @@ api.interceptors.response.use(
       }
     }
 
-    // If error response data is HTML (e.g. 400 Bad Request, 500 Server Error, 502/504)
+    // A body that is not our JSON did not come from the API. It came from a CDN,
+    // a proxy, or a load balancer answering in the API's place, and the message
+    // inside it is about that hop rather than about what the person was doing.
+    // Saying "could not create your account" for a misrouted request sends
+    // somebody looking at the form when the request never arrived.
     const errData = error.response?.data;
     const errContentType = error.response?.headers?.['content-type'] || '';
-    if (
+    const bodyIsNotOurs =
       typeof errData === 'string' &&
-      (errContentType.includes('text/html') ||
-        errData.trim().startsWith('<!doctype') ||
-        errData.trim().startsWith('<html') ||
-        errData.trim().startsWith('<?xml') ||
-        errData.includes('Traceback (most recent call last)'))
+      errData.trim() !== '' &&
+      !errContentType.includes('application/json');
+    if (
+      bodyIsNotOurs ||
+      (typeof errData === 'string' &&
+        (errContentType.includes('text/html') ||
+          errData.trim().startsWith('<!doctype') ||
+          errData.trim().startsWith('<html') ||
+          errData.trim().startsWith('<?xml') ||
+          errData.includes('Traceback (most recent call last)')))
     ) {
       if (error.response) {
+        // Name the status, because 404 here means the request went somewhere
+        // that is not the API and that is a deployment fault, not a user one.
         error.response.data = {
-          detail: 'Unable to connect to the admissions server. Please try again in a moment.',
+          detail:
+            error.response.status === 404
+              ? 'The admissions server could not be reached at the configured address. This is a setup problem, not something you did.'
+              : 'Unable to connect to the admissions server. Please try again in a moment.',
         };
       }
     }
