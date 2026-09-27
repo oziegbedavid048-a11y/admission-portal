@@ -625,46 +625,35 @@ export default function WizardPage({ onOpenLogin }) {
                 <h3>{isCustomCourse ? 'Review your application' : 'Review and pay'}</h3>
                 <p>
                   {isCustomCourse
-                    ? 'No upfront fee required. Complete your registration to receive your student portal login.'
+                    ? 'Review your details and complete registration to receive your portal access.'
                     : 'Nothing is submitted until this is settled.'}
                 </p>
               </div>
 
               {isCustomCourse ? (
-                <>
-                  <div className="summary-invoice" style={{ borderLeft: '4px solid var(--brand-600, #2563eb)' }}>
-                    <div className="invoice-header">
-                      Custom Course Application · {form.destinationCountry}
-                    </div>
-                    <div className="invoice-row">
-                      <span>Destination country</span>
-                      <span className="invoice-amount">{form.destinationCountry}</span>
-                    </div>
-                    <div className="invoice-row">
-                      <span>Desired course / programme</span>
-                      <span className="invoice-amount-total">
-                        {form.custom_course || 'Custom Course'}
-                      </span>
-                    </div>
-                    <div className="invoice-row">
-                      <span>Applicant</span>
-                      <span className="invoice-amount">{form.fullName}</span>
-                    </div>
-                    <div className="invoice-row total">
-                      <span>Application fee</span>
-                      <span className="invoice-amount-free">
-                        FREE (Direct Admissions Review)
-                      </span>
-                    </div>
+                <div className="summary-invoice">
+                  <div className="invoice-header">
+                    Application Summary · {form.destinationCountry}
                   </div>
-
-                  <div className="callout callout-success">
-                    <Icon name="checkCircle" size={20} className="callout-icon" strokeWidth={2} />
-                    <div className="callout-content">
-                      <strong>Zero application fee required today!</strong> Because you specified your own course, no payment is required. Once you submit, our global admissions desk will review your details and contact you directly to match you with universities.
-                    </div>
+                  <div className="invoice-row">
+                    <span>Destination</span>
+                    <span className="invoice-amount">{form.destinationCountry}</span>
                   </div>
-                </>
+                  <div className="invoice-row">
+                    <span>Course / Programme</span>
+                    <span className="invoice-amount" style={{ fontWeight: 600 }}>
+                      {form.custom_course || 'Custom Course'}
+                    </span>
+                  </div>
+                  <div className="invoice-row">
+                    <span>Applicant</span>
+                    <span className="invoice-amount">{form.fullName}</span>
+                  </div>
+                  <div className="invoice-row total">
+                    <span>Application fee</span>
+                    <span className="invoice-amount-free">Waived</span>
+                  </div>
+                </div>
               ) : (
                 <>
                   <div className="summary-invoice">
