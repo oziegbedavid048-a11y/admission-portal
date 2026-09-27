@@ -1,6 +1,32 @@
 import axios from 'axios';
 
-const BASE_URL = import.meta.env.VITE_API_URL || '/api';
+/**
+ * Where the API is, worked out rather than trusted.
+ *
+ * `VITE_API_URL` is ambiguous by nature: "the backend" can reasonably mean
+ * `https://host`, `https://host/api`, or just `/api`, and the two that are
+ * missing the mount point produce a wall of 404s that look nothing like a
+ * configuration mistake. That is exactly what happened in production: the
+ * variable was set to the bare host, so every call went to `/auth/...` and
+ * `/catalog/...` instead of `/api/auth/...` and `/api/catalog/...`, and the
+ * backend answered 404 to all of it.
+ *
+ * Django mounts the API under `/api`, and the app knows that, so it appends it
+ * when it is missing instead of depending on whoever set the variable. All of
+ * these now resolve to the same place:
+ *
+ *   (unset)                             -> /api
+ *   /api                                -> /api
+ *   https://host                        -> https://host/api
+ *   https://host/api/                   -> https://host/api
+ */
+function resolveApiBase(configured) {
+  const trimmed = (configured || '').trim().replace(/\/+$/, '');
+  if (!trimmed) return '/api';
+  return /\/api$/i.test(trimmed) ? trimmed : `${trimmed}/api`;
+}
+
+const BASE_URL = resolveApiBase(import.meta.env.VITE_API_URL);
 
 /**
  * The access token, held in memory only.
