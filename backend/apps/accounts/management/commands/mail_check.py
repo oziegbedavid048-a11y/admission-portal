@@ -65,9 +65,10 @@ class Command(BaseCommand):
             except Exception as exc:
                 w(e(f"   {type(exc).__name__}: {exc}"))
                 w(self.style.WARNING(
-                    "   The provider rejected it. The usual cause is a sending "
-                    "domain that has not been verified with them yet, in which "
-                    "case their message above says so."
+                    "   That is the provider's own wording. The three common "
+                    "causes are a key it does not recognise, a sending domain it "
+                    "has not verified, and an account with no credit left. It "
+                    "says which."
                 ))
             return
 

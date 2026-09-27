@@ -339,7 +339,10 @@ EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD")
 #
 # Order of preference: an HTTPS provider if a key is set, then SMTP if a password
 # is set, then the console, so a developer with neither still sees the messages.
-EMAIL_PROVIDER = env("EMAIL_PROVIDER", "resend")
+EMAIL_PROVIDER = env("EMAIL_PROVIDER", "zeptomail")
+# ZeptoMail's REST host depends on the region the account was created in.
+# cpaas.zoho.com for zoho.com; there are .eu and .in equivalents.
+ZEPTOMAIL_HOST = env("ZEPTOMAIL_HOST", "cpaas.zoho.com")
 EMAIL_PROVIDER_API_KEY = env("EMAIL_PROVIDER_API_KEY")
 
 if EMAIL_PROVIDER_API_KEY:
