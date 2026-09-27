@@ -11,6 +11,7 @@ from rest_framework.views import APIView
 
 from apps.applications.constants import APPLICATION_FEE_NGN
 from apps.applications import services
+from apps.applications.models import Application
 from apps.applications.serializers import ApplicationSerializer
 from apps.applications.views import visible_applications
 

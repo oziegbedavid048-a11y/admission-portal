@@ -54,6 +54,14 @@ def is_live():
     return bool(getattr(settings, "PAYSTACK_SECRET_KEY", ""))
 
 
+# Paystack sits behind Cloudflare, and Cloudflare rejects urllib's default
+# user agent outright: "error 1010, browser_signature_banned", HTTP 403, before
+# the request ever reaches Paystack. Sending a real one is the difference between
+# a 403 from Cloudflare and an answer from the API. Named after this service so a
+# support conversation with Paystack can identify the caller.
+USER_AGENT = "Gabstep-Admissions/1.0 (+https://gabstep.com)"
+
+
 def _call(path, payload=None, method="GET"):
     """One request to Paystack. Raises on anything that is not a clean answer."""
     body = json.dumps(payload).encode() if payload is not None else None
@@ -64,6 +72,7 @@ def _call(path, payload=None, method="GET"):
             "Authorization": f"Bearer {settings.PAYSTACK_SECRET_KEY}",
             "Content-Type": "application/json",
             "Accept": "application/json",
+            "User-Agent": USER_AGENT,
         },
         method=method,
     )
