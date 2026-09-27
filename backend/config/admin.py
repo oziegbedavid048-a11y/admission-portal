@@ -18,10 +18,7 @@ LAYOUT = [
     ("applications", ["Application", "Letter", "Document", "CorrectionRequest"]),
     ("partners", ["AgentProfile", "SupervisorProfile", "Loan", "Withdrawal", "SupervisorWithdrawal"]),
     ("payments", ["Payment"]),
-    # The catalogue is one screen now: Add Course writes the country, the school
-    # and the courses in a single pass. The models it writes to keep their own
-    # screens for corrections, linked from Add Course, but they are off the index.
-    ("catalog", ["CourseImport"]),
+    ("catalog", ["Program", "Institution", "DestinationCountry", "CourseImport"]),
     ("accounts", ["User"]),
 ]
 

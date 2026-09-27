@@ -38,7 +38,7 @@ class ProgramInline(admin.TabularInline):
 
 
 @admin.register(Institution)
-class InstitutionAdmin(HiddenFromIndex, admin.ModelAdmin):
+class InstitutionAdmin(admin.ModelAdmin):
     list_display = (
         "name",
         "country",
@@ -136,7 +136,7 @@ class InstitutionAdmin(HiddenFromIndex, admin.ModelAdmin):
 
 
 @admin.register(Program)
-class ProgramAdmin(HiddenFromIndex, admin.ModelAdmin):
+class ProgramAdmin(admin.ModelAdmin):
     """Every course on the platform, for correcting one after the fact.
 
     New courses arrive through Add Course, which reads a whole pasted list at
@@ -306,7 +306,7 @@ class OriginCountryAdmin(HiddenFromIndex, admin.ModelAdmin):
 
 
 @admin.register(DestinationCountry)
-class DestinationCountryAdmin(HiddenFromIndex, admin.ModelAdmin):
+class DestinationCountryAdmin(admin.ModelAdmin):
     list_display = ("name", "code", "currency", "institutions_count", "is_european", "display_order", "is_active")
     list_display_links = ("name",)
     list_editable = ("display_order", "is_active")
