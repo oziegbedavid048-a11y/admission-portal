@@ -12,6 +12,27 @@ from django.core.checks import Error, Warning, register
 
 LOCAL_HOSTS = {"localhost", "127.0.0.1", "0.0.0.0", "::1", "testserver"}
 
+# Warnings rather than errors below, deliberately. A wrong FRONTEND_URL was
+# already live when these checks were written, and the host auto-deploys on push,
+# so raising would have turned a bad setting into an outage the moment this
+# shipped. The point is to name the problem on every boot, not to stop the boot.
+
+# Hosting dashboards. Their URLs look plausible enough to paste into a settings
+# field, and a deployment dashboard is never where a visitor should be sent. This
+# is not a guess: FRONTEND_URL was once set to
+# https://vercel.com/<team>/<project>/<deployment-id>, which sent every applicant
+# returning from the payment provider to a Vercel 404, and pointed every link in
+# every email at the same place.
+DASHBOARD_HOSTS = {
+    "vercel.com",
+    "dashboard.render.com",
+    "render.com",
+    "app.netlify.com",
+    "github.com",
+    "console.cloud.google.com",
+    "portal.azure.com",
+}
+
 
 @register()
 def check_frontend_url(app_configs, **kwargs):
@@ -46,6 +67,30 @@ def check_frontend_url(app_configs, **kwargs):
                 "person who received it.",
                 hint="Set FRONTEND_URL to the site's public address, e.g. https://gabstep.com",
                 id="accounts.E002",
+            )
+        )
+    elif host in DASHBOARD_HOSTS or host.endswith(".vercel.com"):
+        issues.append(
+            Warning(
+                f"FRONTEND_URL is {url!r}, which is a hosting dashboard rather than "
+                "the site. Every link in every email and the return address the "
+                "payment provider sends people back to are both built from this, so "
+                "all of them would land on a page the applicant cannot use.",
+                hint=(
+                    "Use the address a visitor types, e.g. "
+                    "https://admissionportal.gabstep.com"
+                ),
+                id="accounts.W004",
+            )
+        )
+    elif urlparse(url).path.strip("/"):
+        issues.append(
+            Warning(
+                f"FRONTEND_URL is {url!r}, which has a path on the end. This has to "
+                "be the site's root, because the code appends its own paths to it: "
+                f"a return address would come out as {url.rstrip('/')}/payment/...",
+                hint="Drop everything after the hostname.",
+                id="accounts.W005",
             )
         )
     elif urlparse(url).scheme != "https":
