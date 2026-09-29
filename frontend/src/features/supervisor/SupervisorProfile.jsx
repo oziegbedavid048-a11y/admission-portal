@@ -10,7 +10,7 @@ import { useSupervisor } from './SupervisorContext';
 
 export default function SupervisorProfile() {
   const { profile, setProfile, reload } = useSupervisor();
-  const { refreshUser } = useAuth();
+  const { refreshUser, changePassword } = useAuth();
   const toast = useToast();
 
   const [form, setForm] = useState({
@@ -95,7 +95,7 @@ export default function SupervisorProfile() {
 
     setBusy('password');
     try {
-      await auth.changePassword(passwords.current, passwords.next);
+      await changePassword(passwords.current, passwords.next);
       setPasswords({ current: '', next: '', confirm: '' });
       toast.success('Password changed.');
     } catch (error) {

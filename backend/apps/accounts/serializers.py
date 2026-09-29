@@ -180,10 +180,9 @@ class GabstepTokenObtainPairSerializer(TokenObtainPairSerializer):
 
     @classmethod
     def get_token(cls, user):
-        token = super().get_token(user)
-        token["role"] = user.role
-        token["full_name"] = user.full_name
-        return token
+        from .sessions import stamp
+
+        return stamp(super().get_token(user), user)
 
     def validate(self, attrs):
         data = super().validate(attrs)
@@ -231,3 +230,46 @@ class SupportTicketSerializer(serializers.ModelSerializer):
         from apps.applications.uploads import validate_upload
 
         return validate_upload(value, settings.MAX_UPLOAD_SIZE_MB)
+
+
+class PasswordResetRequestSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+    def validate_email(self, value):
+        return value.strip().lower()
+
+
+class PasswordResetConfirmSerializer(serializers.Serializer):
+    """A reset link's uid and token, and the new password.
+
+    Invalid and expired links get the same answer, so the response says nothing
+    about which accounts exist.
+    """
+
+    uid = serializers.CharField()
+    token = serializers.CharField()
+    new_password = serializers.CharField(write_only=True, required=False)
+
+    LINK_ERROR = "This reset link is invalid or has expired. Ask for a new one."
+
+    def validate(self, attrs):
+        from django.contrib.auth.tokens import default_token_generator
+        from django.utils.encoding import force_str
+        from django.utils.http import urlsafe_base64_decode
+
+        try:
+            user_id = force_str(urlsafe_base64_decode(attrs["uid"]))
+            user = User.objects.get(pk=user_id, is_active=True)
+        except (TypeError, ValueError, OverflowError, User.DoesNotExist):
+            raise serializers.ValidationError({"token": self.LINK_ERROR})
+        if not default_token_generator.check_token(user, attrs["token"]):
+            raise serializers.ValidationError({"token": self.LINK_ERROR})
+
+        password = attrs.get("new_password")
+        if password is not None:
+            try:
+                password_validation.validate_password(password, user)
+            except Exception as exc:  # Django's ValidationError, reshaped for DRF
+                raise serializers.ValidationError({"new_password": list(getattr(exc, "messages", [str(exc)]))})
+        attrs["user"] = user
+        return attrs

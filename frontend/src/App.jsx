@@ -11,6 +11,8 @@ import { useAuth } from './context/AuthContext';
 // The portals and the wizard are big and most visitors never open them, so
 // they are split out of the first download.
 const SignupPage = lazy(() => import('./features/auth/SignupPage'));
+const ForgotPasswordPage = lazy(() => import('./features/auth/ForgotPasswordPage'));
+const ResetPasswordPage = lazy(() => import('./features/auth/ResetPasswordPage'));
 const ApplicantPortal = lazy(() => import('./features/applicant/ApplicantPortal'));
 const AgentLoginPage = lazy(() => import('./features/auth/AgentLoginPage'));
 const AgentRegisterPage = lazy(() => import('./features/auth/AgentRegisterPage'));
@@ -42,6 +44,8 @@ export default function App() {
           <Route path="/" element={<LandingPage onOpenLogin={openLogin} />} />
           <Route path="/signup" element={<SignupPage onOpenLogin={openLogin} />} />
           <Route path="/apply" element={<ApplyRedirect />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage onOpenLogin={openLogin} />} />
+          <Route path="/reset-password" element={<ResetPasswordPage onOpenLogin={openLogin} />} />
 
           <Route
             path="/portal/*"

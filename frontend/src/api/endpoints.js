@@ -21,6 +21,12 @@ export const auth = {
       current_password: currentPassword,
       new_password: newPassword,
     }),
+  // Forgotten password. The request answers the same whether or not the
+  // address has an account; the link in the email carries uid and token.
+  forgotPassword: (email) => api.post('/auth/password/forgot/', { email }),
+  validateReset: (uid, token) => api.post('/auth/password/reset/validate/', { uid, token }),
+  resetPassword: (uid, token, newPassword) =>
+    api.post('/auth/password/reset/', { uid, token, new_password: newPassword }),
 };
 
 // Messages from the Support page. They are emailed to the support inbox with the

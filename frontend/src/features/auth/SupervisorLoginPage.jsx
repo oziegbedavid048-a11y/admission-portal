@@ -95,6 +95,12 @@ export default function SupervisorLoginPage() {
               />
             </div>
 
+            <div className="gx-forgot-row">
+              <Link to="/forgot-password" className="gx-link">
+                Forgot password?
+              </Link>
+            </div>
+
             <button
               type="submit"
               className="agent-btn agent-btn-primary agent-btn-block"

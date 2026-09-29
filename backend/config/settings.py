@@ -193,7 +193,8 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
-        "rest_framework_simplejwt.authentication.JWTAuthentication",
+        # JWT, and the token is refused once the password has changed.
+        "apps.accounts.sessions.GabstepJWTAuthentication",
     ),
     "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),
     "DEFAULT_FILTER_BACKENDS": (
@@ -222,12 +223,22 @@ REST_FRAMEWORK = {
         # on the platform, so it is the tightest of the lot.
         "email_check": env("THROTTLE_EMAIL_CHECK", "20/hour"),
         "support": env("THROTTLE_SUPPORT", "10/hour"),
+        # Asking for a reset link sends an email, so it is limited per address
+        # sending the request as well as by the per-account rule in the view.
+        "password_reset": env("THROTTLE_PASSWORD_RESET", "6/hour"),
+        # Opening and using a link. Separate, so someone retrying a password the
+        # rules refused is not locked out by the emails they asked for.
+        "password_reset_confirm": env("THROTTLE_PASSWORD_RESET_CONFIRM", "30/hour"),
         # Money leaving the platform, and a file being uploaded, are both worth
         # slowing down well below what a person could ever need.
         "money": env("THROTTLE_MONEY", "12/hour"),
         "upload": env("THROTTLE_UPLOAD", "60/hour"),
     },
 }
+
+# How long a password reset link works, in seconds. Used once, it stops working
+# at once anyway, because the token is tied to the old password.
+PASSWORD_RESET_TIMEOUT = int(env("PASSWORD_RESET_TIMEOUT", "3600"))
 
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=int(env("ACCESS_TOKEN_MINUTES", "60"))),

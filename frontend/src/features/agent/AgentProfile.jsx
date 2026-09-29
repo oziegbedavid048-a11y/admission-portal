@@ -9,7 +9,7 @@ import { useAgent } from './AgentContext';
 
 export default function AgentProfile() {
   const { profile, setProfile, reload } = useAgent();
-  const { refreshUser } = useAuth();
+  const { refreshUser, changePassword } = useAuth();
   const toast = useToast();
   const avatarRef = useRef(null);
 
@@ -101,7 +101,7 @@ export default function AgentProfile() {
 
     setBusy('password');
     try {
-      await auth.changePassword(passwords.current, passwords.next);
+      await changePassword(passwords.current, passwords.next);
       setPasswords({ current: '', next: '', confirm: '' });
       toast.success('Password changed.');
     } catch (error) {

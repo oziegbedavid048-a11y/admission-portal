@@ -84,6 +84,20 @@ export function AuthProvider({ children }) {
     [adopt],
   );
 
+  /**
+   * Change the password while signed in. The server signs out every other
+   * device and hands this one a fresh session, which is adopted here so the
+   * person making the change stays signed in.
+   */
+  const changePassword = useCallback(
+    async (currentPassword, newPassword) => {
+      const { data } = await auth.changePassword(currentPassword, newPassword);
+      if (data?.access) adopt(data);
+      return data;
+    },
+    [adopt],
+  );
+
   const refreshUser = useCallback(async () => {
     const { data } = await auth.me();
     setUser(data);
@@ -102,6 +116,7 @@ export function AuthProvider({ children }) {
       signOut,
       registerApplicant,
       registerAgent,
+      changePassword,
       refreshUser,
       setUser,
       adopt,
@@ -113,6 +128,7 @@ export function AuthProvider({ children }) {
       signOut,
       registerApplicant,
       registerAgent,
+      changePassword,
       refreshUser,
       adopt,
     ],

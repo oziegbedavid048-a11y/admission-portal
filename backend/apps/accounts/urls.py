@@ -9,6 +9,9 @@ from .views import (
     LogoutView,
     MeView,
     PasswordChangeView,
+    PasswordResetConfirmView,
+    PasswordResetRequestView,
+    PasswordResetValidateView,
     SessionRefreshView,
     SupportTicketView,
 )
@@ -24,6 +27,9 @@ urlpatterns = [
     path("register/agent/", AgentRegisterView.as_view(), name="register-agent"),
     path("me/", MeView.as_view(), name="me"),
     path("password/", PasswordChangeView.as_view(), name="password-change"),
+    path("password/forgot/", PasswordResetRequestView.as_view(), name="password-forgot"),
+    path("password/reset/validate/", PasswordResetValidateView.as_view(), name="password-reset-validate"),
+    path("password/reset/", PasswordResetConfirmView.as_view(), name="password-reset"),
     path("email-available/", EmailAvailabilityView.as_view(), name="email-available"),
     path("support/", SupportTicketView.as_view(), name="support"),
 ]

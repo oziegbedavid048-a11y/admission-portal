@@ -76,6 +76,19 @@ export default function LoginModal({ open, onClose }) {
           />
         </div>
 
+        <div className="gx-forgot-row">
+          <button
+            type="button"
+            className="gx-link"
+            onClick={() => {
+              onClose?.();
+              navigate('/forgot-password');
+            }}
+          >
+            Forgot password?
+          </button>
+        </div>
+
         <button type="submit" className="btn btn-primary btn-block btn-lg" disabled={busy}>
           {busy ? <span className="spinner-sm" aria-hidden="true" /> : null}
           {busy ? 'Signing in' : 'Sign in'}

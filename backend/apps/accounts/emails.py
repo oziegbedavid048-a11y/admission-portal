@@ -496,3 +496,37 @@ def send_support_ticket_email(ticket):
     except Exception as exc:
         logger.error("Support ticket %s could not be emailed: %s", ticket.reference, exc)
         return False
+
+
+# ── Password reset ───────────────────────────────────────────────────
+
+
+def send_password_reset_email(user, link, minutes):
+    """The reset link. Sent to the account's own address and nowhere else."""
+    return _send(
+        subject="Reset your Gabstep password",
+        recipients=[user.email],
+        greeting=f"Hello {_first_name(user.full_name)},",
+        paragraphs=[
+            "We received a request to reset the password for your Gabstep account.",
+            f"The link below works once and expires in {minutes} minutes. If you did "
+            "not ask for this, ignore this email and your password stays the same.",
+        ],
+        action=("Choose a new password", link),
+    )
+
+
+def send_password_changed_email(user):
+    """Confirmation after a reset, so an unexpected change does not go unnoticed."""
+    return _send(
+        subject="Your Gabstep password was changed",
+        recipients=[user.email],
+        greeting=f"Hello {_first_name(user.full_name)},",
+        paragraphs=[
+            "The password for your Gabstep account was just changed, and every "
+            "device that was signed in has been signed out.",
+            "If this was not you, reset your password straight away and contact "
+            "support@gabstep.com.",
+        ],
+        action=("Reset password", _url("/forgot-password")),
+    )

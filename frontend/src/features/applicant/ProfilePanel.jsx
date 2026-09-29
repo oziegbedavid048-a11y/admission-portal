@@ -8,7 +8,7 @@ import { useToast } from '../../context/ToastContext';
 import { useCatalog } from '../../hooks/useCatalog';
 
 export default function ProfilePanel() {
-  const { user, setUser, refreshUser } = useAuth();
+  const { user, setUser, refreshUser, changePassword } = useAuth();
   const { originNames } = useCatalog();
   const toast = useToast();
 
@@ -65,7 +65,7 @@ export default function ProfilePanel() {
 
     setSavingPassword(true);
     try {
-      await auth.changePassword(passwords.current, passwords.next);
+      await changePassword(passwords.current, passwords.next);
       setPasswords({ current: '', next: '', confirm: '' });
       toast.success('Password changed.');
     } catch (error) {
