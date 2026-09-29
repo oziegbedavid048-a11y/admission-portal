@@ -428,9 +428,9 @@ export default function ApplyPanel() {
               </p>
             ) : null}
             <div className="dropzone-container">
-              <Dropzone icon="passport" title="Passport data page" hint="PDF, JPG or PNG · up to 5MB" accept=".pdf,.jpg,.jpeg,.png" maxMb={5} file={files.passport} onSelect={(file) => setFiles((current) => ({ ...current, passport: file }))} onReject={(message) => toast.warning(message)} />
-              <Dropzone icon="document" title="Academic documents" hint="Transcripts and certificates · PDF up to 10MB" accept=".pdf" maxMb={10} file={files.academic} onSelect={(file) => setFiles((current) => ({ ...current, academic: file }))} onReject={(message) => toast.warning(message)} />
-              <Dropzone icon="resume" title="CV" hint="PDF up to 5MB" accept=".pdf" maxMb={5} file={files.cv} onSelect={(file) => setFiles((current) => ({ ...current, cv: file }))} onReject={(message) => toast.warning(message)} />
+              <Dropzone icon="passport" title="Passport data page" hint="PDF or photo · up to 10MB" accept=".pdf,.jpg,.jpeg,.png,.webp,.heic,.heif" maxMb={10} file={files.passport} onSelect={(file) => setFiles((current) => ({ ...current, passport: file }))} onReject={(message) => toast.warning(message)} />
+              <Dropzone icon="document" title="Academic documents" hint="Transcripts and certificates · PDF or photo · up to 10MB" accept=".pdf,.jpg,.jpeg,.png,.webp,.heic,.heif" maxMb={10} file={files.academic} onSelect={(file) => setFiles((current) => ({ ...current, academic: file }))} onReject={(message) => toast.warning(message)} />
+              <Dropzone icon="resume" title="CV" hint="PDF · up to 10MB" accept=".pdf" maxMb={10} file={files.cv} onSelect={(file) => setFiles((current) => ({ ...current, cv: file }))} onReject={(message) => toast.warning(message)} />
             </div>
           </div>
         ) : null}

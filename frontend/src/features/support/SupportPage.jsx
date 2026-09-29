@@ -224,7 +224,7 @@ export default function SupportPage() {
                 id="support-attachment"
                 type="file"
                 className="sr-only"
-                accept=".pdf,.jpg,.jpeg,.png,.webp"
+                accept=".pdf,.jpg,.jpeg,.png,.webp,.heic,.heif"
                 onChange={chooseFile}
               />
               {errors.attachment ? <span className="gx-error">{String(errors.attachment)}</span> : null}

@@ -76,6 +76,7 @@ INSTALLED_APPS = [
     "apps.applications",
     "apps.partners",
     "apps.payments",
+    "apps.filestore",
 ]
 
 MIDDLEWARE = [
@@ -171,44 +172,21 @@ USE_TZ = True
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_DIRS = [BASE_DIR / "static"]
-# Where uploaded files live.
-#
-# The server's own disk is the default, and on a host such as Render it is wiped
-# on every deploy and restart unless a persistent disk is mounted at MEDIA_ROOT.
-# That is how every passport and letter uploaded before a deploy became a 404.
-#
-# Setting S3_BUCKET moves uploads to an S3-compatible bucket instead (Cloudflare
-# R2, Amazon S3, Backblaze B2 and others). The bucket stays private: every link
-# the API hands out is signed and expires, so a passport scan is never at a
-# public, guessable address.
-S3_BUCKET = env("S3_BUCKET")
-if S3_BUCKET:
-    default_storage = {
-        "BACKEND": "storages.backends.s3.S3Storage",
-        "OPTIONS": {
-            "bucket_name": S3_BUCKET,
-            "endpoint_url": env("S3_ENDPOINT_URL") or None,
-            "access_key": env("S3_ACCESS_KEY_ID"),
-            "secret_key": env("S3_SECRET_ACCESS_KEY"),
-            "region_name": env("S3_REGION") or None,
-            "signature_version": "s3v4",
-            "querystring_auth": True,
-            "querystring_expire": int(env("S3_URL_EXPIRE_SECONDS", "3600")),
-            "default_acl": None,
-            "file_overwrite": False,
-        },
-    }
-else:
-    default_storage = {"BACKEND": "django.core.files.storage.FileSystemStorage"}
-
+# Where uploaded files live: in the database, next to the records they belong
+# to. The web host's disk is wiped on every deploy and restart, which is how
+# every passport and letter uploaded before a deploy became a 404. Nothing an
+# applicant, agent or the desk uploads is written to the web server's disk.
+# See apps/filestore.
 STORAGES = {
-    "default": default_storage,
+    "default": {"BACKEND": "apps.filestore.storage.DatabaseStorage"},
     "staticfiles": {
         "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"
     },
 }
 
 MEDIA_URL = "/media/"
+# Only read by `manage.py move_media_to_database`, to bring across files that
+# were saved on disk before uploads moved into the database.
 MEDIA_ROOT = Path(env("MEDIA_ROOT") or str(BASE_DIR / "media"))
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"

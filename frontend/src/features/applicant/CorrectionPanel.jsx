@@ -137,7 +137,7 @@ export default function CorrectionPanel() {
             <input
               type="file"
               id="correction-proof"
-              accept=".pdf,.jpg,.jpeg,.png"
+              accept=".pdf,.jpg,.jpeg,.png,.webp,.heic,.heif"
               onChange={(event) => setEvidence(event.target.files?.[0] || null)}
             />
           </div>

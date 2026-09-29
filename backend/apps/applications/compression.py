@@ -1,25 +1,31 @@
-"""Make every uploaded file smaller before it is stored, without visible loss.
+"""Make every uploaded file as small as it can be without visible loss.
 
-Every upload in the project passes through here, whoever sent it: an applicant
-in the wizard or portal, an agent filing a student, the desk issuing a letter in
-the admin, a profile picture, a correction's evidence, a support attachment. It
-is wired as a `pre_save` signal on each model with a file, so no upload path can
-forget to call it.
+Uploads are stored in the database (apps/filestore), so every kilobyte saved
+here is a kilobyte the database does not carry. Every upload in the project
+passes through this module, whoever sent it: an applicant, an agent filing a
+student, the desk issuing a letter in the admin, a profile picture, correction
+evidence, a support attachment. It is wired as a `pre_save` signal on each model
+with a file, so no upload path can skip it.
 
-What happens to each kind of file:
+Two profiles:
 
-* **JPEG / WEBP photos** are turned the right way up (phones store rotation as
-  metadata), stripped of camera metadata such as GPS location, capped at 2560
-  pixels on the long side, which is still well above what a scanned page needs to
-  stay sharp, and re-encoded at quality 88.
-* **PNG** is re-saved with maximum lossless compression. Nothing about the
-  pixels changes.
-* **PDF** has its page streams compressed losslessly and duplicate objects
-  merged. Text, vectors and images inside are left exactly as they were.
+* **Profile pictures** are only ever shown small, so they become a 512 pixel
+  JPEG at quality 80: typically 25 to 60 KB whatever was uploaded.
+* **Documents** must stay readable, so they keep far more detail:
+  - photos and scans are turned the right way up, stripped of metadata such as
+    GPS location, capped at 2000 pixels on the long side (still sharp for an
+    A4 page) and saved as a progressive JPEG at quality 80;
+  - PNG screenshots are saved both as an optimised PNG and as a JPEG, and the
+    smaller one is kept;
+  - iPhone HEIC photos become JPEG, which also means every browser can show
+    them;
+  - PDFs have their page streams compressed and duplicate objects merged,
+    which changes nothing visible, and the pictures inside them (a scanned PDF
+    is mostly pictures) get the same 2000 pixel, quality 75 treatment.
 
 The smaller result is kept only if it really is smaller; otherwise the original
-is stored untouched. Any failure keeps the original too: compression is never a
-reason to lose an upload.
+is stored. Any failure keeps the original too: compression is never a reason to
+lose an upload.
 """
 
 import io
@@ -30,59 +36,112 @@ from django.core.files.uploadedfile import InMemoryUploadedFile
 
 logger = logging.getLogger(__name__)
 
-MAX_SIDE = 2560
-JPEG_QUALITY = 88
+try:  # iPhone photos. Optional: without it a HEIC upload is stored as sent.
+    from pillow_heif import register_heif_opener
+
+    register_heif_opener()
+except Exception:  # noqa: BLE001
+    pass
+
+PROFILES = {
+    "avatar": {"max_side": 512, "quality": 80, "force_jpeg": True},
+    "document": {"max_side": 2000, "quality": 80, "force_jpeg": False},
+}
+PDF_IMAGE_MAX_SIDE = 2000
+PDF_IMAGE_QUALITY = 75
+
+IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif")
 
 
-def _compress_image(data, extension):
+def _flatten(image):
+    """RGB on white, for JPEG, which has no transparency."""
+    from PIL import Image
+
+    if image.mode in ("RGBA", "LA") or (image.mode == "P" and "transparency" in image.info):
+        rgba = image.convert("RGBA")
+        base = Image.new("RGB", rgba.size, (255, 255, 255))
+        base.paste(rgba, mask=rgba.split()[-1])
+        return base
+    return image.convert("RGB") if image.mode not in ("RGB", "L") else image
+
+
+def _jpeg(image, quality):
+    out = io.BytesIO()
+    _flatten(image).save(out, "JPEG", quality=quality, optimize=True, progressive=True)
+    return out.getvalue()
+
+
+def _compress_image(data, extension, profile):
+    """Return (bytes, new extension) or None."""
     from PIL import Image, ImageOps
 
-    with Image.open(io.BytesIO(data)) as image:
-        image = ImageOps.exif_transpose(image)
-        if max(image.size) > MAX_SIDE:
-            image.thumbnail((MAX_SIDE, MAX_SIDE), Image.Resampling.LANCZOS)
+    settings = PROFILES[profile]
+    with Image.open(io.BytesIO(data)) as opened:
+        image = ImageOps.exif_transpose(opened)
+        image.load()
+    if max(image.size) > settings["max_side"]:
+        image.thumbnail((settings["max_side"], settings["max_side"]), Image.Resampling.LANCZOS)
 
+    quality = settings["quality"]
+    if settings["force_jpeg"] or extension in (".jpg", ".jpeg", ".heic", ".heif"):
+        return _jpeg(image, quality), ".jpg"
+    if extension == ".webp":
         out = io.BytesIO()
-        if extension in (".jpg", ".jpeg"):
-            if image.mode not in ("RGB", "L"):
-                image = image.convert("RGB")
-            image.save(out, "JPEG", quality=JPEG_QUALITY, optimize=True, progressive=True)
-        elif extension == ".png":
-            image.save(out, "PNG", optimize=True)
-        elif extension == ".webp":
-            image.save(out, "WEBP", quality=JPEG_QUALITY, method=6)
-        else:
-            return None
-        return out.getvalue()
+        image.save(out, "WEBP", quality=quality, method=6)
+        return out.getvalue(), ".webp"
+    if extension == ".png":
+        png = io.BytesIO()
+        image.save(png, "PNG", optimize=True)
+        candidates = [(png.getvalue(), ".png"), (_jpeg(image, quality + 5), ".jpg")]
+        return min(candidates, key=lambda item: len(item[0]))
+    return None
 
 
 def _compress_pdf(data):
+    from PIL import Image
     from pypdf import PdfReader, PdfWriter
 
     reader = PdfReader(io.BytesIO(data))
     if reader.is_encrypted:
         return None
     writer = PdfWriter(clone_from=reader)
+
     for page in writer.pages:
+        try:
+            images = list(page.images)
+        except Exception:  # noqa: BLE001 - an unusual page keeps its pictures
+            images = []
+        for embedded in images:
+            try:
+                picture = embedded.image
+                if picture.mode not in ("RGB", "L"):
+                    continue  # masks, CMYK and the like are left exactly as they are
+                if max(picture.size) > PDF_IMAGE_MAX_SIDE:
+                    picture = picture.copy()
+                    picture.thumbnail((PDF_IMAGE_MAX_SIDE, PDF_IMAGE_MAX_SIDE), Image.Resampling.LANCZOS)
+                embedded.replace(picture, quality=PDF_IMAGE_QUALITY)
+            except Exception:  # noqa: BLE001
+                continue
         page.compress_content_streams()
+
     writer.compress_identical_objects(remove_identicals=True, remove_orphans=True)
     out = io.BytesIO()
     writer.write(out)
     return out.getvalue()
 
 
-def compress_upload(field_file):
+def compress_upload(field_file, profile="document"):
     """Replace a not-yet-saved upload with a smaller copy, when there is one.
 
-    `field_file` is the model's FieldFile. Files already in storage are skipped,
-    so re-saving a record never re-compresses (or re-uploads) its file.
+    `field_file` is the model's FieldFile. Files already stored are skipped, so
+    re-saving a record never re-compresses its file.
     """
     if not field_file or getattr(field_file, "_committed", True):
         return
     upload = field_file.file
-    name = Path(field_file.name or getattr(upload, "name", "") or "").name
+    name = Path(field_file.name or getattr(upload, "name", "") or "file").name
     extension = Path(name).suffix.lower()
-    if extension not in (".jpg", ".jpeg", ".png", ".webp", ".pdf"):
+    if extension not in IMAGE_EXTENSIONS + (".pdf",):
         return
 
     try:
@@ -90,23 +149,29 @@ def compress_upload(field_file):
         original = upload.read()
         upload.seek(0)
         if extension == ".pdf":
-            smaller = _compress_pdf(original)
-            content_type = "application/pdf"
+            smaller, new_extension = _compress_pdf(original), ".pdf"
         else:
-            smaller = _compress_image(original, extension)
-            content_type = {
-                ".png": "image/png",
-                ".webp": "image/webp",
-            }.get(extension, "image/jpeg")
+            result = _compress_image(original, extension, profile)
+            smaller, new_extension = result if result else (None, extension)
     except Exception as exc:  # noqa: BLE001 - never lose an upload to this
         logger.warning("Could not compress %s, keeping the original: %s", name, exc)
         return
 
-    if not smaller or len(smaller) >= len(original):
+    # A HEIC photo is converted even if the JPEG is not smaller: browsers cannot
+    # show HEIC at all.
+    must_convert = extension in (".heic", ".heif")
+    if not smaller or (len(smaller) >= len(original) and not must_convert):
         return
 
+    new_name = f"{Path(name).stem}{new_extension}"
+    content_type = {
+        ".pdf": "application/pdf",
+        ".png": "image/png",
+        ".webp": "image/webp",
+    }.get(new_extension, "image/jpeg")
+    field_file.name = new_name
     field_file.file = InMemoryUploadedFile(
-        io.BytesIO(smaller), None, name, content_type, len(smaller), None
+        io.BytesIO(smaller), None, new_name, content_type, len(smaller), None
     )
     logger.info(
         "Compressed %s from %d to %d bytes (%d%% smaller)",
@@ -114,35 +179,79 @@ def compress_upload(field_file):
     )
 
 
-def _compress_fields(*field_names):
+def _compressor(fields):
     def handler(sender, instance, **kwargs):
         if kwargs.get("raw"):
             return
-        for field_name in field_names:
-            compress_upload(getattr(instance, field_name, None))
+        # Remember what a new upload replaces, so the old file can be removed
+        # once the record is saved (see _remove_replaced).
+        previous = None
+        if instance.pk:
+            previous = sender.objects.filter(pk=instance.pk).values(*[f for f, _ in fields]).first()
+        instance._replaced_files = []
+        for field_name, profile in fields:
+            field_file = getattr(instance, field_name, None)
+            pending = bool(field_file) and not getattr(field_file, "_committed", True)
+            old_name = (previous or {}).get(field_name)
+            if old_name and (pending or not field_file):
+                instance._replaced_files.append((field_name, old_name))
+            compress_upload(field_file, profile)
+            # A document records its size; record what is actually stored.
+            if pending and hasattr(instance, "size_bytes"):
+                instance.size_bytes = field_file.file.size
+
+    return handler
+
+
+def _remove_replaced(sender, instance, **kwargs):
+    """After a save, delete the files a new upload replaced."""
+    for field_name, old_name in getattr(instance, "_replaced_files", []):
+        field = instance._meta.get_field(field_name)
+        current = getattr(instance, field_name, None)
+        if old_name != getattr(current, "name", None):
+            field.storage.delete(old_name)
+    instance._replaced_files = []
+
+
+def _remove_on_delete(fields):
+    """Deleting a record deletes its files, so none are left orphaned."""
+
+    def handler(sender, instance, **kwargs):
+        for field_name, _ in fields:
+            field_file = getattr(instance, field_name, None)
+            if field_file and field_file.name:
+                field_file.storage.delete(field_file.name)
 
     return handler
 
 
 def connect():
-    """Attach the compressor to every model that stores an upload."""
-    from django.db.models.signals import pre_save
+    """Attach the compressor and the clean-up to every model that stores an upload."""
+    from django.db.models.signals import post_delete, post_save, pre_save
 
     from apps.accounts.models import SupportTicket, User
 
     from .models import CorrectionRequest, Document, Letter
 
     targets = [
-        (Document, ("file",)),
-        (Letter, ("file",)),
-        (CorrectionRequest, ("evidence",)),
-        (User, ("avatar",)),
-        (SupportTicket, ("attachment",)),
+        (Document, [("file", "document")]),
+        (Letter, [("file", "document")]),
+        (CorrectionRequest, [("evidence", "document")]),
+        (SupportTicket, [("attachment", "document")]),
+        (User, [("avatar", "avatar")]),
     ]
     for model, fields in targets:
         pre_save.connect(
-            _compress_fields(*fields),
+            _compressor(fields),
             sender=model,
             weak=False,
             dispatch_uid=f"compress-{model._meta.label_lower}",
+        )
+        post_save.connect(
+            _remove_replaced, sender=model, weak=False,
+            dispatch_uid=f"replaced-files-{model._meta.label_lower}",
+        )
+        post_delete.connect(
+            _remove_on_delete(fields), sender=model, weak=False,
+            dispatch_uid=f"delete-files-{model._meta.label_lower}",
         )

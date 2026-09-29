@@ -19,7 +19,9 @@ class UserSerializer(serializers.ModelSerializer):
         # A profile picture is served from the same origin as the portal, so it
         # goes through the same check as a document rather than trusting the
         # field type.
-        return validate_upload(value, min(settings.MAX_UPLOAD_SIZE_MB, 5))
+        # Compressed to a small JPEG before it is stored, so a large phone photo
+        # is accepted rather than refused.
+        return validate_upload(value, settings.MAX_UPLOAD_SIZE_MB)
 
     class Meta:
         model = User
@@ -224,6 +226,8 @@ class SupportTicketSerializer(serializers.ModelSerializer):
         return value
 
     def validate_attachment(self, value):
+        from django.conf import settings
+
         from apps.applications.uploads import validate_upload
 
-        return validate_upload(value, 5)
+        return validate_upload(value, settings.MAX_UPLOAD_SIZE_MB)

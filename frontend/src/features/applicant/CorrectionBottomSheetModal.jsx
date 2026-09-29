@@ -430,7 +430,7 @@ export default function CorrectionBottomSheetModal({
               <input
                 type="file"
                 id="corr_evidence"
-                accept=".pdf,.jpg,.jpeg,.png"
+                accept=".pdf,.jpg,.jpeg,.png,.webp,.heic,.heif"
                 onChange={handleEvidenceChange}
               />
               <span className="corr-field-hint">

@@ -26,6 +26,7 @@ class UploadedFileHeadersMiddleware:
             response.headers["X-Content-Type-Options"] = "nosniff"
             response.headers.setdefault("Content-Disposition", "attachment")
             # An uploaded document is private to one application. A shared cache
-            # in front of the site must not hold it.
-            response.headers["Cache-Control"] = "private, max-age=0, no-store"
+            # in front of the site must not hold it; the media view may still let
+            # the person's own browser keep it.
+            response.headers.setdefault("Cache-Control", "private, max-age=0, no-store")
         return response
