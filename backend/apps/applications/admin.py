@@ -253,6 +253,7 @@ class ApplicationAdmin(admin.ModelAdmin):
         "custom_course_alert",
         "is_custom_course",
         "custom_course_name",
+        "verification_status",
         "verified_at",
         "verified_by",
         "submitted_at",
@@ -266,7 +267,12 @@ class ApplicationAdmin(admin.ModelAdmin):
         (
             "Admissions Verification Audit",
             {
-                "description": "Inspect and verify student profile details, academic records, uploads, and fee clearance.",
+                "description": (
+                    "Tick each check once that part of the file has been reviewed. "
+                    "The overall status follows from the four checks: all four ticked "
+                    "means Verified. Ticking uploaded documents also marks every "
+                    "uploaded file as Verified."
+                ),
                 "fields": (
                     ("verification_status", "verified_at"),
                     (
@@ -326,15 +332,20 @@ class ApplicationAdmin(admin.ModelAdmin):
     )
 
     actions = (
-        "action_verify_full",
-        "action_mark_under_review",
-        "action_mark_unverified",
-        "action_send_email_to_applicants",
+        # Verification: one action per check.
+        "action_verify_personal",
+        "action_verify_academic",
         "action_verify_documents",
+        "action_verify_payment",
+        "action_flag_action_required",
+        "action_reset_verification",
+        # Pipeline: one action per milestone.
+        "action_send_to_institution",
         "action_mark_admitted",
-        "action_mark_visa_verified",
         "action_mark_rejected",
-        "action_approve_all_pending_corrections",
+        "action_transfer_to_visa_desk",
+        # Talking to the applicant.
+        "action_send_email_to_applicants",
         "action_resend_login",
     )
 
@@ -348,59 +359,35 @@ class ApplicationAdmin(admin.ModelAdmin):
         )
 
     def save_model(self, request, obj, form, change):
-        if change:
-            if "verification_status" in form.changed_data:
-                if obj.verification_status == Application.VerificationStatus.VERIFIED:
-                    if not obj.verified_at:
-                        obj.verified_at = timezone.now()
-                    if not obj.verified_by:
-                        obj.verified_by = request.user
-                    if obj.documents_verified:
-                        obj.documents.exclude(status="Verified").update(status="Verified")
-                    services.notify(
-                        obj,
-                        "Your application profile, documents, and credentials have been verified and approved by the admissions desk.",
-                    )
-                else:
-                    services.notify(
-                        obj,
-                        f"Your application verification audit was updated: {obj.get_verification_status_display()}.",
-                    )
-            elif any(
-                f in form.changed_data
-                for f in [
-                    "personal_details_verified",
-                    "academic_details_verified",
-                    "documents_verified",
-                    "payment_verified",
-                ]
-            ):
-                summary = obj.verification_summary
-                if summary["is_fully_verified"] and obj.verification_status != Application.VerificationStatus.VERIFIED:
-                    obj.verification_status = Application.VerificationStatus.VERIFIED
-                    obj.verified_at = timezone.now()
-                    obj.verified_by = request.user
-                    services.notify(
-                        obj,
-                        "Your application profile, documents, and credentials have been verified and approved by the admissions desk.",
-                    )
-                elif obj.verification_status == Application.VerificationStatus.UNVERIFIED and summary["cleared_count"] > 0:
-                    obj.verification_status = Application.VerificationStatus.IN_REVIEW
-
-            if "status" in form.changed_data:
-                services.notify(
-                    obj, f"Your application status was updated to: {obj.get_status_display()}."
-                )
-            if "visa_status" in form.changed_data:
-                services.notify(
-                    obj, f"Your visa processing status was updated to: {obj.get_visa_status_display()}."
-                )
-            if "transferred_to_visa_support" in form.changed_data and obj.transferred_to_visa_support:
-                services.notify(
-                    obj, "Your application file has been assigned to the Visa Support Assistant desk."
-                )
+        checkpoint_changed = [
+            key
+            for key, (field, _) in services.CHECKPOINTS.items()
+            if field in form.changed_data
+        ]
+        if change and checkpoint_changed:
+            services._refresh_verification_status(obj, verified_by=request.user)
 
         super().save_model(request, obj, form, change)
+        if not change:
+            return
+
+        if "documents" in checkpoint_changed and obj.documents_verified:
+            obj.documents.exclude(status="Verified").update(status="Verified")
+        if checkpoint_changed:
+            services.notify(
+                obj,
+                f"Your application verification was updated: {obj.get_verification_status_display()}.",
+            )
+        if "status" in form.changed_data:
+            services.notify(
+                obj, f"Your application status was updated to: {obj.get_status_display()}."
+            )
+        if "visa_status" in form.changed_data:
+            services.notify(
+                obj, f"Your visa processing status was updated to: {obj.get_visa_status_display()}."
+            )
+        if "transferred_to_visa_support" in form.changed_data and obj.transferred_to_visa_support:
+            services.notify(obj, "Your file has been passed to our Visa Support desk.")
 
     # ── Display helpers ──────────────────────────────────────────────
     # Colour carries the same meaning here as in the product: green is
@@ -552,53 +539,108 @@ class ApplicationAdmin(admin.ModelAdmin):
         )
 
     # ── Actions ──────────────────────────────────────────────────────
+    # One action, one job. They are listed in the order a file is worked:
+    # verify each part, move it through the pipeline, then talk to the applicant.
+    # Each reports what changed and what it skipped, and why.
 
-    @admin.action(description="✓ Verify & Approve All: Mark selected applications fully verified")
-    def action_verify_full(self, request, queryset):
-        count = 0
-        for application in queryset:
-            services.verify_application_full(application, verified_by=request.user)
-            count += 1
-        self.message_user(
-            request,
-            f"{_plural(count, 'application')} fully verified and approved.",
-            messages.SUCCESS,
-        )
-
-    @admin.action(description="🔍 Set Under Review: Mark selected applications as in review")
-    def action_mark_under_review(self, request, queryset):
-        count = 0
-        for application in queryset:
-            services.set_verification_status(
-                application,
-                Application.VerificationStatus.IN_REVIEW,
-                verified_by=request.user,
+    def _run(self, request, queryset, step, done, skipped_reason, level=messages.SUCCESS):
+        """Apply ``step`` to each selected file and report the outcome."""
+        changed = [a for a in queryset if step(a)]
+        skipped = queryset.count() - len(changed)
+        if changed:
+            self.message_user(request, f"{_plural(len(changed), 'application')} {done}.", level)
+        if skipped:
+            self.message_user(
+                request,
+                f"{_plural(skipped, 'application')} skipped: {skipped_reason}.",
+                messages.INFO,
             )
-            count += 1
-        self.message_user(
+
+    def _verify(self, request, queryset, checkpoint, done):
+        self._run(
             request,
-            f"{_plural(count, 'application')} marked as In Review.",
-            messages.SUCCESS,
+            queryset,
+            lambda a: services.verify_checkpoint(a, checkpoint, verified_by=request.user),
+            done,
+            "already verified",
         )
 
-    @admin.action(description="⏳ Mark Unverified: Reset selected to pending verification")
-    def action_mark_unverified(self, request, queryset):
-        count = 0
-        for application in queryset:
-            services.set_verification_status(
-                application,
-                Application.VerificationStatus.UNVERIFIED,
-                verified_by=request.user,
-            )
-            count += 1
-        self.message_user(
+    @admin.action(description="1. Verify personal details")
+    def action_verify_personal(self, request, queryset):
+        self._verify(request, queryset, "personal", "had personal details verified")
+
+    @admin.action(description="2. Verify academic details")
+    def action_verify_academic(self, request, queryset):
+        self._verify(request, queryset, "academic", "had academic details verified")
+
+    @admin.action(description="3. Verify uploaded documents")
+    def action_verify_documents(self, request, queryset):
+        self._verify(request, queryset, "documents", "had every uploaded document verified")
+
+    @admin.action(description="4. Verify application fee")
+    def action_verify_payment(self, request, queryset):
+        self._verify(request, queryset, "payment", "had the application fee verified")
+
+    @admin.action(description="Flag: needs action from the applicant")
+    def action_flag_action_required(self, request, queryset):
+        self._run(
             request,
-            f"{_plural(count, 'application')} marked as Unverified (Pending Review).",
-            messages.INFO,
+            queryset,
+            lambda a: services.flag_action_required(a, verified_by=request.user),
+            "flagged as needing action",
+            "already flagged",
+            messages.WARNING,
         )
 
-    @admin.action(description="✉ Send email / message to selected applicant(s)")
+    @admin.action(description="Reset verification (clear all four checks)")
+    def action_reset_verification(self, request, queryset):
+        self._run(
+            request,
+            queryset,
+            services.reset_verification,
+            "reset to unverified",
+            "nothing to reset",
+            messages.WARNING,
+        )
+
+    @admin.action(description="Send to institution")
+    def action_send_to_institution(self, request, queryset):
+        self._run(
+            request,
+            queryset,
+            services.send_to_institution,
+            "sent to the institution",
+            "documents not verified yet, or the file is already with the institution or decided",
+        )
+
+    @admin.action(description="Grant admission")
+    def action_mark_admitted(self, request, queryset):
+        self._run(request, queryset, services.mark_admitted, "admitted", "already admitted")
+
+    @admin.action(description="Decline application")
+    def action_mark_rejected(self, request, queryset):
+        self._run(
+            request,
+            queryset,
+            services.mark_rejected,
+            "declined",
+            "already declined",
+            messages.WARNING,
+        )
+
+    @admin.action(description="Transfer to the Visa Support desk")
+    def action_transfer_to_visa_desk(self, request, queryset):
+        self._run(
+            request,
+            queryset,
+            services.transfer_to_visa_desk,
+            "transferred to the Visa Support desk",
+            "not admitted yet, or already transferred",
+        )
+
+    @admin.action(description="Email a message")
     def action_send_email_to_applicants(self, request, queryset):
+        """Write to the owner of each file: the applicant, or the agent who filed it."""
         if request.POST.get("apply") == "send_email":
             subject = request.POST.get("subject", "").strip()
             message_body = request.POST.get("message", "").strip()
@@ -609,11 +651,12 @@ class ApplicationAdmin(admin.ModelAdmin):
                 return None
             count = 0
             for app in queryset:
-                services.send_applicant_email_message(app, subject, message_body, sender=request.user)
+                services.send_applicant_email_message(app, subject, message_body)
                 count += 1
             self.message_user(
                 request,
-                f"Email and notification sent successfully to {_plural(count, 'applicant')}.",
+                f"Message queued for {_plural(count, 'application')}. Files filed by an "
+                "agent were written to the agent, not the student.",
                 messages.SUCCESS,
             )
             return None
@@ -622,7 +665,7 @@ class ApplicationAdmin(admin.ModelAdmin):
             request,
             "admin/send_email_intermediate.html",
             {
-                "title": "Send Email & Notification to Applicants",
+                "title": "Email a message",
                 "applicants": queryset,
             },
         )
@@ -684,63 +727,15 @@ class ApplicationAdmin(admin.ModelAdmin):
         if failed:
             self.message_user(
                 request,
-                "Could not send for " + ", ".join(failed) + ". The mail server "
-                "refused or could not be reached; check EMAIL_HOST_PASSWORD and the "
-                "log, then run this again.",
+                "Could not send for " + ", ".join(failed) + ". The mail provider "
+                "refused or could not be reached. Run `manage.py mail_check` on the "
+                "server to see why, then run this again.",
                 messages.ERROR,
             )
         if skipped:
             self.message_user(
                 request, "Skipped " + ", ".join(skipped) + ".", messages.WARNING
             )
-
-    @admin.action(description="Verify documents and send to the institution")
-    def action_verify_documents(self, request, queryset):
-        changed = sum(1 for application in queryset if services.mark_documents_verified(application))
-        self.message_user(
-            request,
-            f"{_plural(changed, 'application')} moved to institution review.",
-            messages.SUCCESS if changed else messages.INFO,
-        )
-
-    @admin.action(description="Grant admission (pays the agent)")
-    def action_mark_admitted(self, request, queryset):
-        moved = 0
-        paid = 0
-        for application in queryset:
-            changed, amount = services.mark_admitted(application)
-            moved += int(changed)
-            paid += amount
-        self.message_user(
-            request,
-            f"{_plural(moved, 'application')} admitted."
-            + (f" ₦{paid:,.0f} commission paid to partner agents." if paid else ""),
-            messages.SUCCESS if moved else messages.INFO,
-        )
-
-    @admin.action(description="Confirm visa verified (pays the agent)")
-    def action_mark_visa_verified(self, request, queryset):
-        moved = 0
-        paid = 0
-        for application in queryset:
-            changed, amount = services.mark_visa_verified(application)
-            moved += int(changed)
-            paid += amount
-        self.message_user(
-            request,
-            f"{_plural(moved, 'application')} confirmed."
-            + (f" ₦{paid:,.0f} commission paid to partner agents." if paid else ""),
-            messages.SUCCESS if moved else messages.INFO,
-        )
-
-    @admin.action(description="Decline application")
-    def action_mark_rejected(self, request, queryset):
-        changed = sum(1 for application in queryset if services.mark_rejected(application))
-        self.message_user(
-            request,
-            f"{_plural(changed, 'application')} declined and the applicants notified.",
-            messages.WARNING if changed else messages.INFO,
-        )
 
     def save_formset(self, request, form, formset, change):
         """Stamp who issued a letter, and tell the applicant it has arrived."""
@@ -857,7 +852,7 @@ class DocumentAdmin(admin.ModelAdmin):
             '<a href="{}" target="_blank" rel="noopener">Open</a>', obj.file.url
         )
 
-    @admin.action(description="Approve: mark verified")
+    @admin.action(description="Verify selected documents")
     def action_verify(self, request, queryset):
         pending = list(queryset.exclude(status=Document.Status.VERIFIED))
         queryset.update(status=Document.Status.VERIFIED)
@@ -867,7 +862,7 @@ class DocumentAdmin(admin.ModelAdmin):
             request, f"{_plural(len(pending), 'document')} verified.", messages.SUCCESS
         )
 
-    @admin.action(description="Reject: ask for a clearer copy")
+    @admin.action(description="Reject selected documents (asks for a new copy)")
     def action_reject(self, request, queryset):
         pending = list(queryset.exclude(status=Document.Status.REJECTED))
         queryset.update(status=Document.Status.REJECTED)
@@ -1048,14 +1043,17 @@ class VisaSupportApplicationAdmin(admin.ModelAdmin):
     )
 
     actions = (
-        "action_mark_visa_in_progress",
+        "action_start_visa_processing",
         "action_mark_visa_verified",
     )
 
     def get_queryset(self, request):
+        # The queue is admitted students only; everything else is still with
+        # admissions on the Applications screen.
         return (
             super()
             .get_queryset(request)
+            .filter(status=Application.Status.ADMITTED)
             .select_related("institution", "destination_country", "submitted_by_agent")
             .prefetch_related("stages", "letters")
             .annotate(letter_count=Count("letters", distinct=True))
@@ -1136,27 +1134,22 @@ class VisaSupportApplicationAdmin(admin.ModelAdmin):
                     obj, f"Your application status was updated to: {obj.get_status_display()}."
                 )
 
-    @admin.action(description="Mark Visa In Progress (Assigned to Visa Desk)")
-    def action_mark_visa_in_progress(self, request, queryset):
-        count = 0
-        for application in queryset:
-            application.visa_status = Application.VisaStatus.IN_PROGRESS
-            application.transferred_to_visa_support = True
-            application.save(
-                update_fields=["visa_status", "transferred_to_visa_support", "updated_at"]
+    @admin.action(description="Start visa processing")
+    def action_start_visa_processing(self, request, queryset):
+        changed = sum(1 for application in queryset if services.start_visa_processing(application))
+        skipped = queryset.count() - changed
+        if changed:
+            self.message_user(
+                request, f"{_plural(changed, 'application')} now in visa processing.", messages.SUCCESS
             )
-            services.notify(
-                application,
-                "Your application file has been assigned to the Visa Support Assistant desk.",
+        if skipped:
+            self.message_user(
+                request,
+                f"{_plural(skipped, 'application')} skipped: visa work already started or finished.",
+                messages.INFO,
             )
-            count += 1
-        self.message_user(
-            request,
-            f"{_plural(count, 'application')} set to Visa In Progress and notified.",
-            messages.SUCCESS,
-        )
 
-    @admin.action(description="Confirm visa verified (pays the agent)")
+    @admin.action(description="Confirm visa approved (credits the agent's visa commission)")
     def action_mark_visa_verified(self, request, queryset):
         moved = 0
         paid = 0
@@ -1164,25 +1157,15 @@ class VisaSupportApplicationAdmin(admin.ModelAdmin):
             changed, amount = services.mark_visa_verified(application)
             moved += int(changed)
             paid += amount
-        self.message_user(
-            request,
-            f"{_plural(moved, 'application')} confirmed."
-            + (f" ₦{paid:,.0f} commission paid to partner agents." if paid else ""),
-            messages.SUCCESS if moved else messages.INFO,
-        )
-
-    @admin.action(description="Approve all open corrections for selected applications")
-    def action_approve_all_pending_corrections(self, request, queryset):
-        approved = 0
-        for app in queryset:
-            for correction in app.corrections.filter(status=CorrectionRequest.Status.OPEN):
-                ok, _ = services.approve_correction(correction)
-                if ok:
-                    approved += 1
-        self.message_user(
-            request,
-            f"{approved} pending correction request(s) approved and updated.",
-            messages.SUCCESS if approved else messages.INFO,
-        )
-
-
+        skipped = queryset.count() - moved
+        if moved:
+            self.message_user(
+                request,
+                f"{_plural(moved, 'visa')} confirmed."
+                + (f" ₦{paid:,.0f} commission credited to partner agents." if paid else ""),
+                messages.SUCCESS,
+            )
+        if skipped:
+            self.message_user(
+                request, f"{_plural(skipped, 'application')} skipped: visa already confirmed.", messages.INFO
+            )

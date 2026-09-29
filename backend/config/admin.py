@@ -15,7 +15,7 @@ from django.contrib.auth.models import Group
 # Section order on the index, and the order of the screens inside each one.
 # Anything not named here still appears, after the sections that are.
 LAYOUT = [
-    ("applications", ["Application", "Letter", "Document", "CorrectionRequest"]),
+    ("applications", ["Application", "VisaSupportApplication", "Document", "CorrectionRequest", "Letter"]),
     ("partners", ["AgentProfile", "SupervisorProfile", "Loan", "Withdrawal", "SupervisorWithdrawal"]),
     ("payments", ["Payment"]),
     ("catalog", ["Program", "Institution", "DestinationCountry", "CourseImport"]),

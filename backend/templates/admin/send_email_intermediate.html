@@ -6,7 +6,7 @@
 <a href="{% url 'admin:index' %}">{% translate 'Home' %}</a>
 &rsaquo; <a href="{% url 'admin:app_list' app_label='applications' %}">Applications</a>
 &rsaquo; <a href="{% url 'admin:applications_application_changelist' %}">Applications</a>
-&rsaquo; Send Email &amp; Notification
+&rsaquo; Email a message
 </div>
 {% endblock %}
 
@@ -14,10 +14,10 @@
 <div style="max-width: 780px; margin: 20px 0;">
   <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
     <h2 style="margin-top: 0; margin-bottom: 8px; font-size: 20px; color: #0f172a;">
-      ✉ Send Email &amp; Notification to Applicants
+      Email a message
     </h2>
     <p style="color: #64748b; font-size: 14px; margin-bottom: 20px;">
-      Compose a direct message from the Admissions Desk. This will dispatch an official email to the applicant's email address and record an in-app notification on their dashboard.
+      The message is emailed once and added to the application's notifications. A file filed by a partner agent is written to the agent, never to the student.
     </p>
 
     <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px; margin-bottom: 24px;">
@@ -73,7 +73,7 @@
           class="button"
           style="background: #0284c7; color: #ffffff; font-weight: 600; font-size: 14px; padding: 10px 22px; border: none; border-radius: 6px; cursor: pointer;"
         >
-          Send Email &amp; Notification
+          Send message
         </button>
         <a
           href="{% url 'admin:applications_application_changelist' %}"

@@ -106,9 +106,11 @@ def _zeptomail_authorization(api_key):
     is easy to end up with twice: once from the console and once from whoever
     added it. Either form is accepted here, and exactly one prefix is sent.
     """
+    # A copy from the console can also carry the header name and its colon,
+    # "Zoho-enczapikey: Zoho-enczapikey <key>", so a colon after the prefix goes too.
     key = (api_key or "").strip()
     while key.lower().startswith(ZEPTOMAIL_SCHEME.lower()):
-        key = key[len(ZEPTOMAIL_SCHEME):].strip()
+        key = key[len(ZEPTOMAIL_SCHEME):].strip().lstrip(":").strip()
     return f"{ZEPTOMAIL_SCHEME} {key}"
 
 

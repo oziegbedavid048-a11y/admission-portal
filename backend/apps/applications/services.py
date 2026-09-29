@@ -11,9 +11,9 @@ already happened updates nothing and pays nothing.
 """
 
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 
-from apps.accounts.emails import _first_name, _url, send_async_email
 
 from .constants import AGENT_COMMISSION_PER_MILESTONE, SUPERVISOR_BONUS_NGN
 from .models import Application, Notification, Stage
@@ -129,21 +129,124 @@ def award_supervisor_bonus(application):
     return SUPERVISOR_BONUS_NGN
 
 
+# ── Verification checkpoints ─────────────────────────────────────────
+# Four separate checks, one per part of the file. Each admin action ticks exactly
+# one of them. The overall verification status is never set by hand: it follows
+# from the checks, so it cannot disagree with them.
+
+CHECKPOINTS = {
+    "personal": ("personal_details_verified", "Your personal details have"),
+    "academic": ("academic_details_verified", "Your academic details have"),
+    "documents": ("documents_verified", "Your uploaded documents have"),
+    "payment": ("payment_verified", "Your application fee has"),
+}
+
+
+def _refresh_verification_status(application, verified_by=None):
+    """Recompute the overall status from the four checks. Does not save.
+
+    Action required is left alone until a check changes, because it is a flag
+    the desk raised on purpose, not something the checks can clear by themselves.
+    """
+    checks = [getattr(application, field) for field, _ in CHECKPOINTS.values()]
+    if all(checks):
+        application.verification_status = Application.VerificationStatus.VERIFIED
+        application.verified_at = application.verified_at or timezone.now()
+        if verified_by:
+            application.verified_by = verified_by
+    elif any(checks):
+        application.verification_status = Application.VerificationStatus.IN_REVIEW
+        application.verified_at = None
+    else:
+        application.verification_status = Application.VerificationStatus.UNVERIFIED
+        application.verified_at = None
+
+
 @transaction.atomic
-def mark_documents_verified(application):
-    """Every document checked; the file moves on to the institution."""
-    changed = False
-    if application.status != Application.Status.IN_REVIEW:
-        application.status = Application.Status.IN_REVIEW
-        application.save(update_fields=["status"])
-        changed = True
+def verify_checkpoint(application, checkpoint, verified_by=None):
+    """Mark one of the four checks as passed. Returns False if it already was.
 
-    application.documents.update(status="Verified")
+    For "documents" every uploaded file on the application is also marked
+    Verified, because that check is the uploads: ticking it while the files still
+    read Pending would show the applicant two different answers.
+    """
+    field, label = CHECKPOINTS[checkpoint]
+    if getattr(application, field):
+        return False
+
+    setattr(application, field, True)
+    was_verified = application.verification_status == Application.VerificationStatus.VERIFIED
+    _refresh_verification_status(application, verified_by)
+    application.save(
+        update_fields=[field, "verification_status", "verified_at", "verified_by", "updated_at"]
+    )
+    if checkpoint == "documents":
+        application.documents.exclude(status="Verified").update(status="Verified")
+
+    if application.verification_status == Application.VerificationStatus.VERIFIED and not was_verified:
+        notify(application, "Your application has been fully verified by the admissions desk.")
+    else:
+        notify(application, f"{label} been verified.")
+    return True
+
+
+@transaction.atomic
+def flag_action_required(application, verified_by=None):
+    """Tell the applicant something on the file needs their attention."""
+    if application.verification_status == Application.VerificationStatus.ACTION_REQUIRED:
+        return False
+    application.verification_status = Application.VerificationStatus.ACTION_REQUIRED
+    if verified_by:
+        application.verified_by = verified_by
+    application.save(update_fields=["verification_status", "verified_by", "updated_at"])
+    notify(
+        application,
+        "The admissions desk needs something from you before your application can "
+        "continue. An advisor will be in touch.",
+    )
+    return True
+
+
+@transaction.atomic
+def reset_verification(application):
+    """Clear all four checks so the file is verified again from the start."""
+    fields = [field for field, _ in CHECKPOINTS.values()]
+    if not any(getattr(application, f) for f in fields) and (
+        application.verification_status == Application.VerificationStatus.UNVERIFIED
+    ):
+        return False
+    for field in fields:
+        setattr(application, field, False)
+    _refresh_verification_status(application)
+    application.save(update_fields=[*fields, "verification_status", "verified_at", "updated_at"])
+    notify(application, "Your application is back in the queue for verification.")
+    return True
+
+
+# ── Pipeline milestones ──────────────────────────────────────────────
+
+
+@transaction.atomic
+def send_to_institution(application):
+    """Move a file whose uploads are verified on to the institution.
+
+    Returns False when nothing moved: the file is already there or further on,
+    or its uploaded documents have not been verified yet.
+    """
+    if not application.documents_verified:
+        return False
+    if application.status in (
+        Application.Status.IN_REVIEW,
+        Application.Status.ADMITTED,
+        Application.Status.REJECTED,
+    ):
+        return False
+
+    application.status = Application.Status.IN_REVIEW
+    application.save(update_fields=["status", "updated_at"])
     advance_stages_to(application, STAGE_FOR_MILESTONE["documents"])
-
-    if changed:
-        notify(application, "Your documents are verified and your file is with the institution.")
-    return changed
+    notify(application, "Your file has been sent to the institution for review.")
+    return True
 
 
 @transaction.atomic
@@ -154,39 +257,68 @@ def mark_admitted(application):
     visa is confirmed. Admission is a milestone the applicant cares about, not
     a billing event.
     """
-    already = application.status == Application.Status.ADMITTED
+    if application.status == Application.Status.ADMITTED:
+        return False
 
-    if not already:
-        application.status = Application.Status.ADMITTED
-        if application.visa_status == Application.VisaStatus.NOT_STARTED:
-            application.visa_status = Application.VisaStatus.IN_PROGRESS
-        application.save(update_fields=["status", "visa_status"])
-        advance_stages_to(application, STAGE_FOR_MILESTONE["admission"])
+    application.status = Application.Status.ADMITTED
+    application.save(update_fields=["status", "updated_at"])
+    advance_stages_to(application, STAGE_FOR_MILESTONE["admission"])
 
-        institution = application.institution.name if application.institution else "your institution"
-        notify(application, f"Admission granted by {institution}. Your offer letter follows.")
+    institution = application.institution.name if application.institution else "your institution"
+    notify(application, f"Admission granted by {institution}. Your offer letter follows.")
+    return True
 
-    return not already, 0
+
+@transaction.atomic
+def transfer_to_visa_desk(application):
+    """Hand an admitted file to the Visa Support desk. Only admitted files move."""
+    if application.status != Application.Status.ADMITTED or application.transferred_to_visa_support:
+        return False
+    application.transferred_to_visa_support = True
+    application.transferred_to_visa_support_at = timezone.now()
+    application.save(
+        update_fields=["transferred_to_visa_support", "transferred_to_visa_support_at", "updated_at"]
+    )
+    notify(application, "Your file has been passed to our Visa Support desk.")
+    return True
+
+
+@transaction.atomic
+def start_visa_processing(application):
+    """The visa desk has started work on an admitted file."""
+    if application.status != Application.Status.ADMITTED:
+        return False
+    if application.visa_status != Application.VisaStatus.NOT_STARTED:
+        return False
+    application.visa_status = Application.VisaStatus.IN_PROGRESS
+    application.save(update_fields=["visa_status", "updated_at"])
+    advance_stages_to(application, STAGE_FOR_MILESTONE["visa"])
+    notify(application, "Work on your visa application has started.")
+    return True
 
 
 @transaction.atomic
 def mark_visa_verified(application):
-    """Study permit confirmed. Closes the track and pays the agent."""
-    already = application.visa_status == Application.VisaStatus.COMPLETED
+    """Study permit confirmed. Closes the track and credits the agent's visa commission.
 
-    if not already:
-        application.visa_status = Application.VisaStatus.COMPLETED
-        if application.status != Application.Status.ADMITTED:
-            application.status = Application.Status.ADMITTED
-        application.save(update_fields=["status", "visa_status"])
-        advance_stages_to(application, STAGE_FOR_MILESTONE["visa"])
-        complete_all_stages(application)
-        notify(application, "Your study permit is verified. Congratulations.")
+    The commission belongs to this milestone rather than a separate step: it is
+    what the agent is owed for it, and a separate button is one that could be
+    forgotten. Only admitted files qualify. Returns (changed, amount paid).
+    """
+    if application.status != Application.Status.ADMITTED:
+        return False, 0
+    if application.visa_status == Application.VisaStatus.COMPLETED:
+        return False, 0
+
+    application.visa_status = Application.VisaStatus.COMPLETED
+    application.save(update_fields=["visa_status", "updated_at"])
+    complete_all_stages(application)
+    notify(application, "Your study permit is verified. Congratulations.")
 
     from apps.partners.models import Commission
 
     paid = award_commission(application, Commission.Kind.VISA)
-    return not already, paid
+    return True, paid
 
 
 @transaction.atomic
@@ -357,128 +489,15 @@ def award_registration_commission(application):
     return amount
 
 
-@transaction.atomic
-def verify_application_full(application, verified_by=None, notes=""):
-    """Verify all four audit checkpoints and mark the application fully verified."""
-    application.personal_details_verified = True
-    application.academic_details_verified = True
-    application.documents_verified = True
-    application.payment_verified = True
-    application.verification_status = Application.VerificationStatus.VERIFIED
-    application.verified_at = timezone.now()
-    if verified_by:
-        application.verified_by = verified_by
-    if notes:
-        application.verification_notes = notes
+def send_applicant_email_message(application, subject, message_body):
+    """Send a message the desk wrote to whoever owns this file.
 
-    application.save(
-        update_fields=[
-            "personal_details_verified",
-            "academic_details_verified",
-            "documents_verified",
-            "payment_verified",
-            "verification_status",
-            "verified_at",
-            "verified_by",
-            "verification_notes",
-            "updated_at",
-        ]
-    )
+    It lands on the application's feed and goes out by email once. A file an
+    agent filed is written to the agent, never the student, exactly as every
+    status update is.
+    """
+    from apps.accounts.emails import send_application_status_update_email
 
-    # Also mark all uploaded documents as Verified
-    application.documents.exclude(status="Verified").update(status="Verified")
-
-    # If currently at document verification stage, advance it to institution review
-    current = application.current_stage
-    if current and current.name == "Document verification":
-        advance_stages_to(application, STAGE_FOR_MILESTONE["documents"])
-
-    notify(
-        application,
-        "Your application profile, documents, and credentials have been verified and approved by the admissions desk.",
-    )
-
-    # Dispatch confirmation email
-    first_name = _first_name(application.full_name)
-    subject = f"Application Details Verified · {application.reference}"
-    text_content = (
-        f"Hello {first_name},\n\n"
-        f"Great news! Your application ({application.reference}) has been thoroughly reviewed and "
-        "verified by the Gabstep admissions desk.\n\n"
-        f"Institution: {application.institution.name if application.institution else 'Selected University'}\n"
-        f"Destination: {application.destination_country.name if application.destination_country else ''}\n\n"
-        "Your file is now proceeding to the next milestone. Log in to your portal anytime to view your progress:\n"
-        f"{_url('/portal')}\n\n"
-        "Best regards,\n"
-        "Gabstep Admissions Desk"
-    )
-    html_content = (
-        f"<p>Hello {first_name},</p>"
-        f"<p>Great news! Your application <strong>{application.reference}</strong> has been thoroughly reviewed and "
-        "verified by the Gabstep admissions desk.</p>"
-        f"<p><strong>Institution:</strong> {application.institution.name if application.institution else 'Selected University'}<br>"
-        f"<strong>Destination:</strong> {application.destination_country.name if application.destination_country else ''}</p>"
-        f'<p><a href="{_url("/portal")}">Open Your Applicant Portal &rarr;</a></p>'
-        "<p>Best regards,<br>Gabstep Admissions Desk</p>"
-    )
-    send_async_email(subject, text_content, html_content, [application.email])
-    return True
-
-
-@transaction.atomic
-def set_verification_status(application, status, verified_by=None, notes=""):
-    """Update verification status with corresponding notifications."""
-    application.verification_status = status
-    if status == Application.VerificationStatus.VERIFIED:
-        application.personal_details_verified = True
-        application.academic_details_verified = True
-        application.documents_verified = True
-        application.payment_verified = True
-        application.verified_at = timezone.now()
-        application.documents.exclude(status="Verified").update(status="Verified")
-    elif status == Application.VerificationStatus.UNVERIFIED:
-        application.personal_details_verified = False
-        application.academic_details_verified = False
-        application.documents_verified = False
-        application.verified_at = None
-
-    if verified_by:
-        application.verified_by = verified_by
-    if notes:
-        application.verification_notes = notes
-
-    application.save()
-
-    status_labels = {
-        Application.VerificationStatus.VERIFIED: "verified and approved",
-        Application.VerificationStatus.IN_REVIEW: "placed under active review",
-        Application.VerificationStatus.ACTION_REQUIRED: "flagged: action required",
-        Application.VerificationStatus.UNVERIFIED: "queued for admissions verification",
-    }
-    label = status_labels.get(status, status)
-    notify(application, f"Your application verification audit was updated: {label}.")
-    return True
-
-
-def send_applicant_email_message(application, subject, message_body, sender=None):
-    """Send an arbitrary custom email or update note to the applicant from the admin."""
-    first_name = _first_name(application.full_name)
-    formatted_subject = f"{subject} · {application.reference}"
-    text_content = (
-        f"Hello {first_name},\n\n"
-        f"{message_body}\n\n"
-        f"Reference: {application.reference}\n"
-        f"View your dashboard: {_url('/portal')}\n\n"
-        "Best regards,\n"
-        "Gabstep Admissions Desk"
-    )
-    html_content = (
-        f"<p>Hello {first_name},</p>"
-        f"<p>{message_body.replace(chr(10), '<br>')}</p>"
-        f"<p><strong>Reference:</strong> {application.reference}</p>"
-        f'<p><a href="{_url("/portal")}">Open Your Applicant Portal &rarr;</a></p>'
-        "<p>Best regards,<br>Gabstep Admissions Desk</p>"
-    )
-    send_async_email(formatted_subject, text_content, html_content, [application.email])
-    notify(application, f"Staff Message: {subject} — {message_body[:200]}")
+    notify(application, f"Message from the admissions desk: {subject}. {message_body}", send_email=False)
+    send_application_status_update_email(application, message_body, subject_override=subject)
     return True
