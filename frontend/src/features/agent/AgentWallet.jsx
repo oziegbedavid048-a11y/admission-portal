@@ -127,15 +127,6 @@ export default function AgentWallet() {
 
   return (
     <div className="agent-stack">
-      <section className="agent-banner">
-        <span className="agent-icon" aria-hidden="true">
-          <Icon name="wallet" size={22} animate />
-        </span>
-        <div className="agent-banner-text">
-          <h2>Wallet</h2>
-          <p>Withdraw your earnings and track payouts.</p>
-        </div>
-      </section>
 
       <section className="agent-card balance-card">
         <div className="balance-top">

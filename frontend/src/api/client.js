@@ -29,6 +29,18 @@ function resolveApiBase(configured) {
 const BASE_URL = resolveApiBase(import.meta.env.VITE_API_URL);
 
 /**
+ * The backend's own origin, for files it serves under /media/.
+ *
+ * An upload stored on the server comes back as a path such as
+ * `/media/letters/...`. Resolved against the page, that path asked the website's
+ * host for a file only the backend has, and every letter and document 404'd.
+ * Paths are resolved against the API's origin instead. When the API is relative
+ * (local development, or a same-origin proxy) this is empty and the page's own
+ * origin is right.
+ */
+export const API_ORIGIN = /^https?:\/\//i.test(BASE_URL) ? new URL(BASE_URL).origin : '';
+
+/**
  * The access token, held in memory only.
  *
  * Both tokens used to live in `localStorage`, which any script on the page can

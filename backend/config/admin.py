@@ -19,7 +19,7 @@ LAYOUT = [
     ("partners", ["AgentProfile", "SupervisorProfile", "Loan", "Withdrawal", "SupervisorWithdrawal"]),
     ("payments", ["Payment"]),
     ("catalog", ["Program", "Institution", "DestinationCountry", "CourseImport"]),
-    ("accounts", ["User"]),
+    ("accounts", ["SupportTicket", "User"]),
 ]
 
 SECTION_ORDER = {label: index for index, (label, _) in enumerate(LAYOUT)}

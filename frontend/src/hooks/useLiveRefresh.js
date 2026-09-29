@@ -13,7 +13,7 @@ import { useEffect, useRef } from 'react';
  * It skips a tick while the tab is hidden, so a portal left open overnight is
  * not still calling the API in the morning.
  */
-export default function useLiveRefresh(callback, { intervalMs = 20000, enabled = true } = {}) {
+export default function useLiveRefresh(callback, { intervalMs = 10000, enabled = true } = {}) {
   const saved = useRef(callback);
 
   useEffect(() => {

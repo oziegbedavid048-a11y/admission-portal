@@ -23,6 +23,22 @@ export const auth = {
     }),
 };
 
+// Messages from the Support page. They are emailed to the support inbox with the
+// sender as reply-to, and kept so the sender can see what they have sent.
+export const support = {
+  list: () => api.get('/auth/support/'),
+  send: ({ topic, subject, message, attachment }) => {
+    const form = new FormData();
+    form.append('topic', topic);
+    form.append('subject', subject);
+    form.append('message', message);
+    if (attachment) form.append('attachment', attachment);
+    return api.post('/auth/support/', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+};
+
 export const catalog = {
   originCountries: () => api.get('/catalog/origin-countries/'),
   destinations: () => api.get('/catalog/destinations/'),

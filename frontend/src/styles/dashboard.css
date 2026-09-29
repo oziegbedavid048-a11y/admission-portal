@@ -166,9 +166,31 @@
   overflow-wrap: anywhere;
 }
 
-/* On a phone the tiles stay cards, one per row, matching the agent portal. */
+/* On a phone the three tiles become one grouped list: three tall cards took a
+   whole screen to say three short facts. */
 @media (max-width: 519px) {
-  .stat-row { grid-template-columns: 1fr; }
+  .stat-row {
+    grid-template-columns: 1fr;
+    gap: 0;
+    background: var(--g-surface);
+    border: 1px solid var(--g-line);
+    border-radius: var(--g-r-md);
+    box-shadow: var(--g-sh-1);
+    overflow: hidden;
+  }
+  .stat-row .stat {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    padding: 14px 18px;
+  }
+  .stat-row .stat + .stat { border-top: 1px solid var(--g-line); }
+  .stat-row .stat-label { font-size: 14px; }
+  .stat-row .stat-value { margin-top: 0; font-size: 17px; text-align: right; }
 }
 
 /* ─────────────── Stage list ─────────────── */

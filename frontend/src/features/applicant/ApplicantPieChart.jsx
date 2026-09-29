@@ -15,25 +15,25 @@ import StatusRing, { useSegmentTones } from '../../components/charts/StatusRing'
 const CHECKPOINTS = [
   {
     key: 'payment',
-    label: 'Application Fee Clearance',
+    label: 'Application fee',
     shortLabel: 'Fee Clearance',
     description: 'Application fee settlement and payment confirmation.',
   },
   {
     key: 'personal',
-    label: 'Personal & Contact Details',
+    label: 'Personal details',
     shortLabel: 'Personal Profile',
     description: 'Full name, origin country, contact, and address verification.',
   },
   {
     key: 'academic',
-    label: 'Academic & Institution Choice',
+    label: 'Academic details',
     shortLabel: 'Academic & Choice',
     description: 'Qualifications, GPA, chosen institution, and major choice.',
   },
   {
     key: 'documents',
-    label: 'Uploaded Credentials',
+    label: 'Uploaded documents',
     shortLabel: 'Uploads & Files',
     description: 'Passport data page, transcripts, and supporting uploads.',
   },
@@ -195,7 +195,7 @@ export default function ApplicantPieChart({ application = {}, documents = [] }) 
 
       <div className="applicant-pie-action">
         <Link to="/portal/details" className="g-btn g-btn-primary g-btn-sm applicant-pie-cta">
-          {audit.isFullyVerified ? 'View verified details' : 'Review submitted details'}
+          {audit.isFullyVerified ? 'View verified details' : 'Review your details'}
           <Icon name="arrowRight" size={15} strokeWidth={2.2} />
         </Link>
       </div>

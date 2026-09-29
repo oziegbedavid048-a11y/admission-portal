@@ -440,3 +440,59 @@ def send_manager_payout_failed_email(withdrawal):
         ],
         action=("Check your payout account", _url("/sales-manager/profile")),
     )
+
+
+# ── Support ──────────────────────────────────────────────────────────
+
+
+def send_support_ticket_email(ticket):
+    """Deliver a Support page message to the support inbox.
+
+    Reply-to is the sender, so answering from the inbox reaches them directly.
+    Everything they typed is escaped: it is their text, shown as text, never as
+    markup. Sent on this thread and returns whether it went, because the ticket
+    records that and the page tells the sender.
+    """
+    from django.utils.html import escape
+
+    user = ticket.user
+    role = user.get_role_display()
+    facts = [
+        ("Reference", ticket.reference),
+        ("From", f"{escape(user.full_name or user.email)} ({role})"),
+        ("Email", escape(user.email)),
+        ("Topic", ticket.get_topic_display()),
+    ]
+    if user.phone:
+        facts.append(("Phone", escape(user.phone)))
+
+    paragraphs = [escape(ticket.message).replace("\n", "<br>")]
+    plain_paragraphs = [ticket.message]
+    if ticket.attachment:
+        paragraphs.append("An attachment is on the ticket in the admin.")
+        plain_paragraphs.append("An attachment is on the ticket in the admin.")
+
+    admin_link = (
+        "Open in the admin",
+        f"{getattr(settings, 'BACKEND_URL', '').rstrip('/')}/admin/accounts/supportticket/{ticket.pk}/change/",
+    ) if getattr(settings, "BACKEND_URL", "") else None
+
+    subject = f"[{ticket.reference}] {ticket.subject}"
+    recipients = [getattr(settings, "SUPPORT_EMAIL", "support@gabstep.com")]
+    try:
+        message = EmailMultiAlternatives(
+            subject=subject,
+            body=_plain("New support message", plain_paragraphs, [(k, v) for k, v in facts], admin_link),
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            to=recipients,
+            reply_to=[user.email],
+        )
+        message.attach_alternative(
+            _render("New support message", paragraphs, facts, admin_link), "text/html"
+        )
+        message.send(fail_silently=False)
+        logger.info("Support ticket %s emailed to %s", ticket.reference, recipients)
+        return True
+    except Exception as exc:
+        logger.error("Support ticket %s could not be emailed: %s", ticket.reference, exc)
+        return False

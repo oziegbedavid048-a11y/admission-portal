@@ -171,15 +171,45 @@ USE_TZ = True
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_DIRS = [BASE_DIR / "static"]
+# Where uploaded files live.
+#
+# The server's own disk is the default, and on a host such as Render it is wiped
+# on every deploy and restart unless a persistent disk is mounted at MEDIA_ROOT.
+# That is how every passport and letter uploaded before a deploy became a 404.
+#
+# Setting S3_BUCKET moves uploads to an S3-compatible bucket instead (Cloudflare
+# R2, Amazon S3, Backblaze B2 and others). The bucket stays private: every link
+# the API hands out is signed and expires, so a passport scan is never at a
+# public, guessable address.
+S3_BUCKET = env("S3_BUCKET")
+if S3_BUCKET:
+    default_storage = {
+        "BACKEND": "storages.backends.s3.S3Storage",
+        "OPTIONS": {
+            "bucket_name": S3_BUCKET,
+            "endpoint_url": env("S3_ENDPOINT_URL") or None,
+            "access_key": env("S3_ACCESS_KEY_ID"),
+            "secret_key": env("S3_SECRET_ACCESS_KEY"),
+            "region_name": env("S3_REGION") or None,
+            "signature_version": "s3v4",
+            "querystring_auth": True,
+            "querystring_expire": int(env("S3_URL_EXPIRE_SECONDS", "3600")),
+            "default_acl": None,
+            "file_overwrite": False,
+        },
+    }
+else:
+    default_storage = {"BACKEND": "django.core.files.storage.FileSystemStorage"}
+
 STORAGES = {
-    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "default": default_storage,
     "staticfiles": {
         "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"
     },
 }
 
 MEDIA_URL = "/media/"
-MEDIA_ROOT = BASE_DIR / "media"
+MEDIA_ROOT = Path(env("MEDIA_ROOT") or str(BASE_DIR / "media"))
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
@@ -213,6 +243,7 @@ REST_FRAMEWORK = {
         # Checking whether an address is taken is a lookup against every account
         # on the platform, so it is the tightest of the lot.
         "email_check": env("THROTTLE_EMAIL_CHECK", "20/hour"),
+        "support": env("THROTTLE_SUPPORT", "10/hour"),
         # Money leaving the platform, and a file being uploaded, are both worth
         # slowing down well below what a person could ever need.
         "money": env("THROTTLE_MONEY", "12/hour"),
@@ -367,6 +398,11 @@ EMAIL_USE_TLS = env_bool("EMAIL_USE_TLS", False)
 EMAIL_TIMEOUT = int(env("EMAIL_TIMEOUT", "15"))
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", "Gabstep <support@gabstep.com>")
 SERVER_EMAIL = DEFAULT_FROM_EMAIL
+# Where messages from the portals' Support page are delivered.
+SUPPORT_EMAIL = env("SUPPORT_EMAIL", "support@gabstep.com")
+# This service's own public address, used for admin links in staff email.
+# Render provides RENDER_EXTERNAL_URL automatically.
+BACKEND_URL = env("BACKEND_URL") or env("RENDER_EXTERNAL_URL")
 
 # ── Payments ──────────────────────────────────────────────────────
 # With a secret key set, the applicant pays online and the provider posts to

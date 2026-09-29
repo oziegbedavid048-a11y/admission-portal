@@ -252,15 +252,6 @@ export default function AgentNewStudent() {
 
   return (
     <div className="agent-stack" ref={shellRef}>
-      <section className="agent-banner">
-        <span className="agent-icon" aria-hidden="true">
-          <Icon name="userPlus" size={22} animate />
-        </span>
-        <div className="agent-banner-text">
-          <h2>Register a student</h2>
-          <p>The full application, filed on their behalf.</p>
-        </div>
-      </section>
 
       <div className="agent-wizard-shell">
 

@@ -107,7 +107,7 @@ export default function AgentRegisterPage() {
 
           <form onSubmit={submit}>
             <div className="signup-section-header">
-              <span className="signup-section-title">Agency & Personal Details</span>
+              <span className="signup-section-title">Agency & personal details</span>
             </div>
             <div className="agent-2col-grid">
               {field('full_name', 'Full legal name *', { autoComplete: 'name', placeholder: 'e.g. Adaeze Nwosu' })}
@@ -131,7 +131,7 @@ export default function AgentRegisterPage() {
             </div>
 
             <div className="signup-section-header">
-              <span className="signup-section-title">Sales Manager Referral</span>
+              <span className="signup-section-title">Sales manager referral</span>
             </div>
             <div className="agent-2col-grid">
               {field(
@@ -148,7 +148,7 @@ export default function AgentRegisterPage() {
             </div>
 
             <div className="signup-section-header">
-              <span className="signup-section-title">Payout Account</span>
+              <span className="signup-section-title">Payout account</span>
             </div>
             <div className="agent-2col-grid">
               {field('bank_name', 'Bank name *', { placeholder: 'e.g. Access Bank, GTBank' })}

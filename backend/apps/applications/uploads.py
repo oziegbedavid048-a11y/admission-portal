@@ -93,3 +93,42 @@ def validate_upload(uploaded, max_mb):
         )
 
     return uploaded
+
+
+# ── Where an upload is stored ──────────────────────────────────────────
+#
+# Files used to be saved under their own names, "documents/2026/09/passport.pdf",
+# and served from a public URL. Anyone who guessed a common file name could fetch
+# someone else's passport. Each file now sits in a folder named by a random
+# token, so its address cannot be guessed, and keeps its original name inside
+# that folder so a download still arrives as "passport.pdf".
+
+
+def _stored_name(folder, filename):
+    from django.utils import timezone
+    from django.utils.crypto import get_random_string
+    from django.utils.text import get_valid_filename
+
+    name = get_valid_filename(Path(filename or "file").name) or "file"
+    token = get_random_string(24, "abcdefghijklmnopqrstuvwxyz0123456789")
+    return f"{folder}/{timezone.now():%Y/%m}/{token}/{name}"
+
+
+def document_upload_path(instance, filename):
+    return _stored_name("documents", filename)
+
+
+def letter_upload_path(instance, filename):
+    return _stored_name("letters", filename)
+
+
+def correction_upload_path(instance, filename):
+    return _stored_name("corrections", filename)
+
+
+def avatar_upload_path(instance, filename):
+    return _stored_name("avatars", filename)
+
+
+def support_upload_path(instance, filename):
+    return _stored_name("support", filename)

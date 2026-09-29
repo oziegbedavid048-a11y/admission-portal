@@ -16,16 +16,6 @@ export default function DetailsPanel() {
 
   return (
     <div className="portal-stack applicant-details-container">
-      {/* ── Page Banner (Request correction button removed as requested) ── */}
-      <section className="app-banner">
-        <span className="app-greet-icon" aria-hidden="true">
-          <Icon name="fileText" size={22} />
-        </span>
-        <div className="app-banner-text">
-          <h2>Applicant Details</h2>
-          <p>Your official application dossier, academic background, and institution selections.</p>
-        </div>
-      </section>
 
       {/* ── Active Correction Notice (If open requests exist) ── */}
       {corrections.some((c) => c.status === 'open') && (
@@ -45,28 +35,28 @@ export default function DetailsPanel() {
       {/* ── Section 1: Personal Information ── */}
       <section className="card details-clean-card">
         <div className="card-head">
-          <h2>Personal Information</h2>
+          <h2>Personal information</h2>
           <span className="card-note">Verified applicant identity</span>
         </div>
 
         <div className="facts-clean-grid">
           <div className="fact-clean-item">
-            <span className="fact-clean-label">Full Legal Name</span>
+            <span className="fact-clean-label">Full legal name</span>
             <span className="fact-clean-value">{application?.full_name || 'Not provided'}</span>
           </div>
 
           <div className="fact-clean-item">
-            <span className="fact-clean-label">Email Address</span>
+            <span className="fact-clean-label">Email address</span>
             <span className="fact-clean-value">{application?.email || 'Not provided'}</span>
           </div>
 
           <div className="fact-clean-item">
-            <span className="fact-clean-label">Phone Number</span>
+            <span className="fact-clean-label">Phone number</span>
             <span className="fact-clean-value">{application?.phone || 'Not provided'}</span>
           </div>
 
           <div className="fact-clean-item">
-            <span className="fact-clean-label">Residential Address</span>
+            <span className="fact-clean-label">Residential address</span>
             <span className="fact-clean-value">{application?.address || 'Not provided'}</span>
           </div>
 
@@ -76,17 +66,17 @@ export default function DetailsPanel() {
           </div>
 
           <div className="fact-clean-item">
-            <span className="fact-clean-label">Destination Country</span>
+            <span className="fact-clean-label">Destination country</span>
             <span className="fact-clean-value">{application?.destination_country || 'Not set'}</span>
           </div>
 
           <div className="fact-clean-item">
-            <span className="fact-clean-label">Application Reference</span>
+            <span className="fact-clean-label">Application reference</span>
             <span className="fact-clean-value fact-mono">{application?.reference}</span>
           </div>
 
           <div className="fact-clean-item">
-            <span className="fact-clean-label">Submission Date</span>
+            <span className="fact-clean-label">Submission date</span>
             <span className="fact-clean-value">
               {formatLongDate(application?.submitted_at || new Date().toISOString())}
             </span>
@@ -97,13 +87,13 @@ export default function DetailsPanel() {
       {/* ── Section 2: Academic Record ── */}
       <section className="card details-clean-card">
         <div className="card-head">
-          <h2>Academic Record</h2>
+          <h2>Academic record</h2>
           <span className="card-note">Prior qualification history</span>
         </div>
 
         <div className="facts-clean-grid">
           <div className="fact-clean-item">
-            <span className="fact-clean-label">Highest Qualification</span>
+            <span className="fact-clean-label">Highest qualification</span>
             <span className="fact-clean-value">{application?.qualification || 'Not provided'}</span>
           </div>
 
@@ -113,7 +103,7 @@ export default function DetailsPanel() {
           </div>
 
           <div className="fact-clean-item">
-            <span className="fact-clean-label">Year Graduated</span>
+            <span className="fact-clean-label">Year graduated</span>
             <span className="fact-clean-value">{application?.year_graduated || 'Not provided'}</span>
           </div>
 
@@ -127,13 +117,13 @@ export default function DetailsPanel() {
       {/* ── Section 3: Selected University & Programme ── */}
       <section className="card details-clean-card">
         <div className="card-head">
-          <h2>Selected University & Programme</h2>
+          <h2>Selected university & programme</h2>
           <span className="card-note">Choice of institution</span>
         </div>
 
         <div className="facts-clean-grid">
           <div className="fact-clean-item fact-clean-full">
-            <span className="fact-clean-label">Target Institution</span>
+            <span className="fact-clean-label">Target institution</span>
             <span className="fact-clean-value fact-highlight">
               {application?.institution?.name || 'Selected University'}
             </span>
@@ -141,7 +131,7 @@ export default function DetailsPanel() {
 
           {application?.institution?.city ? (
             <div className="fact-clean-item">
-              <span className="fact-clean-label">Campus Location</span>
+              <span className="fact-clean-label">Campus location</span>
               <span className="fact-clean-value">
                 {application.institution.city}, {application.destination_country}
               </span>
@@ -149,7 +139,7 @@ export default function DetailsPanel() {
           ) : null}
 
           <div className="fact-clean-item">
-            <span className="fact-clean-label">Destination Country</span>
+            <span className="fact-clean-label">Destination country</span>
             <span className="fact-clean-value">{application?.destination_country}</span>
           </div>
 
@@ -176,7 +166,7 @@ export default function DetailsPanel() {
 
           {application?.institution?.tuition_summary ? (
             <div className="fact-clean-item fact-clean-full">
-              <span className="fact-clean-label">Tuition Summary</span>
+              <span className="fact-clean-label">Tuition summary</span>
               <span className="fact-clean-value">
                 {application.institution.tuition_summary}
               </span>
@@ -188,7 +178,7 @@ export default function DetailsPanel() {
       {/* ── Section 4: Uploaded Credentials & Documents ── */}
       <section className="card details-clean-card">
         <div className="card-head">
-          <h2>Uploaded Supporting Documents</h2>
+          <h2>Uploaded supporting documents</h2>
           <span className="card-note">{documents.length} document(s) on file</span>
         </div>
 
@@ -226,7 +216,7 @@ export default function DetailsPanel() {
                       title="View document in portal"
                     >
                       <Icon name="document" size={14} />
-                      <span>Open Document</span>
+                      <span>Open document</span>
                     </button>
                   </div>
                 </div>
@@ -240,7 +230,7 @@ export default function DetailsPanel() {
       {corrections.length > 0 && (
         <section className="card details-clean-card">
           <div className="card-head">
-            <h2>Correction Requests Log</h2>
+            <h2>Correction requests log</h2>
             <span className="card-note">{corrections.length} request(s) recorded</span>
           </div>
 
@@ -289,7 +279,7 @@ export default function DetailsPanel() {
         </section>
       )}
 
-      {/* ── Section 6: Request a Correction Action Card ── */}
+      {/* ── Section 6: Request a correction Action Card ── */}
       <section className="card details-cta-card">
         <div className="details-cta-content">
           <div>
@@ -305,7 +295,7 @@ export default function DetailsPanel() {
             onClick={() => setCorrectionOpen(true)}
           >
             <Icon name="pencil" size={16} />
-            <span>Request a Correction</span>
+            <span>Request a correction</span>
           </button>
         </div>
       </section>
@@ -342,7 +332,7 @@ export default function DetailsPanel() {
                 download={previewDoc.original_filename || 'document'}
               >
                 <Icon name="download" size={16} />
-                <span>Download Document</span>
+                <span>Download document</span>
               </a>
             ) : null}
           </div>

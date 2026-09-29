@@ -2,11 +2,10 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 const ROTATION_MS = 6000;
 
-const SLIDES = [
-  'https://images.unsplash.com/photo-1541339907198-e08756dedf3f?q=80&w=1600&auto=format&fit=crop',
-  'https://images.unsplash.com/photo-1523050854058-8df90110c9f1?q=80&w=1600&auto=format&fit=crop',
-  'https://images.unsplash.com/photo-1562774053-701939374585?q=80&w=1600&auto=format&fit=crop',
-];
+// Served from this site rather than hotlinked. The middle image used to be an
+// Unsplash address that had been taken down, so one slide in three rendered as a
+// blank panel. Two images the site owns cannot disappear the same way.
+const SLIDES = ['/assets/hero/campus-1.jpg', '/assets/hero/campus-2.jpg'];
 
 /**
  * The hero's crossfading background. It pauses while the pointer is over the

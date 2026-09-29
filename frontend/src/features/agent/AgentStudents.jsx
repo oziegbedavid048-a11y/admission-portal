@@ -108,15 +108,6 @@ export default function AgentStudents() {
 
   return (
     <div className="agent-stack">
-      <section className="agent-banner">
-        <span className="agent-icon" aria-hidden="true">
-          <Icon name="users" size={22} animate />
-        </span>
-        <div className="agent-banner-text">
-          <h2>Students</h2>
-          <p>Everyone you have referred, and where they are.</p>
-        </div>
-      </section>
 
       <div className="agent-stats">
         <div className="agent-stat">

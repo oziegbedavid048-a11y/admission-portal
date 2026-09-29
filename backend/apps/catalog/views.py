@@ -122,7 +122,7 @@ def fee_quote(request):
             "institution_slug": institution.slug if institution else "",
             # What the school itself charges, before any conversion.
             "institution_fee": float(institution.application_fee) if institution else None,
-            "institution_fee_currency": institution.currency if institution else "",
+            "institution_fee_currency": institution.application_fee_currency if institution else "",
             "deposit_note": institution.deposit_note if institution else "",
             "waived": bool(institution and institution.is_fee_free),
             # True when no school was named, so this is a typical figure rather

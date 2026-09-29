@@ -1,3 +1,5 @@
+import { API_ORIGIN } from '../api/client';
+
 // Formatting helpers shared by the portals. Everything that turns a number or
 // a date into something a person reads lives here, so the same amount never
 // appears two different ways on two different screens.
@@ -124,10 +126,11 @@ export function statusTone(status) {
   return STATUS_LABELS[status] || ['na', String(status || 'Not set')];
 }
 
+/** Where to fetch an uploaded file from. See API_ORIGIN in api/client.js. */
 export function resolveMediaUrl(url) {
   if (!url) return '';
   const s = String(url).trim();
   if (!s) return '';
   if (/^(https?:|\/\/|blob:|data:)/i.test(s)) return s;
-  return s.startsWith('/') ? s : `/${s}`;
+  return `${API_ORIGIN}${s.startsWith('/') ? s : `/${s}`}`;
 }

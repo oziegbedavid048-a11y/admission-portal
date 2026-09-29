@@ -34,14 +34,15 @@ export default function ProfilePanel() {
 
   const saveProfile = async (event) => {
     event.preventDefault();
-    if (!profile.full_name.trim() || !profile.email.trim()) {
-      toast.warning('Name and email are required.');
+    if (!profile.full_name.trim()) {
+      toast.warning('Enter your name.');
       return;
     }
 
     setSavingProfile(true);
     try {
-      const { data } = await auth.updateMe(profile);
+      const { email: _email, ...editable } = profile;
+      const { data } = await auth.updateMe(editable);
       setUser(data);
       toast.success('Your profile is saved.');
     } catch (error) {
@@ -136,9 +137,12 @@ export default function ProfilePanel() {
                 type="email"
                 id="pf-email"
                 value={profile.email}
-                onChange={(event) => setProfile({ ...profile, email: event.target.value })}
-                required
+                readOnly
+                aria-describedby="pf-email-hint"
               />
+              <span id="pf-email-hint" className="gx-hint">
+                To change your email, contact Support.
+              </span>
             </div>
             <div className="field">
               <label htmlFor="pf-phone">Phone</label>

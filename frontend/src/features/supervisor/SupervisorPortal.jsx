@@ -1,8 +1,9 @@
-import { Link, Navigate, Route, Routes, useNavigate } from 'react-router-dom';
+import { Navigate, Route, Routes, useNavigate } from 'react-router-dom';
 import PortalShell from '../../components/layout/PortalShell';
 import Loading from '../../components/ui/Loading';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
+import SupportPage from '../support/SupportPage';
 import { SupervisorProvider, useSupervisor } from './SupervisorContext';
 import SupervisorAgents from './SupervisorAgents';
 import SupervisorEarnings from './SupervisorEarnings';
@@ -15,6 +16,7 @@ const NAV = [
   { to: '/sales-manager/agents', label: 'Agents', icon: 'users' },
   { to: '/sales-manager/students', label: 'Students', icon: 'cap' },
   { to: '/sales-manager/earnings', label: 'Earnings', icon: 'trend' },
+  { to: '/sales-manager/support', label: 'Support', icon: 'headset', divider: true },
   { to: '/sales-manager/profile', label: 'Profile', icon: 'user' },
 ];
 
@@ -31,20 +33,8 @@ function PortalRoutes() {
     <PortalShell
       prefix="agent"
       brandLabel="Manager portal"
-      title="Gabstep Manager Portal"
       nav={NAV}
-      topbarRight={
-        <Link
-          className="agent-topbar-profile-btn"
-          to="/sales-manager/profile"
-          title={profile.full_name || 'Your profile'}
-        >
-          <span className="agent-topbar-avatar">
-            {profile.avatar ? <img src={profile.avatar} alt="" /> : <span>{profile.initials}</span>}
-          </span>
-          <span className="agent-topbar-name">{profile.full_name}</span>
-        </Link>
-      }
+      profilePath="/sales-manager/profile"
       onSignOut={() => {
         signOut();
         toast.info('Signed out.');
@@ -56,6 +46,7 @@ function PortalRoutes() {
         <Route path="agents" element={<SupervisorAgents />} />
         <Route path="students" element={<SupervisorStudents />} />
         <Route path="earnings" element={<SupervisorEarnings />} />
+        <Route path="support" element={<SupportPage />} />
         <Route path="profile" element={<SupervisorProfile />} />
         <Route path="*" element={<Navigate to="/sales-manager" replace />} />
       </Routes>

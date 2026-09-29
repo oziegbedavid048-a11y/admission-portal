@@ -209,13 +209,13 @@ export default function AgentProfile() {
                   <Icon name="user" size={20} />
                 </div>
                 <div>
-                  <h2 className="ap-card-title">Personal Information</h2>
+                  <h2 className="ap-card-title">Personal information</h2>
                   <p className="ap-card-desc">
                     Your legal identity and primary contact channels.
                   </p>
                 </div>
               </div>
-              <span className="ap-card-badge">Primary Contact</span>
+              <span className="ap-card-badge">Primary contact</span>
             </header>
 
             <div className="ap-grid-2col">
@@ -240,8 +240,8 @@ export default function AgentProfile() {
 
               <div className="ap-form-field">
                 <label className="ap-label" htmlFor="ap-email">
-                  <span>Email Address</span>
-                  <span className="ap-label-tag">Verified Login</span>
+                  <span>Email address</span>
+                  <span className="ap-label-tag">Verified login</span>
                 </label>
                 <div className="ap-input-wrap">
                   <span className="ap-input-icon">
@@ -280,7 +280,7 @@ export default function AgentProfile() {
 
               <div className="ap-form-field">
                 <label className="ap-label" htmlFor="ap-country">
-                  <span>Operating Country</span>
+                  <span>Operating country</span>
                 </label>
                 <div className="ap-input-wrap">
                   <span className="ap-input-icon">
@@ -324,7 +324,7 @@ export default function AgentProfile() {
                   <Icon name="wallet" size={20} />
                 </div>
                 <div>
-                  <h2 className="ap-card-title">Payout & Settlement Account</h2>
+                  <h2 className="ap-card-title">Payout & settlement account</h2>
                   <p className="ap-card-desc">
                     Commercial bank account where earned commissions and ads loans are wired.
                   </p>
@@ -422,7 +422,7 @@ export default function AgentProfile() {
                   <Icon name="lock" size={20} />
                 </div>
                 <div>
-                  <h2 className="ap-card-title">Security & Access</h2>
+                  <h2 className="ap-card-title">Security & access</h2>
                   <p className="ap-card-desc">
                     Update your password to keep your partner account and commission wallet secure.
                   </p>

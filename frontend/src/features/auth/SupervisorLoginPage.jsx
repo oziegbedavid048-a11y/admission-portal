@@ -53,7 +53,7 @@ export default function SupervisorLoginPage() {
             <img src="/assets/logo.png" alt="" />
             <div className="auth-brand">
               Gabstep
-              <span>Sales Managers</span>
+              <span>Sales managers</span>
             </div>
           </div>
 

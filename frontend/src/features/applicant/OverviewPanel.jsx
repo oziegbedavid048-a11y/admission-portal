@@ -1,4 +1,8 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { payments } from '../../api/endpoints';
+import { errorMessage } from '../../api/client';
+import { useToast } from '../../context/ToastContext';
 import Icon from '../../lib/icons';
 import { firstNameOf, timeAgo } from '../../lib/format';
 import { useApplication } from './ApplicationContext';
@@ -7,6 +11,36 @@ import WeatherBanner from '../../components/ui/WeatherBanner';
 
 export default function OverviewPanel() {
   const { application } = useApplication();
+  const toast = useToast();
+  const [paying, setPaying] = useState(false);
+
+  const payment = application.payment;
+  const feeDue = Boolean(payment) && ['pending', 'failed'].includes(payment.status);
+  const feeValue = !payment
+    ? 'None'
+    : payment.status === 'paid'
+      ? 'Paid'
+      : payment.status === 'waived'
+        ? 'Waived'
+        : 'Due';
+
+  // An application whose fee was never settled (the payment page was closed, or
+  // the card declined) can be paid from here, without starting again.
+  const pay = async () => {
+    setPaying(true);
+    try {
+      const { data } = await payments.checkout(application.reference);
+      if (data?.authorization_url) {
+        window.location.assign(data.authorization_url);
+        return;
+      }
+      toast.info('Pay by bank transfer using your application reference. The desk confirms it.');
+    } catch (error) {
+      toast.error(errorMessage(error, 'The payment page could not be opened.'));
+    } finally {
+      setPaying(false);
+    }
+  };
 
   const stages = application.stages || [];
   const liveIndex = Math.max(0, application.current_stage_index || 0);
@@ -17,14 +51,29 @@ export default function OverviewPanel() {
       {/* ── Weather Dynamic Greeting Banner ── */}
       <WeatherBanner userName={firstNameOf(application.full_name)} />
 
+      {feeDue ? (
+        <section className="gx-card gx-welcome">
+          <div>
+            <h2>Pay your application fee</h2>
+            <p className="gx-muted">
+              {payment.display_total} · Your file goes to the admissions desk once it is paid.
+            </p>
+          </div>
+          <button type="button" className="gx-btn gx-btn-primary" onClick={pay} disabled={paying}>
+            {paying ? <span className="spinner-sm" aria-hidden="true" /> : <Icon name="card" size={17} />}
+            {paying ? 'Opening' : 'Pay now'}
+          </button>
+        </section>
+      ) : null}
+
       <div className="stat-row">
         <div className="stat">
           <div className="stat-label">Documents</div>
           <div className="stat-value">{application.documents.length}</div>
         </div>
         <div className="stat">
-          <div className="stat-label">Fee paid</div>
-          <div className="stat-value">{application.payment?.display_total || 'Not paid'}</div>
+          <div className="stat-label">Application fee</div>
+          <div className="stat-value">{feeValue}</div>
         </div>
         <div className="stat">
           <div className="stat-label">Destination</div>
@@ -39,7 +88,7 @@ export default function OverviewPanel() {
           {/* Application Verification Status: placed before Application Timeline */}
           <section className="card">
             <div className="card-head">
-              <h2 className="verif-card-title">Application Verification Status</h2>
+              <h2 className="verif-card-title">Application verification status</h2>
             </div>
 
             <ApplicantPieChart
@@ -51,7 +100,7 @@ export default function OverviewPanel() {
           {/* Application Timeline */}
           <section className="card">
             <div className="card-head">
-              <h2>Application Timeline</h2>
+              <h2>Application timeline</h2>
               <span className="card-note">
                 Stage {liveIndex + 1} of {stages.length}
               </span>
@@ -96,15 +145,15 @@ export default function OverviewPanel() {
           {/* Selected Programme Summary */}
           <section className="card">
             <div className="card-head">
-              <h2>Programme Details</h2>
+              <h2>Programme details</h2>
               <Link className="g-btn g-btn-plain g-btn-sm" to="/portal/details">
-                View Full
+                View all
               </Link>
             </div>
 
             <div className="app-prog-info-list">
               <div className="app-prog-info-item">
-                <span className="app-prog-info-key">Destination Country</span>
+                <span className="app-prog-info-key">Destination country</span>
                 <span className="app-prog-info-value">{application.destination_country}</span>
               </div>
 
@@ -114,14 +163,14 @@ export default function OverviewPanel() {
               </div>
 
               <div className="app-prog-info-item">
-                <span className="app-prog-info-key">Degree & Major</span>
+                <span className="app-prog-info-key">Degree & major</span>
                 <span className="app-prog-info-value">
                   {application.programs?.map((p) => p.name).join(', ') || 'Undergraduate Programme'}
                 </span>
               </div>
 
               <div className="app-prog-info-item">
-                <span className="app-prog-info-key">Prior Qualification</span>
+                <span className="app-prog-info-key">Prior qualification</span>
                 <span className="app-prog-info-value">{application.qualification || 'Not provided'}</span>
               </div>
             </div>
@@ -130,7 +179,7 @@ export default function OverviewPanel() {
           {/* Activity Log */}
           <section className="card">
             <div className="card-head">
-              <h2>Recent Activity</h2>
+              <h2>Recent activity</h2>
               <span className="card-note">Admissions desk feed</span>
             </div>
 

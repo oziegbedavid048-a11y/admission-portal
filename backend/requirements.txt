@@ -9,3 +9,6 @@ psycopg[binary]==3.3.6
 python-dotenv==1.0.1
 whitenoise==6.8.2
 gunicorn==23.0.0
+django-storages[s3]==1.14.4
+boto3==1.43.104
+pypdf==5.1.0

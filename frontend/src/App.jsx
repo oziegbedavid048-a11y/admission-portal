@@ -1,15 +1,16 @@
 import { Suspense, lazy, useCallback, useState } from 'react';
-import { Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes } from 'react-router-dom';
 import ProtectedRoute from './components/layout/ProtectedRoute';
 import PaymentReturnPage from './features/wizard/PaymentReturnPage';
 import Loading from './components/ui/Loading';
 import LoginModal from './features/auth/LoginModal';
 import LandingPage from './features/landing/LandingPage';
 import ErrorBoundary from './components/ui/ErrorBoundary';
+import { useAuth } from './context/AuthContext';
 
 // The portals and the wizard are big and most visitors never open them, so
 // they are split out of the first download.
-const WizardPage = lazy(() => import('./features/wizard/WizardPage'));
+const SignupPage = lazy(() => import('./features/auth/SignupPage'));
 const ApplicantPortal = lazy(() => import('./features/applicant/ApplicantPortal'));
 const AgentLoginPage = lazy(() => import('./features/auth/AgentLoginPage'));
 const AgentRegisterPage = lazy(() => import('./features/auth/AgentRegisterPage'));
@@ -17,6 +18,17 @@ const AgentPortal = lazy(() => import('./features/agent/AgentPortal'));
 const SupervisorLoginPage = lazy(() => import('./features/auth/SupervisorLoginPage'));
 const SupervisorPortal = lazy(() => import('./features/supervisor/SupervisorPortal'));
 const NotFoundPage = lazy(() => import('./features/landing/NotFoundPage'));
+
+/**
+ * The old "apply" address. Applying starts from an account now, so a visitor is
+ * sent to sign up, and a signed-in applicant to the course list in their
+ * dashboard, where every Apply button lives.
+ */
+function ApplyRedirect() {
+  const { user, loading } = useAuth();
+  if (loading) return <Loading />;
+  return <Navigate to={user ? '/portal/courses' : '/signup'} replace />;
+}
 
 export default function App() {
   const [loginOpen, setLoginOpen] = useState(false);
@@ -28,7 +40,8 @@ export default function App() {
       <Suspense fallback={<Loading />}>
         <Routes>
           <Route path="/" element={<LandingPage onOpenLogin={openLogin} />} />
-          <Route path="/apply" element={<WizardPage onOpenLogin={openLogin} />} />
+          <Route path="/signup" element={<SignupPage onOpenLogin={openLogin} />} />
+          <Route path="/apply" element={<ApplyRedirect />} />
 
           <Route
             path="/portal/*"

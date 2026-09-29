@@ -1,8 +1,10 @@
-import { Link, Navigate, Route, Routes, useNavigate } from 'react-router-dom';
+import { Navigate, Route, Routes, useNavigate } from 'react-router-dom';
 import PortalShell from '../../components/layout/PortalShell';
 import Loading from '../../components/ui/Loading';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
+import SupportPage from '../support/SupportPage';
+import AgentCourses from './AgentCourses';
 import AgentLoans from './AgentLoans';
 import AgentOverview from './AgentOverview';
 import AgentProfile from './AgentProfile';
@@ -13,9 +15,12 @@ import { AgentProvider, useAgent } from './AgentContext';
 
 const NAV = [
   { to: '/agent', end: true, label: 'Overview', icon: 'dashboard' },
-  { to: '/agent/students', label: 'Students', icon: 'cap' },
+  { to: '/agent/students', label: 'Students', icon: 'users' },
+  { to: '/agent/students/new', label: 'Register a student', icon: 'userPlus', hidden: true },
+  { to: '/agent/courses', label: 'Courses', icon: 'cap' },
   { to: '/agent/wallet', label: 'Wallet', icon: 'wallet' },
-  { to: '/agent/loans', label: 'Ads Loan', icon: 'adsLoan' },
+  { to: '/agent/loans', label: 'Ad funding', icon: 'adsLoan' },
+  { to: '/agent/support', label: 'Support', icon: 'headset', divider: true },
   { to: '/agent/profile', label: 'Profile', icon: 'user' },
 ];
 
@@ -32,16 +37,8 @@ function PortalRoutes() {
     <PortalShell
       prefix="agent"
       brandLabel="Agent portal"
-      title="Gabstep Agent Portal"
       nav={NAV}
-      topbarRight={
-        <Link className="agent-topbar-profile-btn" to="/agent/profile" title="Your profile">
-          <span className="agent-topbar-avatar">
-            {profile.avatar ? <img src={profile.avatar} alt="" /> : <span>{profile.initials}</span>}
-          </span>
-          <span className="agent-topbar-name">{profile.full_name}</span>
-        </Link>
-      }
+      profilePath="/agent/profile"
       onSignOut={() => {
         signOut();
         toast.info('Signed out.');
@@ -53,7 +50,9 @@ function PortalRoutes() {
         <Route path="students" element={<AgentStudents />} />
         <Route path="students/new" element={<AgentNewStudent />} />
         <Route path="wallet" element={<AgentWallet />} />
+        <Route path="courses" element={<AgentCourses />} />
         <Route path="loans" element={<AgentLoans />} />
+        <Route path="support" element={<SupportPage />} />
         <Route path="profile" element={<AgentProfile />} />
         <Route path="*" element={<Navigate to="/agent" replace />} />
       </Routes>

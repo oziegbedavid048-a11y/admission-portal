@@ -14,6 +14,7 @@ from .serializers import (
     ApplicantRegistrationSerializer,
     GabstepTokenObtainPairSerializer,
     PasswordChangeSerializer,
+    SupportTicketSerializer,
     UserSerializer,
 )
 
@@ -174,3 +175,31 @@ class EmailAvailabilityView(APIView):
         email = (request.query_params.get("email") or "").strip().lower()
         taken = bool(email) and User.objects.filter(email__iexact=email).exists()
         return Response({"email": email, "available": not taken})
+
+
+class SupportTicketView(generics.ListCreateAPIView):
+    """The Support page: send the desk a message, and see the ones already sent.
+
+    Creating one emails it to the support inbox straight away, with the sender as
+    reply-to. If the mail provider refuses, the message is still kept, and the
+    desk sees it in the admin; the response says which happened.
+    """
+
+    serializer_class = SupportTicketSerializer
+    parser_classes = (JSONParser, MultiPartParser, FormParser)
+    throttle_classes = (ScopedRateThrottle,)
+    throttle_scope = "support"
+
+    def get_throttles(self):
+        # Reading your own messages is free; only sending counts.
+        return super().get_throttles() if self.request.method == "POST" else []
+
+    def get_queryset(self):
+        return self.request.user.support_tickets.all()[:20]
+
+    def perform_create(self, serializer):
+        from .emails import send_support_ticket_email
+
+        ticket = serializer.save(user=self.request.user)
+        ticket.emailed = bool(send_support_ticket_email(ticket))
+        ticket.save(update_fields=["emailed"])

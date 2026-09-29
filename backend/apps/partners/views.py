@@ -217,20 +217,21 @@ class AgentOverviewView(AgentScopedMixin, APIView):
             a for a in applications if a.visa_status == Application.VisaStatus.COMPLETED
         ]
 
-        pipeline = {
-            "in_review": sum(
-                1
-                for a in applications
-                if a.status in (Application.Status.SUBMITTED, Application.Status.IN_REVIEW)
-            ),
-            "admitted": len(admitted) - len(visas),
-            "visa_in_progress": sum(
-                1
-                for a in applications
-                if a.visa_status == Application.VisaStatus.IN_PROGRESS
-            ),
-            "visa_verified": len(visas),
-        }
+        # Each student sits in exactly one stage, the furthest they have reached,
+        # so the pipeline adds up to the number of students and no stage can go
+        # negative. The old version subtracted one count from another and showed
+        # "-1 admitted" for a student whose visa was confirmed before admission
+        # was recorded.
+        pipeline = {"in_review": 0, "admitted": 0, "visa_in_progress": 0, "visa_verified": 0}
+        for a in applications:
+            if a.visa_status == Application.VisaStatus.COMPLETED:
+                pipeline["visa_verified"] += 1
+            elif a.status == Application.Status.ADMITTED and a.visa_status == Application.VisaStatus.IN_PROGRESS:
+                pipeline["visa_in_progress"] += 1
+            elif a.status == Application.Status.ADMITTED:
+                pipeline["admitted"] += 1
+            elif a.status in (Application.Status.SUBMITTED, Application.Status.IN_REVIEW):
+                pipeline["in_review"] += 1
 
         wallet = agent.wallet
         outstanding = max(

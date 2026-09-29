@@ -102,15 +102,6 @@ export default function SupervisorEarnings() {
 
   return (
     <div className="agent-stack">
-      <section className="agent-banner">
-        <span className="agent-icon" aria-hidden="true">
-          <Icon name="wallet" size={22} animate />
-        </span>
-        <div className="agent-banner-text">
-          <h2>Earnings</h2>
-          <p>Your bonus on every student your agents register.</p>
-        </div>
-      </section>
 
       <section className="agent-card balance-card">
         <div className="balance-top">

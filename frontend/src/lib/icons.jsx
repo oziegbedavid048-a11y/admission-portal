@@ -409,6 +409,37 @@ export const PATHS = {
   plane: (
     <path d="M17.8 19.8 16 14l4.3-4.3a2 2 0 0 0-2.8-2.8L13.2 11 7.4 9.2a1 1 0 0 0-1 .3L5 10.9l5.2 2.6-2.1 2.1-2.4-.4-1 1L7.5 18l1.6 2.8 1-1-.4-2.4 2.1-2.1 2.6 5.2 1.4-1.4a1 1 0 0 0 .3-1z" />
   ),
+  // Support: a headset, the one shape everyone reads as "talk to a person".
+  headset: (
+    <>
+      <path d="M4 14v-2a8 8 0 0 1 16 0v2" />
+      <rect x="3" y="14" width="4" height="6" rx="1.5" />
+      <rect x="17" y="14" width="4" height="6" rx="1.5" />
+      <path d="M19 20a3 3 0 0 1-3 2h-3" />
+    </>
+  ),
+  chat: (
+    <>
+      <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20.5l1.4-4.6A8 8 0 1 1 21 12z" />
+      <path d="M8.5 12h.01M12 12h.01M15.5 12h.01" />
+    </>
+  ),
+  send: (
+    <>
+      <path d="M22 2 11 13" />
+      <path d="M22 2 15 22l-4-9-9-4 20-7z" />
+    </>
+  ),
+  paperclip: (
+    <path d="m21 11.5-8.6 8.6a5.5 5.5 0 0 1-7.8-7.8l8.6-8.6a3.7 3.7 0 0 1 5.2 5.2l-8.6 8.6a1.8 1.8 0 0 1-2.6-2.6l8-8" />
+  ),
+  userCircle: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <circle cx="12" cy="10" r="3" />
+      <path d="M6.2 18.4a6.5 6.5 0 0 1 11.6 0" />
+    </>
+  ),
 };
 
 /**

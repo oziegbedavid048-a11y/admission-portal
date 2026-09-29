@@ -62,15 +62,6 @@ export default function SupervisorAgents() {
 
   return (
     <div className="agent-stack">
-      <section className="agent-banner">
-        <span className="agent-icon" aria-hidden="true">
-          <Icon name="users" size={22} animate />
-        </span>
-        <div className="agent-banner-text">
-          <h2>Agents</h2>
-          <p>Everyone who joined with your code.</p>
-        </div>
-      </section>
 
       <div className="agent-stats">
         <div className="agent-stat">

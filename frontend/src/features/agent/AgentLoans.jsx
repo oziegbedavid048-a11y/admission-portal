@@ -78,15 +78,6 @@ export default function AgentLoans() {
 
   return (
     <div className="agent-stack">
-      <section className="agent-banner">
-        <span className="agent-icon" aria-hidden="true">
-          <Icon name="adsLoan" size={22} animate />
-        </span>
-        <div className="agent-banner-text">
-          <h2>Ads Loan</h2>
-          <p>0% interest capital, paid straight into your bank account.</p>
-        </div>
-      </section>
 
       <section className="agent-card">
         <form onSubmit={submit}>

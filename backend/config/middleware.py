@@ -2,17 +2,12 @@
 
 
 class UploadedFileHeadersMiddleware:
-    """Make sure an uploaded file is downloaded, never rendered.
+    """Harden every response under MEDIA_URL, whoever produced it.
 
-    Uploads are served from the same origin as the portal, so a file the browser
-    decides to render runs with the portal's origin: it can read that person's
-    storage and call the API as them. The upload validator already refuses
-    anything that is not a document, but that is one check, and a single missed
-    case should not be enough on its own.
-
-    So every response under MEDIA_URL is marked as an attachment and told not to
-    be sniffed. A PDF or an image still opens fine from the download; nothing
-    executes in the page's origin either way.
+    The media view (config/media.py) sets its own headers so a PDF or image can
+    be shown inline in the portal. This is the backstop for anything else that
+    answers under that prefix: never sniffed, never cached by a shared cache, and
+    downloaded rather than rendered unless the view has already said otherwise.
 
     On a deployment where the web server serves media directly this middleware
     never sees those requests, so the same two headers belong in that server's

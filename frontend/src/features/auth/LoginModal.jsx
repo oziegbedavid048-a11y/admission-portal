@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Modal from '../../components/ui/Modal';
-import Icon from '../../lib/icons';
 import { errorMessage } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
@@ -27,7 +26,9 @@ export default function LoginModal({ open, onClose }) {
       onClose?.();
       setPassword('');
       toast.success(`Welcome back, ${(user.full_name || '').split(' ')[0] || 'there'}.`);
-      navigate(user.role === 'agent' ? '/agent' : '/portal');
+      navigate(
+        user.role === 'agent' ? '/agent' : user.role === 'supervisor' ? '/sales-manager' : '/portal',
+      );
     } catch (error) {
       toast.error(errorMessage(error, 'Those details do not match an account.'));
     } finally {
@@ -39,7 +40,7 @@ export default function LoginModal({ open, onClose }) {
     <Modal
       open={open}
       onClose={onClose}
-      title="Applicant sign in"
+      title="Sign in"
       labelledBy="login-modal-title"
     >
       <form onSubmit={submit}>
@@ -81,13 +82,19 @@ export default function LoginModal({ open, onClose }) {
         </button>
       </form>
 
-      <div className="callout callout-info" style={{ marginTop: 24, marginBottom: 0 }}>
-        <Icon name="info" size={20} className="callout-icon" strokeWidth={2} />
-        <div className="callout-content" style={{ fontSize: '0.8125rem' }}>
-          <strong>First time here?</strong> Your password is emailed to you when your
-          application is submitted. Check your inbox for it.
-        </div>
-      </div>
+      <p className="gx-auth-foot">
+        New to Gabstep?{' '}
+        <button
+          type="button"
+          className="gx-link"
+          onClick={() => {
+            onClose?.();
+            navigate('/signup');
+          }}
+        >
+          Create an account
+        </button>
+      </p>
     </Modal>
   );
 }

@@ -36,7 +36,7 @@ export function ApplicationProvider({ children }) {
   // without being told to refresh.
   useLiveRefresh(() => {
     reload().catch(() => {});
-  }, { intervalMs: 15000 });
+  }, { intervalMs: 8000 });
 
   const value = useMemo(
     () => ({ application, setApplication, loading, missing, reload }),

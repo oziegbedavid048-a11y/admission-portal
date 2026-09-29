@@ -151,19 +151,19 @@ class SupervisorOverviewView(SupervisorScopedMixin, APIView):
             if getattr(s, "payment", None) and s.payment.status == Payment.Status.PAID
         ]
 
-        pipeline = {
-            "awaiting_fee": len(students) - len(paid),
-            "in_review": sum(
-                1
-                for s in students
-                if s.status
-                in (Application.Status.SUBMITTED, Application.Status.IN_REVIEW)
-                and getattr(s, "payment", None)
-                and s.payment.status == Payment.Status.PAID
-            ),
-            "admitted": len(admitted) - len(visas),
-            "visa_verified": len(visas),
-        }
+        # One stage per student, the furthest reached, so the stages add up to
+        # the number of students and none can go negative.
+        pipeline = {"awaiting_fee": 0, "in_review": 0, "admitted": 0, "visa_verified": 0}
+        paid_ids = {s.pk for s in paid}
+        for s in students:
+            if s.visa_status == Application.VisaStatus.COMPLETED:
+                pipeline["visa_verified"] += 1
+            elif s.status == Application.Status.ADMITTED:
+                pipeline["admitted"] += 1
+            elif s.pk not in paid_ids:
+                pipeline["awaiting_fee"] += 1
+            elif s.status in (Application.Status.SUBMITTED, Application.Status.IN_REVIEW):
+                pipeline["in_review"] += 1
 
         team_earned = (
             AgentProfile.objects.filter(supervisor=supervisor).aggregate(

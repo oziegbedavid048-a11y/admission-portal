@@ -1,36 +1,54 @@
-import { useEffect, useState } from 'react';
-import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { Link, NavLink, matchPath, useLocation, useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
 import Icon from '../../lib/icons';
+import UserAvatar from '../ui/UserAvatar';
 
 /**
- * The sidebar-and-topbar frame both portals sit in.
+ * The sidebar-and-topbar frame every portal sits in.
  *
- * The applicant portal and the partner portal are styled by two different
- * stylesheets that use the same structure under different prefixes, so the
- * prefix is a prop rather than two near-identical components.
+ * The applicant portal and the partner portals are styled by two stylesheets
+ * that share one structure under different prefixes, so the prefix is a prop
+ * rather than two near-identical components.
+ *
+ * The top bar names the page you are on, not the product: the product name is
+ * already in the sidebar, and repeating it told nobody where they were. The
+ * profile chip reads the signed-in user, so a new photo shows here the moment
+ * it is saved on any profile page.
  */
 export default function PortalShell({
   prefix = 'portal',
   brandLabel,
-  title,
   nav,
+  profilePath,
   footerSlot,
-  topbarRight,
   onSignOut,
   children,
 }) {
   const [open, setOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
+  const { user } = useAuth();
 
-  const sidebarClass = prefix === 'agent' ? 'agent-sidebar' : 'portal-sidebar';
-  const overlayClass = prefix === 'agent' ? 'agent-sidebar-overlay' : 'portal-sidebar-overlay';
-  const shellClass = prefix === 'agent' ? 'agent-portal-shell' : 'portal-shell';
-  const mainClass = prefix === 'agent' ? 'agent-main' : 'portal-main';
-  const topbarClass = prefix === 'agent' ? 'agent-topbar' : 'portal-topbar';
-  const topbarLeftClass = prefix === 'agent' ? 'agent-topbar-left' : 'portal-topbar-left';
-  const topbarRightClass = prefix === 'agent' ? 'agent-topbar-right' : 'portal-topbar-right';
-  const bodyClass = prefix === 'agent' ? 'agent-page-body' : 'portal-body';
+  const agent = prefix === 'agent';
+  const sidebarClass = agent ? 'agent-sidebar' : 'portal-sidebar';
+  const overlayClass = agent ? 'agent-sidebar-overlay' : 'portal-sidebar-overlay';
+  const shellClass = agent ? 'agent-portal-shell' : 'portal-shell';
+  const mainClass = agent ? 'agent-main' : 'portal-main';
+  const topbarClass = agent ? 'agent-topbar' : 'portal-topbar';
+  const topbarLeftClass = agent ? 'agent-topbar-left' : 'portal-topbar-left';
+  const topbarRightClass = agent ? 'agent-topbar-right' : 'portal-topbar-right';
+  const bodyClass = agent ? 'agent-page-body' : 'portal-body';
+
+  // The page title is the nav item that owns the current address; the most
+  // specific match wins, so /portal/courses is "Courses", not "Overview".
+  const current = useMemo(() => {
+    const items = nav.filter((item) =>
+      matchPath({ path: item.end ? item.to : `${item.to}/*`, end: Boolean(item.end) }, location.pathname),
+    );
+    return items.sort((a, b) => b.to.length - a.to.length)[0] || null;
+  }, [nav, location.pathname]);
+  const pageTitle = current?.title || current?.label || brandLabel;
 
   // Navigating closes the drawer, so a tap on a phone never leaves it hanging
   // open over the page it just opened.
@@ -39,10 +57,8 @@ export default function PortalShell({
   }, [location.pathname]);
 
   useEffect(() => {
-    if (title) {
-      document.title = title;
-    }
-  }, [title]);
+    document.title = `${pageTitle} · Gabstep`;
+  }, [pageTitle]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -54,17 +70,20 @@ export default function PortalShell({
   }, [open]);
 
   return (
-    <section className={prefix === 'agent' ? 'agent-section' : 'dashboard-section'}>
+    <section className={agent ? 'agent-section' : 'dashboard-section'}>
       <div className={shellClass}>
-        <aside className={`${sidebarClass} ${open ? 'open' : ''}`.trim()}>
+        <aside
+          className={`${sidebarClass} ${open ? 'open' : ''}`.trim()}
+          aria-label={`${brandLabel} navigation`}
+        >
           <div className="sidebar-brand">
-            <div className="sidebar-brand-lead">
+            <Link to="/" className="sidebar-brand-lead" aria-label="Gabstep home">
               <img src="/assets/logo.png" alt="" />
               <div className="sidebar-brand-text">
                 Gabstep
                 <span>{brandLabel}</span>
               </div>
-            </div>
+            </Link>
             <button
               type="button"
               className="sidebar-close-btn"
@@ -75,30 +94,31 @@ export default function PortalShell({
             </button>
           </div>
 
-          <ul className="sidebar-nav">
-            {nav.map((item) => (
-              <li className="sidebar-nav-item" key={item.to}>
-                <NavLink
-                  end={item.end}
-                  to={item.to}
-                  className={({ isActive }) =>
-                    `sidebar-nav-link ${isActive ? 'active' : ''}`.trim()
-                  }
-                >
-                  <Icon name={item.icon} size={20} />
-                  <span>{item.label}</span>
-                </NavLink>
-              </li>
-            ))}
-          </ul>
+          <nav>
+            <ul className="sidebar-nav">
+              {nav
+                .filter((item) => !item.hidden)
+                .map((item) => (
+                  <li className="sidebar-nav-item" key={item.to}>
+                    {item.divider ? <div className="sidebar-nav-divider" aria-hidden="true" /> : null}
+                    <NavLink
+                      end={item.end}
+                      to={item.to}
+                      className={({ isActive }) =>
+                        `sidebar-nav-link ${isActive ? 'active' : ''}`.trim()
+                      }
+                    >
+                      <Icon name={item.icon} size={20} />
+                      <span>{item.label}</span>
+                    </NavLink>
+                  </li>
+                ))}
+            </ul>
+          </nav>
 
           <div className="sidebar-foot">
             {footerSlot}
-            <button
-              type="button"
-              className="sidebar-foot-link"
-              onClick={() => navigate('/')}
-            >
+            <button type="button" className="sidebar-foot-link" onClick={() => navigate('/')}>
               <Icon name="home" size={20} />
               <span>Main site</span>
             </button>
@@ -112,25 +132,34 @@ export default function PortalShell({
         <div
           className={`${overlayClass} ${open ? 'active' : ''}`.trim()}
           onClick={() => setOpen(false)}
+          aria-hidden="true"
         />
 
         <div className={mainClass}>
           <header className={topbarClass}>
             <div className={topbarLeftClass}>
               <div className="portal-topbar-brand-wrap">
-                <h1 className="portal-topbar-brand">{title}</h1>
+                <h1 className="portal-topbar-brand">{pageTitle}</h1>
               </div>
             </div>
 
             <div className={topbarRightClass}>
-              {topbarRight}
+              {profilePath ? (
+                <Link className="agent-topbar-profile-btn" to={profilePath} title="Your profile">
+                  <UserAvatar
+                    className="agent-topbar-avatar"
+                    src={user?.avatar}
+                    initials={user?.initials}
+                  />
+                  <span className="agent-topbar-name">{user?.full_name || user?.email}</span>
+                </Link>
+              ) : null}
               <button
                 type="button"
                 className={`btn-sidebar-toggle ${open ? 'is-active' : ''}`}
-                aria-label="Toggle navigation menu"
+                aria-label={open ? 'Close navigation' : 'Open navigation'}
                 aria-expanded={open}
                 onClick={() => setOpen((prev) => !prev)}
-                title="Toggle navigation"
               >
                 <span className="btn-toggle-bars" aria-hidden="true">
                   <span className="toggle-bar bar-top"></span>
@@ -141,7 +170,7 @@ export default function PortalShell({
             </div>
           </header>
 
-          <div className={bodyClass}>{children}</div>
+          <main className={bodyClass}>{children}</main>
         </div>
       </div>
     </section>

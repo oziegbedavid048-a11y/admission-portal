@@ -16,9 +16,29 @@ class OriginCountrySerializer(serializers.ModelSerializer):
 
 
 class DestinationCountrySerializer(serializers.ModelSerializer):
+    # How much is on offer there, so the course browser can show it before
+    # anyone picks the country, and skip countries with nothing to apply to.
+    institution_count = serializers.SerializerMethodField()
+    program_count = serializers.SerializerMethodField()
+
     class Meta:
         model = DestinationCountry
-        fields = ("id", "name", "code", "currency", "currency_symbol", "is_european")
+        fields = (
+            "id",
+            "name",
+            "code",
+            "currency",
+            "currency_symbol",
+            "is_european",
+            "institution_count",
+            "program_count",
+        )
+
+    def get_institution_count(self, obj):
+        return obj.institutions.filter(is_active=True).count()
+
+    def get_program_count(self, obj):
+        return Program.objects.filter(institution__country=obj, institution__is_active=True).count()
 
 
 class ProgramSerializer(serializers.ModelSerializer):
@@ -106,6 +126,12 @@ class ProgramCatalogSerializer(serializers.ModelSerializer):
     application_fee = serializers.DecimalField(
         source="institution.application_fee", max_digits=10, decimal_places=2, read_only=True
     )
+    # The fee is quoted in its own currency, which is usually not the currency the
+    # school charges tuition in. Labelling it with `currency` turned ₦200,000 into
+    # "EUR 200,000" on the course list.
+    application_fee_currency = serializers.CharField(
+        source="institution.application_fee_currency", read_only=True
+    )
     is_fee_free = serializers.BooleanField(source="institution.is_fee_free", read_only=True)
     badge = serializers.CharField(source="institution.badge", read_only=True)
 
@@ -128,6 +154,7 @@ class ProgramCatalogSerializer(serializers.ModelSerializer):
             "country",
             "currency",
             "application_fee",
+            "application_fee_currency",
             "is_fee_free",
             "badge",
         )

@@ -240,11 +240,11 @@ export default function CorrectionBottomSheetModal({
         <div className="corr-section">
           <div className="corr-sec-head">
             <Icon name="user" size={16} />
-            <h4>Personal Information</h4>
+            <h4>Personal information</h4>
           </div>
           <div className="corr-form-grid">
             <div className="corr-field">
-              <label htmlFor="corr_full_name">Legal Full Name</label>
+              <label htmlFor="corr_full_name">Legal full name</label>
               <input
                 type="text"
                 id="corr_full_name"
@@ -256,7 +256,7 @@ export default function CorrectionBottomSheetModal({
             </div>
 
             <div className="corr-field">
-              <label htmlFor="corr_email">Email Address</label>
+              <label htmlFor="corr_email">Email address</label>
               <input
                 type="email"
                 id="corr_email"
@@ -268,7 +268,7 @@ export default function CorrectionBottomSheetModal({
             </div>
 
             <div className="corr-field">
-              <label htmlFor="corr_phone">Phone Number</label>
+              <label htmlFor="corr_phone">Phone number</label>
               <input
                 type="tel"
                 id="corr_phone"
@@ -280,7 +280,7 @@ export default function CorrectionBottomSheetModal({
             </div>
 
             <div className="corr-field">
-              <label htmlFor="corr_address">Residential Address</label>
+              <label htmlFor="corr_address">Residential address</label>
               <input
                 type="text"
                 id="corr_address"
@@ -302,7 +302,7 @@ export default function CorrectionBottomSheetModal({
             </div>
 
             <div className="corr-field">
-              <label htmlFor="corr_destination">Destination Country</label>
+              <label htmlFor="corr_destination">Destination country</label>
               <input
                 type="text"
                 id="corr_destination"
@@ -318,17 +318,17 @@ export default function CorrectionBottomSheetModal({
         <div className="corr-section">
           <div className="corr-sec-head">
             <Icon name="cap" size={16} />
-            <h4>Academic Background</h4>
+            <h4>Academic background</h4>
           </div>
           <div className="corr-form-grid">
             <div className="corr-field">
-              <label htmlFor="corr_qualification">Highest Qualification</label>
+              <label htmlFor="corr_qualification">Highest qualification</label>
               <select
                 id="corr_qualification"
                 value={form.qualification}
                 onChange={(e) => setForm({ ...form, qualification: e.target.value })}
               >
-                <option value="">Select Qualification</option>
+                <option value="">Select qualification</option>
                 {QUALIFICATIONS.map((q) => (
                   <option key={q} value={q}>
                     {q}
@@ -349,7 +349,7 @@ export default function CorrectionBottomSheetModal({
             </div>
 
             <div className="corr-field">
-              <label htmlFor="corr_year">Year Graduated</label>
+              <label htmlFor="corr_year">Year graduated</label>
               <input
                 type="number"
                 id="corr_year"
@@ -378,7 +378,7 @@ export default function CorrectionBottomSheetModal({
         <div className="corr-section">
           <div className="corr-sec-head">
             <Icon name="document" size={16} />
-            <h4>University & Course Selection</h4>
+            <h4>University & course selection</h4>
           </div>
           <div className="corr-form-grid">
             <div className="corr-field corr-field-full">
@@ -409,7 +409,7 @@ export default function CorrectionBottomSheetModal({
         <div className="corr-section">
           <div className="corr-sec-head">
             <Icon name="fileText" size={16} />
-            <h4>Reason & Supporting Evidence</h4>
+            <h4>Reason & supporting evidence</h4>
           </div>
 
           <div className="corr-form-grid">

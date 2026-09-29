@@ -3,14 +3,13 @@ import { Link, useParams, useSearchParams } from 'react-router-dom';
 import SiteHeader from '../../components/layout/SiteHeader';
 import Icon from '../../lib/icons';
 import { payments } from '../../api/endpoints';
+import { useAuth } from '../../context/AuthContext';
 
 /**
  * Where Paystack sends the applicant back to.
  *
- * Reached without a session, on purpose. The account's password was emailed and
- * never chosen, so nobody has signed in: this page confirms the payment and sends
- * them to the sign-in screen with the details from their inbox. It does not put
- * them inside a dashboard for an account they have not logged into.
+ * Reachable without a session, so a payment made on one device can still be
+ * confirmed on another; a signed-in applicant is offered their dashboard.
  *
  * The browser is not told whether the payment succeeded, and could not be trusted
  * if it were: it asks the server, and the server asks Paystack. Paystack's webhook
@@ -27,6 +26,7 @@ const GAP_MS = 2500;
 
 export default function PaymentReturnPage() {
   const { reference } = useParams();
+  const { user } = useAuth();
   const [params] = useSearchParams();
   const gatewayReference = params.get('reference') || params.get('trxref') || '';
 
@@ -61,6 +61,18 @@ export default function PaymentReturnPage() {
     return () => window.clearTimeout(timer.current);
   }, [poll]);
 
+  const continueLink = user ? (
+    <Link to="/portal" className="btn btn-accent btn-lg">
+      Go to my dashboard
+      <Icon name="arrowRight" size={16} strokeWidth={2} />
+    </Link>
+  ) : (
+    <Link to="/" state={{ signIn: true }} className="btn btn-accent btn-lg">
+      <Icon name="signIn" size={16} strokeWidth={2} />
+      Sign in
+    </Link>
+  );
+
   return (
     <>
       <SiteHeader />
@@ -89,33 +101,7 @@ export default function PaymentReturnPage() {
                   the admissions desk.
                 </p>
 
-                {result?.credentials_sent === false ? (
-                  <div className="callout callout-warning return-callout">
-                    <Icon name="alert" size={20} className="callout-icon" strokeWidth={2} />
-                    <div className="callout-content">
-                      <strong>Your sign-in details are on their way.</strong> We could
-                      not send them this moment. Your payment and your application are
-                      both recorded, and the admissions desk will email your login
-                      shortly. Quote {result?.application || reference} if you need to
-                      contact us.
-                    </div>
-                  </div>
-                ) : (
-                  <div className="callout callout-success return-callout">
-                    <Icon name="mail" size={20} className="callout-icon" strokeWidth={2} />
-                    <div className="callout-content">
-                      <strong>Your login details have been sent to your email.</strong>{' '}
-                      Check your inbox, then sign in to track your application and
-                      download any letters we issue. You can change the password from
-                      your profile.
-                    </div>
-                  </div>
-                )}
-
-                <Link to="/?signin=1" className="btn btn-accent btn-lg">
-                  <Icon name="signIn" size={16} strokeWidth={2} />
-                  Go to login
-                </Link>
+                {continueLink}
               </>
             ) : null}
 
@@ -127,13 +113,10 @@ export default function PaymentReturnPage() {
                 <h1 className="return-title">Still settling</h1>
                 <p className="return-note">
                   Your bank has not confirmed this one yet. Nothing is lost and you do
-                  not need to pay again: it clears on its own, and we email your
-                  sign-in details the moment it does.
+                  not need to pay again: it clears on its own, and your dashboard
+                  updates the moment it does.
                 </p>
-                <Link to="/" className="btn btn-accent btn-lg">
-                  Back to the site
-                  <Icon name="arrowRight" size={16} strokeWidth={2} />
-                </Link>
+                {continueLink}
               </>
             ) : null}
 
@@ -144,14 +127,11 @@ export default function PaymentReturnPage() {
                 </span>
                 <h1 className="return-title">We could not check just now</h1>
                 <p className="return-note">
-                  Your payment may well have gone through. We email your sign-in
-                  details once it clears. Get in touch if nothing arrives in a few
-                  minutes, quoting {reference}.
+                  Your payment may well have gone through. Your dashboard shows it
+                  once it clears. If it does not within a few minutes, contact
+                  Support quoting {reference}.
                 </p>
-                <Link to="/" className="btn btn-accent btn-lg">
-                  Back to the site
-                  <Icon name="arrowRight" size={16} strokeWidth={2} />
-                </Link>
+                {continueLink}
               </>
             ) : null}
           </div>

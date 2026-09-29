@@ -12,12 +12,6 @@ export default function LettersPanel() {
 
   return (
     <div className="portal-stack letters-clean-container">
-      <div className="letter-header-row">
-        <div>
-          <h2 className="letter-page-title">Letters</h2>
-          <p className="letter-page-subtitle">Official letters and admissions correspondence</p>
-        </div>
-      </div>
 
       {letters.length === 0 ? (
         <section className="card letter-empty-card">
@@ -105,7 +99,7 @@ export default function LettersPanel() {
                       rel="noopener noreferrer"
                     >
                       <Icon name="download" size={16} strokeWidth={2.2} />
-                      <span>Download Letter</span>
+                      <span>Download</span>
                     </a>
                   ) : null}
                 </div>

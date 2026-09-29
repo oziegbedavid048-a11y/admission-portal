@@ -10,6 +10,7 @@ from django.utils import timezone
 from apps.catalog.models import DestinationCountry, Institution, OriginCountry, Program
 
 from .constants import DEFAULT_STAGES
+from .uploads import correction_upload_path, document_upload_path, letter_upload_path
 
 
 def generate_reference():
@@ -208,7 +209,7 @@ class Application(models.Model):
         checkpoints = [
             {
                 "key": "payment",
-                "label": "Application Fee Clearance",
+                "label": "Application fee",
                 "verified": bool(
                     self.payment_verified
                     or (hasattr(self, "payment") and getattr(self, "payment") and getattr(self.payment, "status", "") == "paid")
@@ -217,19 +218,19 @@ class Application(models.Model):
             },
             {
                 "key": "personal",
-                "label": "Personal Profile",
+                "label": "Personal details",
                 "verified": bool(self.personal_details_verified),
                 "description": "Full name, contact details, address, and nationality verified.",
             },
             {
                 "key": "academic",
-                "label": "Academic & Institution",
+                "label": "Academic details",
                 "verified": bool(self.academic_details_verified),
                 "description": "Prior academic qualifications, target university, and program selection verified.",
             },
             {
                 "key": "documents",
-                "label": "Uploaded Credentials",
+                "label": "Uploaded documents",
                 "verified": bool(self.documents_verified),
                 "description": "International passport data page, transcripts, and supporting documents verified.",
             },
@@ -326,7 +327,7 @@ class Document(models.Model):
     )
     kind = models.CharField(max_length=16, choices=Kind.choices, default=Kind.OTHER)
     name = models.CharField(max_length=160)
-    file = models.FileField(upload_to="documents/%Y/%m/", blank=True, null=True)
+    file = models.FileField(upload_to=document_upload_path, blank=True, null=True)
     original_filename = models.CharField(max_length=250, blank=True)
     size_bytes = models.PositiveBigIntegerField(default=0)
     status = models.CharField(
@@ -392,7 +393,7 @@ class CorrectionRequest(models.Model):
     current_value = models.CharField(max_length=250, blank=True)
     corrected_value = models.CharField(max_length=250)
     reason = models.TextField()
-    evidence = models.FileField(upload_to="corrections/%Y/%m/", blank=True, null=True)
+    evidence = models.FileField(upload_to=correction_upload_path, blank=True, null=True)
     status = models.CharField(
         max_length=12, choices=Status.choices, default=Status.OPEN
     )
@@ -450,7 +451,7 @@ class Letter(models.Model):
     title = models.CharField(
         max_length=160, help_text="What the applicant sees, e.g. 'Conditional offer'."
     )
-    file = models.FileField(upload_to="letters/%Y/%m/")
+    file = models.FileField(upload_to=letter_upload_path)
     note = models.TextField(
         blank=True, help_text="Optional context shown beneath the title."
     )

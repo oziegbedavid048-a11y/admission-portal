@@ -188,7 +188,7 @@ export default function AdmissionCelebrationModal({
           autoFocus
         >
           <Icon name="mail" size={20} />
-          <span>Open Admission Letter</span>
+          <span>Open admission letter</span>
           <span className="celebration-btn-arrow">&rarr;</span>
         </button>
       </div>

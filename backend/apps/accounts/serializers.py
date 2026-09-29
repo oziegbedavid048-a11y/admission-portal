@@ -5,7 +5,7 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 from apps.partners.models import AgentProfile, SupervisorProfile, Wallet
 
-from .models import User
+from .models import SupportTicket, User
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -66,7 +66,9 @@ class ApplicantRegistrationSerializer(serializers.ModelSerializer):
         if send_email:
             try:
                 from .emails import send_applicant_welcome_email
-                send_applicant_welcome_email(user, password=raw_password)
+                # They chose this password themselves, so it is never sent back
+                # to them: the email only confirms the account exists.
+                send_applicant_welcome_email(user)
             except Exception as exc:
                 import logging
                 logging.getLogger(__name__).error("Failed to send applicant welcome email: %s", exc)
@@ -185,3 +187,43 @@ class GabstepTokenObtainPairSerializer(TokenObtainPairSerializer):
         data = super().validate(attrs)
         data["user"] = UserSerializer(self.user, context=self.context).data
         return data
+
+
+class SupportTicketSerializer(serializers.ModelSerializer):
+    """A message from the Support page. The sender is whoever is signed in."""
+
+    topic_display = serializers.CharField(source="get_topic_display", read_only=True)
+    status_display = serializers.CharField(source="get_status_display", read_only=True)
+
+    class Meta:
+        model = SupportTicket
+        fields = (
+            "reference",
+            "topic",
+            "topic_display",
+            "subject",
+            "message",
+            "attachment",
+            "status",
+            "status_display",
+            "emailed",
+            "created_at",
+        )
+        read_only_fields = ("reference", "status", "emailed", "created_at")
+
+    def validate_subject(self, value):
+        value = value.strip()
+        if len(value) < 3:
+            raise serializers.ValidationError("Add a short subject.")
+        return value
+
+    def validate_message(self, value):
+        value = value.strip()
+        if len(value) < 10:
+            raise serializers.ValidationError("Tell us a little more, so we can help.")
+        return value
+
+    def validate_attachment(self, value):
+        from apps.applications.uploads import validate_upload
+
+        return validate_upload(value, 5)

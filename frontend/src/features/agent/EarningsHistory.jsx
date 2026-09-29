@@ -21,11 +21,11 @@ export default function EarningsHistory({ commissions = [], wallet }) {
       {/* Top Balance & Settlement Header */}
       <div className="eh-header-row">
         <div className="eh-balance-col">
-          <span className="eh-balance-sub">Available Balance</span>
+          <span className="eh-balance-sub">Available balance</span>
           <span className="eh-balance-val">{formatNaira(available)}</span>
         </div>
         <div className="eh-balance-col text-right">
-          <span className="eh-balance-sub">Total Earned</span>
+          <span className="eh-balance-sub">Total earned</span>
           <span className="eh-balance-val is-earned">{formatNaira(totalEarned)}</span>
         </div>
       </div>
