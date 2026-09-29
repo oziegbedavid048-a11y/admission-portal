@@ -43,7 +43,31 @@ def user_from_token(token):
 
 
 def send_verification(user):
+    """Send the link and report whether the mail provider accepted it."""
     from .emails import _url, send_verification_email
 
     link = _url(f"/verify-email?token={make_token(user)}")
-    return send_verification_email(user, link, max(1, max_age() // 3600))
+    return bool(send_verification_email(user, link, max(1, max_age() // 3600)))
+
+
+def send_or_waive(user):
+    """Send the verification link; if it cannot be sent, do not lock them out.
+
+    Verification protects against typos and fake addresses, but it must never
+    turn a mail outage into an account nobody can open. When the provider
+    refuses the message, the address is accepted as it stands, the person can
+    sign in straight away, and the reason is logged for the desk to fix.
+    Returns True when a link is on its way and the person must confirm.
+    """
+    import logging
+
+    if send_verification(user):
+        return True
+    logging.getLogger(__name__).error(
+        "Verification email to %s could not be sent; the account was opened without it.",
+        user.email,
+    )
+    if not user.email_verified:
+        user.email_verified = True
+        user.save(update_fields=["email_verified"])
+    return False

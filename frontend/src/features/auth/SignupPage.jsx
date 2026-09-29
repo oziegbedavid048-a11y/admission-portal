@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import SiteHeader from '../../components/layout/SiteHeader';
 import SearchableSelect from '../../components/ui/SearchableSelect';
 import { errorMessage, fieldErrors } from '../../api/client';
@@ -32,6 +32,7 @@ export default function SignupPage({ onOpenLogin }) {
   const { user, isAgent, isSupervisor, registerApplicant } = useAuth();
   const { originNames } = useCatalog();
   const toast = useToast();
+  const navigate = useNavigate();
 
   useEffect(() => {
     document.title = 'Create account · Gabstep';
@@ -79,6 +80,10 @@ export default function SignupPage({ onOpenLogin }) {
         country: form.country,
         password: form.password,
       });
+      if (created?.signedIn) {
+        navigate('/portal', { replace: true });
+        return;
+      }
       setSentTo(created?.email || form.email.trim().toLowerCase());
     } catch (error) {
       const fields = fieldErrors(error);

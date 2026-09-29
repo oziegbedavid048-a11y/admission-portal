@@ -13,7 +13,6 @@ import DetailsPanel from './DetailsPanel';
 import LettersPanel from './LettersPanel';
 import OverviewPanel from './OverviewPanel';
 import ProfilePanel from './ProfilePanel';
-import WelcomePanel from './WelcomePanel';
 
 /**
  * The applicant's dashboard.
@@ -90,7 +89,7 @@ function PortalRoutes() {
       ) : null}
 
       <Routes>
-        <Route index element={application ? <OverviewPanel /> : <WelcomePanel />} />
+        <Route index element={<OverviewPanel />} />
         <Route path="courses" element={<CoursesPanel />} />
         <Route path="apply" element={<ApplyPanel />} />
         <Route path="details" element={application ? <DetailsPanel /> : <Navigate to="/portal" replace />} />

@@ -67,11 +67,7 @@ class ApplicantRegistrationSerializer(serializers.ModelSerializer):
         user = User.objects.create_user(
             role=User.Role.APPLICANT, email_verified=False, **validated_data
         )
-        if send_email:
-            # The welcome email follows once the address is confirmed.
-            from .verification import send_verification
-
-            send_verification(user)
+        # The verification email is sent by the view once the account exists.
         return user
 
 
@@ -144,11 +140,7 @@ class AgentRegistrationSerializer(serializers.Serializer):
             supervisor=validated_data.get("agent_code"),
         )
         Wallet.objects.create(agent=profile)
-        # The welcome email follows once the address is confirmed. Sent after the
-        # transaction commits, so a sign-up that rolls back sends nothing.
-        from .verification import send_verification
-
-        transaction.on_commit(lambda: send_verification(user))
+        # The verification email is sent by the view once the account exists.
         return user
 
 
@@ -173,6 +165,22 @@ class PasswordChangeSerializer(serializers.Serializer):
         return user
 
 
+def _still_waiting(user):
+    """Whether an unconfirmed account must keep waiting for its link.
+
+    Signing in resends the link (at most once a minute). If the mail provider
+    refuses it, the account is opened rather than left locked; see
+    verification.send_or_waive.
+    """
+    from django.core.cache import cache
+
+    from .verification import send_or_waive
+
+    if not cache.add(f"verify-on-login:{user.pk}", 1, 60):
+        return True
+    return send_or_waive(user)
+
+
 class GabstepTokenObtainPairSerializer(TokenObtainPairSerializer):
     """Adds the role to the token payload and the user object to the response."""
 
@@ -188,7 +196,7 @@ class GabstepTokenObtainPairSerializer(TokenObtainPairSerializer):
         data = super().validate(attrs)
         # Checked after the password, so this never tells a stranger whether an
         # address is registered.
-        if not self.user.email_verified:
+        if not self.user.email_verified and _still_waiting(self.user):
             raise PermissionDenied(
                 {
                     "detail": "Confirm your email address first. We sent you a link when you signed up.",

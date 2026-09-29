@@ -559,6 +559,7 @@ def send_verification_email(user, link, hours):
             "you can ignore this email.",
         ],
         action=("Confirm my email address", link),
+        wait=True,
     )
 
 

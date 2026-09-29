@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, Navigate } from 'react-router-dom';
+import { Link, Navigate, useNavigate } from 'react-router-dom';
 import SiteHeader from '../../components/layout/SiteHeader';
 import PasswordField, { passwordChecks } from '../../components/ui/PasswordField';
 import SearchableSelect from '../../components/ui/SearchableSelect';
@@ -46,6 +46,7 @@ export default function AgentRegisterPage() {
   const [sentTo, setSentTo] = useState('');
   const { user, isAgent, isSupervisor, registerAgent } = useAuth();
   const toast = useToast();
+  const navigate = useNavigate();
 
   useEffect(() => {
     document.title = 'Create agent account · Gabstep';
@@ -98,6 +99,10 @@ export default function AgentRegisterPage() {
         account_name: form.account_name.trim(),
         agent_code: form.agent_code.trim().toUpperCase(),
       });
+      if (created?.signedIn) {
+        navigate('/agent', { replace: true });
+        return;
+      }
       setSentTo(created?.email || form.email.trim().toLowerCase());
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (error) {

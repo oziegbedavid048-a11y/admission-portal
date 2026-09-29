@@ -71,15 +71,25 @@ export function AuthProvider({ children }) {
   // Signing up does not sign anyone in: the account waits for its email to be
   // confirmed. Both return the server's answer, which names the address the
   // confirmation link went to.
-  const registerApplicant = useCallback(async (payload) => {
-    const { data } = await auth.registerApplicant(payload);
-    return data;
-  }, []);
+  // When the confirmation email cannot be sent, the server opens the account
+  // and returns a session instead; that is adopted and reported as signedIn.
+  const registerApplicant = useCallback(
+    async (payload) => {
+      const { data } = await auth.registerApplicant(payload);
+      if (data?.access) adopt(data);
+      return { ...data, signedIn: Boolean(data?.access) };
+    },
+    [adopt],
+  );
 
-  const registerAgent = useCallback(async (payload) => {
-    const { data } = await auth.registerAgent(payload);
-    return data;
-  }, []);
+  const registerAgent = useCallback(
+    async (payload) => {
+      const { data } = await auth.registerAgent(payload);
+      if (data?.access) adopt(data);
+      return { ...data, signedIn: Boolean(data?.access) };
+    },
+    [adopt],
+  );
 
   /** Open a verification link: the server confirms it and starts a session. */
   const verifyEmail = useCallback(

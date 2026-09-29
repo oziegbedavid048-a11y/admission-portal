@@ -131,7 +131,7 @@ class ApplicantRegisterView(generics.CreateAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
-        return verification_pending(user)
+        return verification_pending(user, request=request)
 
 
 class AgentRegisterView(generics.CreateAPIView):
@@ -143,7 +143,7 @@ class AgentRegisterView(generics.CreateAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
-        return verification_pending(user)
+        return verification_pending(user, request=request)
 
 
 class MeView(generics.RetrieveUpdateAPIView):
@@ -318,8 +318,19 @@ class PasswordResetConfirmView(APIView):
         return Response({"detail": "Your password has been changed.", "role": user.role})
 
 
-def verification_pending(user):
-    """What a sign-up answers: no session yet, just where the link went."""
+def verification_pending(user, request=None):
+    """What a sign-up answers.
+
+    Normally: no session yet, just where the confirmation link went. If the
+    link could not be sent, the account is opened anyway and the person is
+    signed in, so a mail outage never locks anyone out.
+    """
+    from .verification import send_or_waive
+
+    if not send_or_waive(user):
+        response = session_response(user, request=request, status_code=status.HTTP_201_CREATED)
+        response.data["verification_required"] = False
+        return response
     return Response(
         {
             "detail": "Check your email to confirm your address.",

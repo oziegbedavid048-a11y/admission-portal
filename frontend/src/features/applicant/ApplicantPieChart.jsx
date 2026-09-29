@@ -39,7 +39,7 @@ const CHECKPOINTS = [
   },
 ];
 
-export default function ApplicantPieChart({ application = {}, documents = [] }) {
+export default function ApplicantPieChart({ application = {}, documents = [], hasApplication = true }) {
   const [hoveredIndex, setHoveredIndex] = useState(null);
 
   const currentStatus =
@@ -60,9 +60,7 @@ export default function ApplicantPieChart({ application = {}, documents = [] }) 
     const cleared = {
       payment: Boolean(
         application?.payment_verified ||
-          application?.payment?.status === 'paid' ||
-          (application?.payment?.display_total &&
-            !application.payment.display_total.includes('Not paid')) ||
+          ['paid', 'waived'].includes(application?.payment?.status) ||
           checkpoint('payment'),
       ),
       personal: Boolean(application?.personal_details_verified || checkpoint('personal')),
@@ -194,8 +192,11 @@ export default function ApplicantPieChart({ application = {}, documents = [] }) 
       </div>
 
       <div className="applicant-pie-action">
-        <Link to="/portal/details" className="g-btn g-btn-primary g-btn-sm applicant-pie-cta">
-          {audit.isFullyVerified ? 'View verified details' : 'Review your details'}
+        <Link
+          to={hasApplication ? '/portal/details' : '/portal/courses'}
+          className="g-btn g-btn-primary g-btn-sm applicant-pie-cta"
+        >
+          {!hasApplication ? 'Start an application' : audit.isFullyVerified ? 'View verified details' : 'Review your details'}
           <Icon name="arrowRight" size={15} strokeWidth={2.2} />
         </Link>
       </div>

@@ -6,12 +6,26 @@ import { useToast } from '../../context/ToastContext';
 import Icon from '../../lib/icons';
 import { firstNameOf, timeAgo } from '../../lib/format';
 import { useApplication } from './ApplicationContext';
+import { useAuth } from '../../context/AuthContext';
+
+// The five stages every application moves through, shown as upcoming before
+// there is an application, so the timeline is never an empty box.
+const STAGE_NAMES = [
+  'Submitted & payment confirmed',
+  'Document verification',
+  'Institution review',
+  'Offer letter decision',
+  'Visa guidance & enrolment',
+];
 import ApplicantPieChart from './ApplicantPieChart';
 import WeatherBanner from '../../components/ui/WeatherBanner';
 
 export default function OverviewPanel() {
-  const { application } = useApplication();
+  const { application: current } = useApplication();
+  const { user } = useAuth();
   const toast = useToast();
+  const hasApplication = Boolean(current);
+  const application = current || {};
   const [paying, setPaying] = useState(false);
 
   const payment = application.payment;
@@ -42,14 +56,31 @@ export default function OverviewPanel() {
     }
   };
 
-  const stages = application.stages || [];
+  const stages = hasApplication
+    ? application.stages || []
+    : STAGE_NAMES.map((name) => ({ name, status: 'Pending' }));
   const liveIndex = Math.max(0, application.current_stage_index || 0);
   const notifications = application.notifications || [];
 
   return (
     <div className="portal-stack">
       {/* ── Weather Dynamic Greeting Banner ── */}
-      <WeatherBanner userName={firstNameOf(application.full_name)} />
+      <WeatherBanner userName={firstNameOf(application.full_name || user?.full_name)} />
+
+      {hasApplication ? null : (
+        <section className="gx-card gx-welcome">
+          <div>
+            <h2>Find your course</h2>
+            <p className="gx-muted">
+              Choose a country and a university, compare tuition and start dates, then apply.
+            </p>
+          </div>
+          <Link to="/portal/courses" className="gx-btn gx-btn-primary gx-btn-lg">
+            Browse courses
+            <Icon name="arrowRight" size={17} strokeWidth={2} />
+          </Link>
+        </section>
+      )}
 
       {feeDue ? (
         <section className="gx-card gx-welcome">
@@ -69,7 +100,7 @@ export default function OverviewPanel() {
       <div className="stat-row">
         <div className="stat">
           <div className="stat-label">Documents</div>
-          <div className="stat-value">{application.documents.length}</div>
+          <div className="stat-value">{(application.documents || []).length}</div>
         </div>
         <div className="stat">
           <div className="stat-label">Application fee</div>
@@ -77,7 +108,7 @@ export default function OverviewPanel() {
         </div>
         <div className="stat">
           <div className="stat-label">Destination</div>
-          <div className="stat-value">{application.destination_country || 'Not set'}</div>
+          <div className="stat-value">{application.destination_country || 'Not chosen'}</div>
         </div>
       </div>
 
@@ -94,6 +125,7 @@ export default function OverviewPanel() {
             <ApplicantPieChart
               application={application}
               documents={application.documents || []}
+              hasApplication={hasApplication}
             />
           </section>
 
@@ -102,14 +134,14 @@ export default function OverviewPanel() {
             <div className="card-head">
               <h2>Application timeline</h2>
               <span className="card-note">
-                Stage {liveIndex + 1} of {stages.length}
+                {hasApplication ? `Stage ${liveIndex + 1} of ${stages.length}` : 'Starts when you apply'}
               </span>
             </div>
 
             <div className="app-timeline-box">
               {stages.map((stage, idx) => {
                 const isDone = stage.status === 'Completed';
-                const isLive = stage.status === 'In Progress' || idx === liveIndex;
+                const isLive = hasApplication && (stage.status === 'In Progress' || idx === liveIndex);
                 const statusClass = isDone ? 'is-done' : isLive ? 'is-live' : 'is-pending';
 
                 return (
@@ -146,26 +178,28 @@ export default function OverviewPanel() {
           <section className="card">
             <div className="card-head">
               <h2>Programme details</h2>
-              <Link className="g-btn g-btn-plain g-btn-sm" to="/portal/details">
-                View all
+              <Link className="g-btn g-btn-plain g-btn-sm" to={hasApplication ? '/portal/details' : '/portal/courses'}>
+                {hasApplication ? 'View all' : 'Browse courses'}
               </Link>
             </div>
 
             <div className="app-prog-info-list">
               <div className="app-prog-info-item">
                 <span className="app-prog-info-key">Destination country</span>
-                <span className="app-prog-info-value">{application.destination_country}</span>
+                <span className="app-prog-info-value">{application.destination_country || 'Not chosen yet'}</span>
               </div>
 
               <div className="app-prog-info-item">
                 <span className="app-prog-info-key">Institution</span>
-                <span className="app-prog-info-value">{application.institution?.name || 'Selected University'}</span>
+                <span className="app-prog-info-value">
+                  {application.institution?.name || (application.is_custom_course ? 'To be matched by our team' : 'Not chosen yet')}
+                </span>
               </div>
 
               <div className="app-prog-info-item">
                 <span className="app-prog-info-key">Degree & major</span>
                 <span className="app-prog-info-value">
-                  {application.programs?.map((p) => p.name).join(', ') || 'Undergraduate Programme'}
+                  {application.programs?.map((p) => p.name).join(', ') || application.custom_course_name || 'Not chosen yet'}
                 </span>
               </div>
 
@@ -186,7 +220,9 @@ export default function OverviewPanel() {
             <div className="app-activity-stream">
               {notifications.length === 0 ? (
                 <p className="card-body-text" style={{ margin: 0, padding: '12px 0' }}>
-                  No recent activity updates yet. Milestones and verification notices will appear here.
+                  {hasApplication
+                    ? 'No updates yet. Milestones and verification notices will appear here.'
+                    : 'Nothing yet. Once you apply, every update from the admissions desk appears here.'}
                 </p>
               ) : (
                 notifications.slice(0, 5).map((item) => (
