@@ -140,6 +140,8 @@ export function CourseBrowser({ onApply, applyLabel = 'Apply', canApply = true, 
     () => (countries || []).filter((item) => item.institution_count !== 0),
     [countries],
   );
+  const schoolNames = useMemo(() => (schools || []).map((item) => item.name), [schools]);
+
   const countryOptions = useMemo(() => {
     const first = available.map((item) => item.name);
     return [...first, ...ALL_WORLD_COUNTRIES.filter((name) => !first.includes(name))];
@@ -149,13 +151,14 @@ export function CourseBrowser({ onApply, applyLabel = 'Apply', canApply = true, 
     <div className="gx-page">
       {banner}
 
-      {/* ── 1. Country: one searchable list of every country, with the ones
-          that have partner universities at the top. ── */}
+      {/* ── 1 and 2. Country, then university: two searchable dropdowns. The
+          country list is every country, those with partner universities first;
+          the university list is the partners in the chosen country. ── */}
       <section className="gx-card" aria-labelledby="country-title">
         <div className="gx-card-head">
           <h2 id="country-title" className="gx-card-title">Find a course</h2>
         </div>
-        <div className="gx-country-row">
+        <div className="gx-picker-row">
           <div className="gx-field">
             <span className="gx-label" id="course-country-label">
               Country
@@ -167,77 +170,56 @@ export function CourseBrowser({ onApply, applyLabel = 'Apply', canApply = true, 
               labelledBy="course-country-label"
             />
           </div>
-          {countries !== null && !country ? (
-            <p className="gx-muted gx-small gx-country-hint">
-              {available.length
-                ? `Partner universities in ${available.map((item) => item.name).join(', ')}.`
-                : 'New universities are added regularly.'}
-            </p>
-          ) : null}
+          <div className="gx-field">
+            <span className="gx-label" id="course-school-label">
+              University
+            </span>
+            {country && schools === null ? (
+              <div className="gx-input gx-input-loading" aria-busy="true">
+                <span className="spinner-sm" aria-hidden="true" />
+              </div>
+            ) : (
+              <SearchableSelect
+                options={schoolNames}
+                value={school?.name || ''}
+                onChange={(name) => {
+                  const picked = (schools || []).find((item) => item.name === name);
+                  if (picked) go({ country, school: picked.slug });
+                }}
+                labelledBy="course-school-label"
+              />
+            )}
+          </div>
         </div>
 
-        {country && schoolSlug ? (
-          <nav className="gx-crumbs gx-crumbs-inline" aria-label="Course browser">
-            <ol>
-              <li>
-                <button type="button" className="gx-link" onClick={() => go({ country })}>
-                  Universities in {country}
-                </button>
-              </li>
-              {school ? (
-                <li>
-                  <Icon name="chevronRight" size={14} strokeWidth={2} />
-                  <span aria-current="page">{school.name}</span>
-                </li>
-              ) : null}
-            </ol>
-          </nav>
+        {!country && countries !== null ? (
+          <p className="gx-muted gx-small gx-picker-hint">
+            {available.length
+              ? `Partner universities in ${available.map((item) => item.name).join(', ')}.`
+              : 'New universities are added regularly.'}
+          </p>
+        ) : null}
+
+        {country && schools !== null && schools.length === 0 ? (
+          <div className="gx-empty">
+            <span className="gx-icon-tile" aria-hidden="true">
+              <Icon name="globe" size={22} />
+            </span>
+            <h3>No partner universities in {country} yet</h3>
+            <p className="gx-muted">
+              {available.length
+                ? `Try ${available.map((item) => item.name).join(' or ')}.`
+                : 'New universities are added regularly.'}
+            </p>
+          </div>
+        ) : null}
+
+        {country && schools?.length && !schoolSlug ? (
+          <p className="gx-muted gx-small gx-picker-hint">
+            {schools.length} universit{schools.length === 1 ? 'y' : 'ies'} in {country}. Choose one to see its courses.
+          </p>
         ) : null}
       </section>
-
-      {/* ── 2. University ── */}
-      {country && !schoolSlug ? (
-        <section className="gx-card" aria-labelledby="school-title">
-          <div className="gx-card-head">
-            <h2 id="school-title" className="gx-card-title">Choose a university in {country}</h2>
-          </div>
-          {schools === null ? (
-            <Loading label="Loading universities" />
-          ) : schools.length === 0 ? (
-            <div className="gx-empty">
-              <span className="gx-icon-tile" aria-hidden="true">
-                <Icon name="globe" size={22} />
-              </span>
-              <h3>No partner universities in {country} yet</h3>
-              <p className="gx-muted">
-                {available.length
-                  ? `Try ${available.map((item) => item.name).join(' or ')}.`
-                  : 'New universities are added regularly.'}
-              </p>
-            </div>
-          ) : (
-            <div className="gx-pick-grid gx-pick-grid-wide">
-              {schools.map((item) => (
-                <button key={item.slug} type="button" className="gx-pick gx-pick-school" onClick={() => go({ country, school: item.slug })}>
-                  <span className="gx-pick-badge" aria-hidden="true">
-                    <Icon name="building" size={20} />
-                  </span>
-                  <span className="gx-pick-text">
-                    <strong>{item.name}</strong>
-                    <span>{item.location || country}</span>
-                    <span className="gx-facts">
-                      <span className="gx-fact">{(item.programs || []).length} courses</span>
-                      {item.tuition_summary ? <span className="gx-fact">{item.tuition_summary}</span> : null}
-                      <span className="gx-fact">{feeText(quotes[item.slug], item)}</span>
-                    </span>
-                  </span>
-                  <Icon name="chevronRight" size={18} strokeWidth={2} className="gx-pick-chevron" />
-                </button>
-              ))}
-            </div>
-          )}
-        </section>
-      ) : null}
 
       {/* ── 3. Courses ── */}
       {country && schoolSlug ? (
@@ -306,43 +288,42 @@ export function CourseBrowser({ onApply, applyLabel = 'Apply', canApply = true, 
                   <p className="gx-muted">Try another level, or clear the search.</p>
                 </div>
               ) : (
-                <div className="gx-courses">
-                  {courses.map((course) => (
-                    <article className="gx-course" key={course.id}>
-                      <div>
-                        <h3 className="gx-course-name">{course.name}</h3>
-                        <div className="gx-facts">
-                          <span className="gx-fact">{LEVEL_NAMES[course.level] || 'Programme'}</span>
-                          {course.duration ? (
-                            <span className="gx-fact">
-                              <Icon name="clock" size={13} strokeWidth={2} />
-                              {course.duration}
-                            </span>
+                <div className="gx-table-scroll" role="region" aria-label="Courses" tabIndex={0}>
+                  <table className="gx-table">
+                    <thead>
+                      <tr>
+                        <th scope="col">Course</th>
+                        <th scope="col">Level</th>
+                        <th scope="col">Duration</th>
+                        <th scope="col">Starts</th>
+                        <th scope="col" className="t-num">Tuition / year</th>
+                        {canApply ? <th scope="col"><span className="sr-only">Action</span></th> : null}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {courses.map((course) => (
+                        <tr key={course.id}>
+                          <th scope="row" className="gx-table-course">
+                            <span className="gx-table-name">{course.name}</span>
+                            {course.scholarship ? <span className="gx-table-sub">{course.scholarship}</span> : null}
+                          </th>
+                          <td>{LEVEL_NAMES[course.level] || 'Programme'}</td>
+                          <td>{course.duration || '—'}</td>
+                          <td>{course.intake || '—'}</td>
+                          <td className="t-num gx-table-money">
+                            {course.tuition ? formatTuition(course.tuition, school.currency).replace(' / year', '') : 'On request'}
+                          </td>
+                          {canApply ? (
+                            <td className="gx-table-action">
+                              <button type="button" className="gx-btn gx-btn-primary gx-btn-sm" onClick={() => apply(course)}>
+                                {applyLabel}
+                              </button>
+                            </td>
                           ) : null}
-                          {course.intake ? (
-                            <span className="gx-fact">
-                              <Icon name="calendar" size={13} strokeWidth={2} />
-                              Starts {course.intake}
-                            </span>
-                          ) : null}
-                        </div>
-                        {course.scholarship ? <p className="gx-muted gx-small gx-course-note">{course.scholarship}</p> : null}
-                      </div>
-
-                      <div className="gx-course-side">
-                        <div className="gx-tuition">
-                          {course.tuition ? formatTuition(course.tuition, school.currency) : 'Tuition on request'}
-                          <small>Tuition</small>
-                        </div>
-                        {canApply ? (
-                          <button type="button" className="gx-btn gx-btn-primary gx-btn-sm" onClick={() => apply(course)}>
-                            {applyLabel}
-                            <Icon name="arrowRight" size={15} strokeWidth={2} />
-                          </button>
-                        ) : null}
-                      </div>
-                    </article>
-                  ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </section>
