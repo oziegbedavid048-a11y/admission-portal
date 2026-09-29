@@ -3,11 +3,11 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://gabstep-backend.onrender.com/api/:path*"
+      "destination": "https://gabstep-backend-orlf.onrender.com/api/:path*"
     },
     {
       "source": "/media/:path*",
-      "destination": "https://gabstep-backend.onrender.com/media/:path*"
+      "destination": "https://gabstep-backend-orlf.onrender.com/media/:path*"
     },
     {
       "source": "/((?!api/|media/).*)",

@@ -78,7 +78,7 @@ def check_frontend_url(app_configs, **kwargs):
                 "all of them would land on a page the applicant cannot use.",
                 hint=(
                     "Use the address a visitor types, e.g. "
-                    "https://admissionportal.gabstep.com"
+                    "https://apply.gabstep.com"
                 ),
                 id="accounts.W004",
             )
