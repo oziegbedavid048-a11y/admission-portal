@@ -160,7 +160,7 @@ export default function ProfilePanel() {
                 value={profile.country}
                 onChange={(event) => setProfile({ ...profile, country: event.target.value })}
               >
-                <option value="">Select a country</option>
+                <option value="" />
                 {originNames.map((name) => (
                   <option key={name} value={name}>
                     {name}

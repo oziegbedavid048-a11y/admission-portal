@@ -333,7 +333,7 @@ export default function ApplyPanel() {
               </div>
               <div className={field('originCountry')}>
                 <span className="gx-label" id="ap-origin-label">Country of origin</span>
-                <SearchableSelect options={originNames} value={form.originCountry} onChange={(value) => update({ originCountry: value })} placeholder="Select your country" labelledBy="ap-origin-label" />
+                <SearchableSelect options={originNames} value={form.originCountry} onChange={(value) => update({ originCountry: value })} labelledBy="ap-origin-label" />
                 {errorFor('originCountry')}
               </div>
             </div>
@@ -343,7 +343,6 @@ export default function ApplyPanel() {
                 options={destinations.map((item) => item.name)}
                 value={form.destinationCountry}
                 onChange={(value) => update({ destinationCountry: value, institution: '', programs: [], level: null, is_custom_course: false, custom_course: '' })}
-                placeholder="Select a destination"
                 labelledBy="ap-dest-label"
               />
               {errorFor('destinationCountry')}
@@ -358,14 +357,14 @@ export default function ApplyPanel() {
             </div>
             <div className={field('previousSchools')}>
               <label htmlFor="ap-schools">Schools attended</label>
-              <input id="ap-schools" className="gx-input" placeholder="University of Lagos" value={form.previousSchools} onChange={(event) => update({ previousSchools: event.target.value })} />
+              <input id="ap-schools" className="gx-input" value={form.previousSchools} onChange={(event) => update({ previousSchools: event.target.value })} />
               {errorFor('previousSchools')}
             </div>
             <div className="gx-form-row">
               <div className={field('qualification')}>
                 <label htmlFor="ap-qual">Highest qualification</label>
                 <select id="ap-qual" className="gx-input" value={form.qualification} onChange={(event) => update({ qualification: event.target.value })}>
-                  <option value="">Select a qualification</option>
+                  <option value="" />
                   {QUALIFICATIONS.map((item) => (
                     <option key={item} value={item}>{item}</option>
                   ))}
@@ -374,13 +373,13 @@ export default function ApplyPanel() {
               </div>
               <div className={field('yearGraduated')}>
                 <label htmlFor="ap-year">Year of graduation</label>
-                <input id="ap-year" type="number" inputMode="numeric" className="gx-input" placeholder="2023" value={form.yearGraduated} onChange={(event) => update({ yearGraduated: event.target.value })} />
+                <input id="ap-year" type="number" inputMode="numeric" className="gx-input" value={form.yearGraduated} onChange={(event) => update({ yearGraduated: event.target.value })} />
                 {errorFor('yearGraduated')}
               </div>
             </div>
             <div className={field('gradeGpa')}>
               <label htmlFor="ap-grade">Grade or GPA</label>
-              <input id="ap-grade" className="gx-input" placeholder="Second Class Upper, or 3.8/4.0" value={form.gradeGpa} onChange={(event) => update({ gradeGpa: event.target.value })} />
+              <input id="ap-grade" className="gx-input" value={form.gradeGpa} onChange={(event) => update({ gradeGpa: event.target.value })} />
               {errorFor('gradeGpa')}
             </div>
           </div>

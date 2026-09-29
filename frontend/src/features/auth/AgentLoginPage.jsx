@@ -4,11 +4,13 @@ import Icon from '../../lib/icons';
 import { errorMessage } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
+import CheckEmailPanel from './CheckEmailPanel';
 
 export default function AgentLoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
+  const [unverified, setUnverified] = useState('');
   const { signIn, user } = useAuth();
   const toast = useToast();
   const navigate = useNavigate();
@@ -35,6 +37,10 @@ export default function AgentLoginPage() {
       toast.success(`Welcome back, ${(signedIn.full_name || '').split(' ')[0]}.`);
       navigate('/agent');
     } catch (error) {
+      if (error?.response?.data?.code === 'email_not_verified') {
+        setUnverified(email.trim());
+        return;
+      }
       toast.error(errorMessage(error, 'Those details do not match a partner account.'));
     } finally {
       setBusy(false);
@@ -58,6 +64,14 @@ export default function AgentLoginPage() {
             Use the email address and password you registered with.
           </p>
 
+          {unverified ? (
+            <CheckEmailPanel
+              compact
+              email={unverified}
+              title="Confirm your email first"
+              onChangeEmail={() => setUnverified('')}
+            />
+          ) : (
           <form onSubmit={submit}>
             <div className="agent-form-group">
               <label className="agent-form-label" htmlFor="ag-login-id">
@@ -68,7 +82,6 @@ export default function AgentLoginPage() {
                 id="ag-login-id"
                 className="agent-form-control"
                 autoComplete="email"
-                placeholder="you@agency.com"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
                 required
@@ -84,7 +97,6 @@ export default function AgentLoginPage() {
                 id="ag-login-pass"
                 className="agent-form-control"
                 autoComplete="current-password"
-                placeholder="Enter your password"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
                 required
@@ -106,6 +118,7 @@ export default function AgentLoginPage() {
               {busy ? 'Signing in' : 'Sign in'}
             </button>
           </form>
+          )}
 
           <div className="auth-switch-link">
             New partner?{' '}

@@ -321,7 +321,6 @@ export default function SupervisorEarnings() {
             max={available}
             step="1000"
             inputMode="numeric"
-            placeholder={String(minimum)}
             value={amount}
             onChange={(event) => setAmount(event.target.value)}
           />

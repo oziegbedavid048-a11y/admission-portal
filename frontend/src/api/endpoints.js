@@ -24,6 +24,9 @@ export const auth = {
   // Forgotten password. The request answers the same whether or not the
   // address has an account; the link in the email carries uid and token.
   forgotPassword: (email) => api.post('/auth/password/forgot/', { email }),
+  // Email verification after signing up. Verifying returns a session.
+  verifyEmail: (token) => api.post('/auth/verify-email/', { token }),
+  resendVerification: (email) => api.post('/auth/verify-email/resend/', { email }),
   validateReset: (uid, token) => api.post('/auth/password/reset/validate/', { uid, token }),
   resetPassword: (uid, token, newPassword) =>
     api.post('/auth/password/reset/', { uid, token, new_password: newPassword }),

@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import SiteHeader from '../../components/layout/SiteHeader';
 import Icon from '../../lib/icons';
 import { useAuth } from '../../context/AuthContext';
@@ -19,7 +19,7 @@ export default function LandingPage({ onOpenLogin }) {
 
   return (
     <>
-      <SiteHeader onOpenLogin={onOpenLogin} />
+      <SiteHeader />
 
       <main>
         <HeroCarousel>
@@ -30,9 +30,8 @@ export default function LandingPage({ onOpenLogin }) {
               universities, and apply when you are ready.
             </p>
 
-            {/* One action carries the page. Signing up comes first now: the
-                courses, their tuition and the application itself all live in the
-                dashboard an account opens. Signing in is the quiet alternative. */}
+            {/* Two ways in: an applicant account, or a partner agent account.
+                Returning visitors sign in from the quiet line underneath. */}
             <div className="hero-cta-group">
               {isApplicant ? (
                 <button
@@ -50,20 +49,32 @@ export default function LandingPage({ onOpenLogin }) {
                     className="btn btn-accent btn-lg"
                     onClick={() => navigate('/signup')}
                   >
-                    Create free account
-                    <Icon name="arrowRight" size={18} strokeWidth={2} />
+                    <Icon name="cap" size={18} strokeWidth={2} />
+                    Create applicant account
                   </button>
                   <button
                     type="button"
                     className="btn btn-quiet btn-lg"
-                    onClick={() => onOpenLogin?.()}
+                    onClick={() => navigate('/agent/register')}
                   >
-                    <Icon name="signIn" size={17} strokeWidth={2} />
-                    Sign in
+                    <Icon name="users" size={18} strokeWidth={2} />
+                    Create agent account
                   </button>
                 </>
               )}
             </div>
+
+            {user ? null : (
+              <p className="hero-signin">
+                Already have an account?{' '}
+                <button type="button" className="hero-signin-link" onClick={() => onOpenLogin?.()}>
+                  Applicant sign in
+                </button>
+                <Link to="/agent/login" className="hero-signin-link">
+                  Agent sign in
+                </Link>
+              </p>
+            )}
           </div>
         </HeroCarousel>
       </main>

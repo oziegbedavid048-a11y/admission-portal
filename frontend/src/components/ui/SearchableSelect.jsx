@@ -10,7 +10,7 @@ export default function SearchableSelect({
   options = [],
   value,
   onChange,
-  placeholder = 'Select an option',
+  placeholder = '',
   id,
   labelledBy,
 }) {
@@ -91,26 +91,27 @@ export default function SearchableSelect({
           }
         }}
       >
-        <span style={value ? undefined : { color: 'var(--slate-400)' }}>
-          {value || placeholder}
-        </span>
+        <span className="searchable-value">{value || placeholder}</span>
         <Icon name="chevronDown" size={16} strokeWidth={2} />
       </div>
 
       <div className={`searchable-dropdown ${open ? 'show' : ''}`.trim()}>
-        <input
-          type="text"
-          ref={searchRef}
-          className="search-input-field"
-          placeholder="Type to filter..."
-          autoComplete="off"
+        <div className="search-input-wrap">
+          <Icon name="search" size={16} strokeWidth={2} />
+          <input
+            type="text"
+            ref={searchRef}
+            className="search-input-field"
+            autoComplete="off"
           value={query}
           onChange={(event) => {
             setQuery(event.target.value);
             setCursor(0);
           }}
           onKeyDown={onKeyDown}
+          aria-label="Search"
         />
+        </div>
         <div role="listbox" ref={listRef}>
           {filtered.length === 0 ? (
             <div className="searchable-item" aria-disabled="true">

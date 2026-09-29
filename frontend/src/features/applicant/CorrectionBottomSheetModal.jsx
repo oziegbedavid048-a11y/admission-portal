@@ -250,7 +250,6 @@ export default function CorrectionBottomSheetModal({
                 id="corr_full_name"
                 value={form.full_name}
                 onChange={(e) => setForm({ ...form, full_name: e.target.value })}
-                placeholder="Full Name as on Passport"
                 required
               />
             </div>
@@ -262,7 +261,6 @@ export default function CorrectionBottomSheetModal({
                 id="corr_email"
                 value={form.email}
                 onChange={(e) => setForm({ ...form, email: e.target.value })}
-                placeholder="you@example.com"
                 required
               />
             </div>
@@ -274,7 +272,6 @@ export default function CorrectionBottomSheetModal({
                 id="corr_phone"
                 value={form.phone}
                 onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                placeholder="+234..."
                 required
               />
             </div>
@@ -286,7 +283,6 @@ export default function CorrectionBottomSheetModal({
                 id="corr_address"
                 value={form.address}
                 onChange={(e) => setForm({ ...form, address: e.target.value })}
-                placeholder="Street, City, State"
               />
             </div>
 
@@ -297,7 +293,6 @@ export default function CorrectionBottomSheetModal({
                 id="corr_origin"
                 value={form.origin_country}
                 onChange={(e) => setForm({ ...form, origin_country: e.target.value })}
-                placeholder="Country of Origin"
               />
             </div>
 
@@ -308,7 +303,6 @@ export default function CorrectionBottomSheetModal({
                 id="corr_destination"
                 value={form.destination_country}
                 onChange={(e) => setForm({ ...form, destination_country: e.target.value })}
-                placeholder="Target Destination Country"
               />
             </div>
           </div>
@@ -328,7 +322,7 @@ export default function CorrectionBottomSheetModal({
                 value={form.qualification}
                 onChange={(e) => setForm({ ...form, qualification: e.target.value })}
               >
-                <option value="">Select qualification</option>
+                <option value="" />
                 {QUALIFICATIONS.map((q) => (
                   <option key={q} value={q}>
                     {q}
@@ -344,7 +338,6 @@ export default function CorrectionBottomSheetModal({
                 id="corr_school"
                 value={form.previous_schools}
                 onChange={(e) => setForm({ ...form, previous_schools: e.target.value })}
-                placeholder="High School or College Name"
               />
             </div>
 
@@ -357,7 +350,6 @@ export default function CorrectionBottomSheetModal({
                 max="2035"
                 value={form.year_graduated}
                 onChange={(e) => setForm({ ...form, year_graduated: e.target.value })}
-                placeholder="e.g. 2023"
               />
             </div>
 
@@ -368,7 +360,6 @@ export default function CorrectionBottomSheetModal({
                 id="corr_gpa"
                 value={form.grade_gpa}
                 onChange={(e) => setForm({ ...form, grade_gpa: e.target.value })}
-                placeholder="e.g. 3.8 / 4.0 or Upper Credit"
               />
             </div>
           </div>
@@ -388,7 +379,6 @@ export default function CorrectionBottomSheetModal({
                 id="corr_institution"
                 value={form.institution}
                 onChange={(e) => setForm({ ...form, institution: e.target.value })}
-                placeholder="Name of chosen university"
               />
             </div>
 
@@ -399,7 +389,6 @@ export default function CorrectionBottomSheetModal({
                 id="corr_course"
                 value={form.course}
                 onChange={(e) => setForm({ ...form, course: e.target.value })}
-                placeholder="Degree Major / Programme Name"
               />
             </div>
           </div>
@@ -420,7 +409,6 @@ export default function CorrectionBottomSheetModal({
                 rows={3}
                 value={form.reason}
                 onChange={(e) => setForm({ ...form, reason: e.target.value })}
-                placeholder="Explain what was changed and why (e.g., corrected spelling of legal surname, updated new address, modified course choice)..."
                 required
               />
             </div>

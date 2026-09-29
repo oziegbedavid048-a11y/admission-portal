@@ -1,52 +1,81 @@
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import Icon from '../../lib/icons';
+import { useEffect, useState } from 'react';
+import { Link, Navigate } from 'react-router-dom';
+import SiteHeader from '../../components/layout/SiteHeader';
+import PasswordField, { passwordChecks } from '../../components/ui/PasswordField';
+import SearchableSelect from '../../components/ui/SearchableSelect';
 import { errorMessage, fieldErrors } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
+import Icon from '../../lib/icons';
+import { ALL_WORLD_COUNTRIES } from '../../lib/countries';
+import CheckEmailPanel from './CheckEmailPanel';
+
+/**
+ * Registration for a partner agent.
+ *
+ * One page, four short sections in the order people think about them: who you
+ * are, how you will sign in, where commission is paid, and the sales manager
+ * who referred you. The payout account is asked for up front because
+ * commission is paid into it, and there is no second chance to ask before the
+ * first withdrawal.
+ */
 
 const BLANK = {
   full_name: '',
   email: '',
   phone: '',
-  password: '',
-  agency_name: '',
   country: 'Nigeria',
-  agent_code: '',
+  agency_name: '',
+  password: '',
   bank_name: '',
   account_number: '',
   account_name: '',
+  agent_code: '',
 };
 
-/**
- * Registration for a partner agency. The payout account is collected up front
- * because commission is paid to it, and there is no second chance to ask before
- * the first withdrawal.
- */
+const BENEFITS = [
+  { icon: 'wallet', title: 'Commission per student', text: 'Paid when the fee settles, and again when the visa is confirmed.' },
+  { icon: 'megaphone', title: 'Ad funding', text: 'Interest-free capital to advertise, repaid from your earnings.' },
+  { icon: 'payout', title: 'Withdraw any time', text: 'Straight to your bank account.' },
+];
+
 export default function AgentRegisterPage() {
   const [form, setForm] = useState(BLANK);
   const [errors, setErrors] = useState({});
   const [busy, setBusy] = useState(false);
-  const { registerAgent } = useAuth();
+  const [sentTo, setSentTo] = useState('');
+  const { user, isAgent, isSupervisor, registerAgent } = useAuth();
   const toast = useToast();
-  const navigate = useNavigate();
 
-  const set = (field) => (event) => {
-    setForm((current) => ({ ...current, [field]: event.target.value }));
-    setErrors((current) => ({ ...current, [field]: undefined }));
+  useEffect(() => {
+    document.title = 'Create agent account · Gabstep';
+  }, []);
+
+  if (user) {
+    return <Navigate to={isSupervisor ? '/sales-manager' : isAgent ? '/agent' : '/portal'} replace />;
+  }
+
+  const update = (patch) => {
+    setForm((current) => ({ ...current, ...patch }));
+    setErrors((current) => {
+      const next = { ...current };
+      Object.keys(patch).forEach((key) => delete next[key]);
+      return next;
+    });
   };
 
   const validate = () => {
     const found = {};
-    if (!form.full_name.trim()) found.full_name = 'Enter your full name.';
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) found.email = 'Enter a valid email address.';
-    if (!form.phone.trim()) found.phone = 'Enter a phone number.';
-    if (form.password.length < 8) found.password = 'Use at least 8 characters.';
+    if (form.full_name.trim().split(/\s+/).length < 2) found.full_name = 'Enter your first and last name.';
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) found.email = 'Enter a valid email address.';
+    if (form.phone.replace(/\D/g, '').length < 7) found.phone = 'Enter a phone number we can reach you on.';
+    if (!form.country) found.country = 'Choose the country you work in.';
+    if (!passwordChecks(form.password).every((check) => check.met)) found.password = 'Choose a stronger password.';
     if (!form.bank_name.trim()) found.bank_name = 'Enter your bank.';
-    if (!/^\d{10}$/.test(form.account_number)) found.account_number = 'Account number should be 10 digits.';
+    if (!/^\d{10}$/.test(form.account_number)) found.account_number = 'Enter the 10-digit account number.';
     if (!form.account_name.trim()) found.account_name = 'Enter the name on the account.';
     if (form.agent_code.trim() && form.agent_code.trim().length < 4)
-      found.agent_code = 'That code looks too short. Check it with your Sales Manager.';
+      found.agent_code = 'That code looks too short. Check it with your sales manager.';
     setErrors(found);
     return Object.keys(found).length === 0;
   };
@@ -57,151 +86,169 @@ export default function AgentRegisterPage() {
       toast.warning('Check the highlighted fields.');
       return;
     }
-
     setBusy(true);
     try {
-      await registerAgent({
+      const created = await registerAgent({
         ...form,
+        full_name: form.full_name.trim(),
+        email: form.email.trim().toLowerCase(),
+        phone: form.phone.trim(),
+        agency_name: form.agency_name.trim(),
+        bank_name: form.bank_name.trim(),
+        account_name: form.account_name.trim(),
         agent_code: form.agent_code.trim().toUpperCase(),
       });
-      toast.success('Your partner account is ready.');
-      navigate('/agent');
+      setSentTo(created?.email || form.email.trim().toLowerCase());
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (error) {
       setErrors(fieldErrors(error));
-      toast.error(errorMessage(error, 'Could not create your partner account.'));
+      toast.error(errorMessage(error, 'Your agent account could not be created.'));
     } finally {
       setBusy(false);
     }
   };
 
-  const field = (name, label, props = {}, hint = null, className = '') => (
-    <div className={`agent-form-group ${className}`.trim()}>
-      <label className="agent-form-label" htmlFor={`ag-reg-${name}`}>
-        {label}
-      </label>
+  const input = (name, label, props = {}, hint = null) => (
+    <div className={`gx-field ${errors[name] ? 'has-error' : ''}`.trim()}>
+      <label htmlFor={`ar-${name}`}>{label}</label>
       <input
-        id={`ag-reg-${name}`}
-        className="agent-form-control"
+        id={`ar-${name}`}
+        className="gx-input"
         value={form[name]}
-        onChange={set(name)}
+        onChange={(event) => update({ [name]: event.target.value })}
+        aria-invalid={Boolean(errors[name])}
+        aria-describedby={errors[name] ? `ar-${name}-error` : hint ? `ar-${name}-hint` : undefined}
         {...props}
       />
-      {hint ? <span className="agent-form-hint">{hint}</span> : null}
-      {errors[name] ? <span className="field-error">{errors[name]}</span> : null}
+      {hint ? (
+        <span className="gx-hint" id={`ar-${name}-hint`}>
+          {hint}
+        </span>
+      ) : null}
+      {errors[name] ? (
+        <span className="gx-error" id={`ar-${name}-error`}>
+          {String(errors[name])}
+        </span>
+      ) : null}
     </div>
   );
 
   return (
-    <section className="agent-section">
-      <div className="agent-auth-view">
-        <div className="agent-auth-card" style={{ maxWidth: 680 }}>
-          <div className="agent-auth-logo">
-            <img src="/assets/logo.png" alt="" />
-            <div className="auth-brand">
-              Gabstep Agents
-              <span>Partner network</span>
-            </div>
+    <>
+      <SiteHeader />
+      <main className="gx-register">
+        <aside className="gx-register-aside" aria-label="Why partner with Gabstep">
+          <span className="gx-eyebrow">Gabstep partner network</span>
+          <h1>Place students abroad. Earn on every one.</h1>
+          <ul className="gx-benefits">
+            {BENEFITS.map((item) => (
+              <li key={item.title}>
+                <span className="gx-icon-tile" aria-hidden="true">
+                  <Icon name={item.icon} size={20} />
+                </span>
+                <div>
+                  <strong>{item.title}</strong>
+                  <span>{item.text}</span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </aside>
+
+        <div className="gx-card gx-register-card">
+          {sentTo ? (
+            <CheckEmailPanel email={sentTo} onChangeEmail={() => setSentTo('')} />
+          ) : (
+          <>
+          <div className="gx-auth-head">
+            <h2 className="gx-register-title">Create your agent account</h2>
+            <p className="gx-muted">It takes about two minutes.</p>
           </div>
 
-          <h2>Become a partner</h2>
+          <form className="gx-form" onSubmit={submit} noValidate>
+            <fieldset className="gx-section">
+              <legend>
+                <span className="gx-section-num">1</span>
+                About you
+              </legend>
+              <div className="gx-form-row">
+                {input('full_name', 'Full legal name', { autoComplete: 'name' })}
+                {input('email', 'Email address', { type: 'email', autoComplete: 'email', inputMode: 'email' })}
+              </div>
+              <div className="gx-form-row">
+                {input('phone', 'Phone or WhatsApp', { type: 'tel', autoComplete: 'tel', inputMode: 'tel' })}
+                <div className={`gx-field ${errors.country ? 'has-error' : ''}`.trim()}>
+                  <span className="gx-label" id="ar-country-label">
+                    Country you work in
+                  </span>
+                  <SearchableSelect
+                    options={ALL_WORLD_COUNTRIES}
+                    value={form.country}
+                    onChange={(value) => update({ country: value })}
+                    labelledBy="ar-country-label"
+                  />
+                  {errors.country ? <span className="gx-error">{String(errors.country)}</span> : null}
+                </div>
+              </div>
+              {input('agency_name', 'Agency name (optional)', { autoComplete: 'organization' })}
+            </fieldset>
 
-          <form onSubmit={submit}>
-            <div className="signup-section-header">
-              <span className="signup-section-title">Agency & personal details</span>
-            </div>
-            <div className="agent-2col-grid">
-              {field('full_name', 'Full legal name *', { autoComplete: 'name', placeholder: 'e.g. Adaeze Nwosu' })}
-              {field('email', 'Email address *', {
-                type: 'email',
-                autoComplete: 'email',
-                placeholder: 'you@agency.com',
-              })}
-              {field('phone', 'Phone / WhatsApp *', {
-                type: 'tel',
-                autoComplete: 'tel',
-                placeholder: '+234 803 100 2200',
-              })}
-              {field('password', 'Password *', {
-                type: 'password',
-                autoComplete: 'new-password',
-                placeholder: 'At least 8 characters',
-              })}
-              {field('agency_name', 'Agency name', { placeholder: 'e.g. Global Education Consult' })}
-              {field('country', 'Operating country *', { placeholder: 'Nigeria' })}
-            </div>
+            <fieldset className="gx-section">
+              <legend>
+                <span className="gx-section-num">2</span>
+                Password
+              </legend>
+              <PasswordField
+                id="ar-password"
+                label="Choose a password"
+                value={form.password}
+                onChange={(value) => update({ password: value })}
+                error={errors.password}
+              />
+            </fieldset>
 
-            <div className="signup-section-header">
-              <span className="signup-section-title">Sales manager referral</span>
-            </div>
-            <div className="agent-2col-grid">
-              {field(
+            <fieldset className="gx-section">
+              <legend>
+                <span className="gx-section-num">3</span>
+                Payout account
+              </legend>
+              <p className="gx-muted gx-small gx-section-note">Your commission is paid into this account.</p>
+              <div className="gx-form-row">
+                {input('bank_name', 'Bank name')}
+                {input('account_number', 'Account number', { inputMode: 'numeric', maxLength: 10, autoComplete: 'off' }, '10 digits')}
+              </div>
+              {input('account_name', 'Account name', { autoComplete: 'off' }, 'Exactly as your bank shows it.')}
+            </fieldset>
+
+            <fieldset className="gx-section">
+              <legend>
+                <span className="gx-section-num">4</span>
+                Referral code (optional)
+              </legend>
+              {input(
                 'agent_code',
-                'Referral code',
-                {
-                  placeholder: 'GSA-XXXXXX',
-                  autoCapitalize: 'characters',
-                  style: { textTransform: 'uppercase', letterSpacing: '0.06em' },
-                },
-                null,
-                'agent-col-span-2'
+                'Sales manager code',
+                { autoCapitalize: 'characters', className: 'gx-input gx-input-code' },
+                'If a sales manager invited you, enter their code.',
               )}
-            </div>
+            </fieldset>
 
-            <div className="signup-section-header">
-              <span className="signup-section-title">Payout account</span>
-            </div>
-            <div className="agent-2col-grid">
-              {field('bank_name', 'Bank name *', { placeholder: 'e.g. Access Bank, GTBank' })}
-              {field('account_number', 'Account number (10 digits) *', {
-                inputMode: 'numeric',
-                maxLength: 10,
-                placeholder: '0123456789',
-              })}
-              {field(
-                'account_name',
-                'Account name *',
-                { placeholder: 'Full legal account name as registered with your bank' },
-                null,
-                'agent-col-span-2'
-              )}
-            </div>
-
-            <button
-              type="submit"
-              className="agent-btn agent-btn-primary agent-btn-block"
-              style={{ marginTop: 24 }}
-              disabled={busy}
-            >
+            <button type="submit" className="gx-btn gx-btn-primary gx-btn-lg gx-btn-block" disabled={busy}>
               {busy ? <span className="spinner-sm" aria-hidden="true" /> : null}
-              {busy ? 'Creating your account...' : 'Create partner account'}
+              {busy ? 'Creating your account' : 'Create agent account'}
             </button>
           </form>
 
-          <div className="auth-switch-link">
-            Already registered?{' '}
-            <Link className="link-btn" to="/agent/login">
-              Sign in
+          <p className="gx-auth-foot">
+            Have an account?{' '}
+            <Link to="/agent/login" className="gx-link">
+              Login here
             </Link>
-          </div>
-
-          <div style={{ textAlign: 'center', marginTop: 12 }}>
-            <Link
-              to="/"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-                fontSize: '0.8125rem',
-                color: 'var(--slate-500)',
-                textDecoration: 'none',
-              }}
-            >
-              <Icon name="arrowLeft" size={15} strokeWidth={2} />
-              Back to the student site
-            </Link>
-          </div>
+          </p>
+          </>
+          )}
         </div>
-      </div>
-    </section>
+      </main>
+    </>
   );
 }

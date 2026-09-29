@@ -136,7 +136,7 @@ export default function AgentLoans() {
               value={purpose}
               onChange={(event) => setPurpose(event.target.value)}
             >
-              <option value="">Select a platform</option>
+              <option value="" />
               {PLATFORMS.map((item) => (
                 <option key={item} value={item}>
                   {item}

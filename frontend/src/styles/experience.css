@@ -823,3 +823,203 @@ a.gx-btn-primary:hover { color: var(--g-accent-ink); }
 a.gx-btn-secondary,
 a.gx-btn-secondary:hover { color: var(--g-ink); }
 a.gx-btn-ghost:hover { color: var(--g-accent); }
+
+/* Search inside a searchable select: an icon instead of words in the box. */
+.search-input-wrap { position: relative; }
+.search-input-wrap .icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--g-ink-4);
+  pointer-events: none;
+}
+.search-input-wrap .search-input-field { padding-left: 36px !important; }
+.searchable-value { min-height: 1.4em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Hero: the quiet sign-in line under the two sign-up buttons. */
+.hero-signin {
+  margin: 18px 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 18px;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 15px;
+}
+
+.hero-signin-link {
+  background: none;
+  border: 0;
+  padding: 2px 0;
+  font: inherit;
+  font-weight: 600;
+  color: #ffffff;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.hero-signin-link:hover,
+a.hero-signin-link:hover { color: #ffffff; text-decoration-thickness: 2px; }
+.hero-signin-link:focus-visible { outline: 2px solid #ffffff; outline-offset: 3px; border-radius: 4px; }
+
+/* ─────────────── Agent sign-up ─────────────── */
+
+.gx-register {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.4fr);
+  gap: clamp(24px, 4vw, 56px);
+  align-items: start;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: clamp(24px, 5vw, 64px) var(--g-gutter);
+  min-height: calc(100vh - var(--nav-height));
+}
+
+.gx-register-aside {
+  position: sticky;
+  top: calc(var(--nav-height) + 32px);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.gx-eyebrow {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--g-accent);
+}
+
+.gx-register-aside h1 {
+  margin: 0;
+  font-size: clamp(28px, 3.4vw, 40px);
+  font-weight: 750;
+  line-height: 1.12;
+  letter-spacing: -0.03em;
+  color: var(--g-ink);
+}
+
+.gx-benefits { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 18px; }
+.gx-benefits li { display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: start; }
+.gx-benefits strong { display: block; font-size: 16px; color: var(--g-ink); margin-bottom: 2px; }
+.gx-benefits span { font-size: 14px; color: var(--g-ink-2); line-height: 1.5; }
+
+.gx-register-card { padding: clamp(22px, 3.5vw, 40px); }
+.gx-register-title { margin: 0 0 6px; font-size: clamp(22px, 2.6vw, 28px); font-weight: 700; letter-spacing: -0.02em; color: var(--g-ink); }
+
+.gx-section {
+  border: 0;
+  margin: 0;
+  padding: 0 0 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  border-bottom: 1px solid var(--g-line);
+  min-width: 0;
+}
+
+.gx-section legend {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0;
+  margin-bottom: 14px;
+  font-size: 16px;
+  font-weight: 650;
+  color: var(--g-ink);
+}
+
+.gx-section-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--g-accent-tint);
+  color: var(--g-accent);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.gx-section-note { margin-top: -8px; }
+.gx-input-code { text-transform: uppercase; letter-spacing: 0.06em; }
+
+@media (max-width: 900px) {
+  .gx-register { grid-template-columns: 1fr; }
+  .gx-register-aside { position: static; }
+  .gx-benefits { flex-direction: row; flex-wrap: wrap; gap: 14px; }
+  .gx-benefits li { flex: 1 1 220px; }
+}
+
+@media (max-width: 560px) {
+  .gx-register { padding: 20px 12px 40px; gap: 18px; }
+  .gx-benefits { flex-direction: column; }
+  .gx-register-card { padding: 20px 16px; border-radius: var(--g-r-md); }
+}
+
+/* Course browser: the country picker row. */
+.gx-country-row {
+  display: grid;
+  grid-template-columns: minmax(0, 420px) minmax(0, 1fr);
+  gap: 12px 24px;
+  align-items: end;
+}
+
+.gx-country-hint { padding-bottom: 12px; }
+.gx-crumbs-inline { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--g-line); }
+
+@media (max-width: 760px) {
+  .gx-country-row { grid-template-columns: 1fr; }
+  .gx-country-hint { padding-bottom: 0; }
+}
+
+/* "Confirm your email first" inside a sign-in form. */
+.gx-check-email.is-compact {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  border-radius: var(--g-r-md);
+  background: var(--g-attn-tint);
+  border: 1px solid var(--g-attn-line);
+}
+
+.gx-check-email.is-compact > strong { color: var(--g-ink); font-size: 16px; }
+.gx-check-email strong { overflow-wrap: anywhere; }
+.gx-inline-form { width: 100%; }
+
+/* Support: each message opens to show the conversation. */
+.gx-thread-list { list-style: none; margin: 0; padding: 0; }
+.gx-thread-list > li + li { border-top: 1px solid var(--g-line); }
+
+.gx-thread summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 0;
+  cursor: pointer;
+  list-style: none;
+}
+
+.gx-thread summary::-webkit-details-marker { display: none; }
+.gx-thread summary:focus-visible { outline: none; box-shadow: var(--shadow-focus); border-radius: var(--g-r-sm); }
+.gx-thread-list > li:first-child .gx-thread summary { padding-top: 0; }
+
+.gx-thread-body { display: flex; flex-direction: column; gap: 10px; padding: 0 0 16px; }
+
+.gx-bubble {
+  max-width: 560px;
+  padding: 12px 14px;
+  border-radius: var(--g-r-md);
+  background: var(--g-accent-tint);
+  border: 1px solid var(--g-accent-line);
+}
+
+.gx-bubble.is-mine { background: var(--g-surface-2); border-color: var(--g-line); margin-left: auto; }
+.gx-bubble-who { display: block; font-size: 12px; font-weight: 600; color: var(--g-ink-3); margin-bottom: 4px; }
+.gx-bubble p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--g-ink); line-height: 1.55; }

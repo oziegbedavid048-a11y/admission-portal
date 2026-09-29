@@ -4,11 +4,13 @@ import Modal from '../../components/ui/Modal';
 import { errorMessage } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
+import CheckEmailPanel from './CheckEmailPanel';
 
 export default function LoginModal({ open, onClose }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
+  const [unverified, setUnverified] = useState('');
   const { signIn } = useAuth();
   const toast = useToast();
   const navigate = useNavigate();
@@ -30,6 +32,10 @@ export default function LoginModal({ open, onClose }) {
         user.role === 'agent' ? '/agent' : user.role === 'supervisor' ? '/sales-manager' : '/portal',
       );
     } catch (error) {
+      if (error?.response?.data?.code === 'email_not_verified') {
+        setUnverified(email.trim());
+        return;
+      }
       toast.error(errorMessage(error, 'Those details do not match an account.'));
     } finally {
       setBusy(false);
@@ -43,6 +49,14 @@ export default function LoginModal({ open, onClose }) {
       title="Sign in"
       labelledBy="login-modal-title"
     >
+      {unverified ? (
+        <CheckEmailPanel
+          compact
+          email={unverified}
+          title="Confirm your email first"
+          onChangeEmail={() => setUnverified('')}
+        />
+      ) : (
       <form onSubmit={submit}>
         <div className="form-group">
           <label className="form-label" htmlFor="login_email">
@@ -53,7 +67,6 @@ export default function LoginModal({ open, onClose }) {
             id="login_email"
             className="form-control"
             autoComplete="email"
-            placeholder="you@example.com"
             value={email}
             onChange={(event) => setEmail(event.target.value)}
             required
@@ -69,7 +82,6 @@ export default function LoginModal({ open, onClose }) {
             id="login_password"
             className="form-control"
             autoComplete="current-password"
-            placeholder="Your password"
             value={password}
             onChange={(event) => setPassword(event.target.value)}
             required
@@ -94,6 +106,7 @@ export default function LoginModal({ open, onClose }) {
           {busy ? 'Signing in' : 'Sign in'}
         </button>
       </form>
+      )}
 
       <p className="gx-auth-foot">
         New to Gabstep?{' '}

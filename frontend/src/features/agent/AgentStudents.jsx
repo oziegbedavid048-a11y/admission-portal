@@ -157,7 +157,6 @@ export default function AgentStudents() {
               type="search"
               id="student-search"
               className="agent-form-control"
-              placeholder="Search name, reference or institution"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
             />

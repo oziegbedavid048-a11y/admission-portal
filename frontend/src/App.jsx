@@ -13,6 +13,7 @@ import { useAuth } from './context/AuthContext';
 const SignupPage = lazy(() => import('./features/auth/SignupPage'));
 const ForgotPasswordPage = lazy(() => import('./features/auth/ForgotPasswordPage'));
 const ResetPasswordPage = lazy(() => import('./features/auth/ResetPasswordPage'));
+const VerifyEmailPage = lazy(() => import('./features/auth/VerifyEmailPage'));
 const ApplicantPortal = lazy(() => import('./features/applicant/ApplicantPortal'));
 const AgentLoginPage = lazy(() => import('./features/auth/AgentLoginPage'));
 const AgentRegisterPage = lazy(() => import('./features/auth/AgentRegisterPage'));
@@ -46,6 +47,7 @@ export default function App() {
           <Route path="/apply" element={<ApplyRedirect />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage onOpenLogin={openLogin} />} />
           <Route path="/reset-password" element={<ResetPasswordPage onOpenLogin={openLogin} />} />
+          <Route path="/verify-email" element={<VerifyEmailPage />} />
 
           <Route
             path="/portal/*"

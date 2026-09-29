@@ -7,6 +7,7 @@ import Icon from '../../lib/icons';
 import { compressImageFile } from '../../lib/compress';
 import { formatDate } from '../../lib/format';
 import { isLiveChatConfigured, openLiveChat } from '../../lib/liveChat';
+import useLiveRefresh from '../../hooks/useLiveRefresh';
 
 /**
  * Support, shared by every portal.
@@ -49,6 +50,9 @@ export default function SupportPage() {
   useEffect(() => {
     loadHistory();
   }, [loadHistory]);
+
+  // Replies written in the admin appear here without a reload.
+  useLiveRefresh(() => loadHistory(), { intervalMs: 15000 });
 
   const update = (patch) => {
     setForm((current) => ({ ...current, ...patch }));
@@ -111,33 +115,19 @@ export default function SupportPage() {
 
   return (
     <div className="gx-page">
-      <div className="gx-support-grid">
+      {chatReady ? (
         <section className="gx-card gx-support-chat" aria-labelledby="chat-title">
           <span className="gx-icon-tile" aria-hidden="true">
             <Icon name="chat" size={22} />
           </span>
           <h2 id="chat-title" className="gx-card-title">Live chat</h2>
-          <p className="gx-muted">
-            {chatReady ? 'Talk to our team now.' : 'Live chat is not available yet. Send us a message instead.'}
-          </p>
-          {chatReady ? (
-            <button type="button" className="gx-btn gx-btn-primary" onClick={startChat} disabled={chatBusy}>
-              {chatBusy ? <span className="spinner-sm" aria-hidden="true" /> : <Icon name="chat" size={17} />}
-              {chatBusy ? 'Opening' : 'Start live chat'}
-            </button>
-          ) : null}
+          <p className="gx-muted">Talk to our team now.</p>
+          <button type="button" className="gx-btn gx-btn-primary" onClick={startChat} disabled={chatBusy}>
+            {chatBusy ? <span className="spinner-sm" aria-hidden="true" /> : <Icon name="chat" size={17} />}
+            {chatBusy ? 'Opening' : 'Start live chat'}
+          </button>
         </section>
-
-        <section className="gx-card gx-support-chat" aria-labelledby="reply-title">
-          <span className="gx-icon-tile" aria-hidden="true">
-            <Icon name="mail" size={22} />
-          </span>
-          <h2 id="reply-title" className="gx-card-title">Replies by email</h2>
-          <p className="gx-muted">
-            We answer at <strong>{user?.email}</strong>, usually within one working day.
-          </p>
-        </section>
-      </div>
+      ) : null}
 
       <section className="gx-card" aria-labelledby="message-title">
         <div className="gx-card-head">
@@ -152,7 +142,7 @@ export default function SupportPage() {
             <div>
               <h3>Message sent</h3>
               <p className="gx-muted">
-                Reference <strong>{sent.reference}</strong>. We will reply to {user?.email}.
+                Reference <strong>{sent.reference}</strong>. We will reply by email, usually within one working day.
               </p>
             </div>
             <button type="button" className="gx-btn gx-btn-secondary" onClick={() => setSent(null)}>
@@ -245,18 +235,38 @@ export default function SupportPage() {
           <div className="gx-card-head">
             <h2 id="history-title" className="gx-card-title">Your messages</h2>
           </div>
-          <ul className="gx-list">
+          <ul className="gx-thread-list">
             {history.map((ticket) => (
-              <li key={ticket.reference} className="gx-list-row">
-                <div className="gx-list-main">
-                  <span className="gx-list-title">{ticket.subject}</span>
-                  <span className="gx-muted gx-small">
-                    {ticket.reference} · {ticket.topic_display} · {formatDate(ticket.created_at)}
-                  </span>
-                </div>
-                <span className={`gx-pill ${ticket.status === 'resolved' ? 'is-ok' : 'is-wait'}`}>
-                  {ticket.status_display}
-                </span>
+              <li key={ticket.reference}>
+                <details className="gx-thread" open={Boolean(ticket.replies?.length) && ticket.status !== 'resolved'}>
+                  <summary>
+                    <span className="gx-list-main">
+                      <span className="gx-list-title">{ticket.subject}</span>
+                      <span className="gx-muted gx-small">
+                        {ticket.reference} · {formatDate(ticket.created_at)}
+                        {ticket.replies?.length ? ` · ${ticket.replies.length} ${ticket.replies.length === 1 ? 'reply' : 'replies'}` : ''}
+                      </span>
+                    </span>
+                    <span className={`gx-pill ${ticket.status === 'resolved' ? 'is-ok' : 'is-wait'}`}>
+                      {ticket.replies?.length && ticket.status !== 'resolved' ? 'Answered' : ticket.status_display}
+                    </span>
+                  </summary>
+                  <div className="gx-thread-body">
+                    <div className="gx-bubble is-mine">
+                      <span className="gx-bubble-who">You</span>
+                      <p>{ticket.message}</p>
+                    </div>
+                    {(ticket.replies || []).map((reply) => (
+                      <div className="gx-bubble" key={reply.id}>
+                        <span className="gx-bubble-who">Gabstep support · {formatDate(reply.created_at)}</span>
+                        <p>{reply.body}</p>
+                      </div>
+                    ))}
+                    {!ticket.replies?.length ? (
+                      <p className="gx-muted gx-small">No reply yet. We usually answer within one working day.</p>
+                    ) : null}
+                  </div>
+                </details>
               </li>
             ))}
           </ul>

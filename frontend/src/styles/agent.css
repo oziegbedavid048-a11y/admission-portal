@@ -906,7 +906,9 @@
   white-space: nowrap;
 }
 
-@media (max-width: 767px) {
+/* Cards up to tablet width: between 768px and 1023px the sidebar is a drawer
+   but the full table was still wider than the page. */
+@media (max-width: 1023px) {
   /* Secondary columns drop out on a phone so each row stays a short card
      instead of a wall of labels (lists-and-tables.md › Content). */
   .agent-table .t-hide-sm { display: none !important; }

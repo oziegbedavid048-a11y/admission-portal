@@ -270,7 +270,6 @@ export default function AgentNewStudent() {
                 <input
                   id="st-name"
                   className="agent-form-control"
-                  placeholder="Chukwudi Emmanuel Okafor"
                   value={form.fullName}
                   onChange={(event) => update({ fullName: event.target.value })}
                 />
@@ -284,7 +283,6 @@ export default function AgentNewStudent() {
                   id="st-email"
                   type="email"
                   className="agent-form-control"
-                  placeholder="student@example.com"
                   value={form.email}
                   onChange={(event) => update({ email: event.target.value })}
                 />
@@ -300,7 +298,6 @@ export default function AgentNewStudent() {
                   id="st-phone"
                   type="tel"
                   className="agent-form-control"
-                  placeholder="+234 802 345 6789"
                   value={form.phone}
                   onChange={(event) => update({ phone: event.target.value })}
                 />
@@ -336,7 +333,6 @@ export default function AgentNewStudent() {
                     custom_course: '',
                   })
                 }
-                placeholder="Search any destination country..."
                 labelledBy="st-dest-label"
               />
             </div>
@@ -371,7 +367,6 @@ export default function AgentNewStudent() {
               <input
                 id="st-prev"
                 className="agent-form-control"
-                placeholder="University of Ibadan"
                 value={form.previousSchools}
                 onChange={(event) => update({ previousSchools: event.target.value })}
               />
@@ -406,7 +401,6 @@ export default function AgentNewStudent() {
                   min="1960"
                   max="2035"
                   className="agent-form-control"
-                  placeholder="2023"
                   value={form.yearGraduated}
                   onChange={(event) => update({ yearGraduated: event.target.value })}
                 />
@@ -420,7 +414,6 @@ export default function AgentNewStudent() {
               <input
                 id="st-gpa"
                 className="agent-form-control"
-                placeholder="Second Class Upper, or 4.25 / 5.0"
                 value={form.gradeGpa}
                 onChange={(event) => update({ gradeGpa: event.target.value })}
               />
@@ -497,7 +490,6 @@ export default function AgentNewStudent() {
                 id="st-notes"
                 className="agent-form-control"
                 rows={3}
-                placeholder="Anything the admissions desk should know"
                 value={form.notes}
                 onChange={(event) => update({ notes: event.target.value })}
               />

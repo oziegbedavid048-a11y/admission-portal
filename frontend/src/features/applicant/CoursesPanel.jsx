@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import Loading from '../../components/ui/Loading';
+import SearchableSelect from '../../components/ui/SearchableSelect';
 import { catalog } from '../../api/endpoints';
 import { useAuth } from '../../context/AuthContext';
 import useLiveRefresh from '../../hooks/useLiveRefresh';
 import Icon from '../../lib/icons';
+import { ALL_WORLD_COUNTRIES } from '../../lib/countries';
 import { formatMoney, formatTuition } from '../../lib/format';
 import { useApplication } from './ApplicationContext';
 
@@ -134,75 +136,64 @@ export function CourseBrowser({ onApply, applyLabel = 'Apply', canApply = true, 
 
   const apply = (course) => onApply?.({ course, school, country });
 
-  const available = (countries || []).filter((item) => item.institution_count !== 0);
+  const available = useMemo(
+    () => (countries || []).filter((item) => item.institution_count !== 0),
+    [countries],
+  );
+  const countryOptions = useMemo(() => {
+    const first = available.map((item) => item.name);
+    return [...first, ...ALL_WORLD_COUNTRIES.filter((name) => !first.includes(name))];
+  }, [available]);
 
   return (
     <div className="gx-page">
       {banner}
 
-      <nav className="gx-crumbs" aria-label="Course browser">
-        <ol>
-          <li>
-            {country ? (
-              <button type="button" className="gx-link" onClick={() => go({})}>
-                Countries
-              </button>
-            ) : (
-              <span aria-current="page">Countries</span>
-            )}
-          </li>
-          {country ? (
-            <li>
-              <Icon name="chevronRight" size={14} strokeWidth={2} />
-              {schoolSlug ? (
-                <button type="button" className="gx-link" onClick={() => go({ country })}>
-                  {country}
-                </button>
-              ) : (
-                <span aria-current="page">{country}</span>
-              )}
-            </li>
-          ) : null}
-          {school ? (
-            <li>
-              <Icon name="chevronRight" size={14} strokeWidth={2} />
-              <span aria-current="page">{school.name}</span>
-            </li>
-          ) : null}
-        </ol>
-      </nav>
-
-      {/* ── 1. Country ── */}
-      {!country ? (
-        <section className="gx-card" aria-labelledby="country-title">
-          <div className="gx-card-head">
-            <h2 id="country-title" className="gx-card-title">Where do you want to study?</h2>
+      {/* ── 1. Country: one searchable list of every country, with the ones
+          that have partner universities at the top. ── */}
+      <section className="gx-card" aria-labelledby="country-title">
+        <div className="gx-card-head">
+          <h2 id="country-title" className="gx-card-title">Find a course</h2>
+        </div>
+        <div className="gx-country-row">
+          <div className="gx-field">
+            <span className="gx-label" id="course-country-label">
+              Country
+            </span>
+            <SearchableSelect
+              options={countryOptions}
+              value={country}
+              onChange={(value) => go({ country: value })}
+              labelledBy="course-country-label"
+            />
           </div>
-          {countries === null ? (
-            <Loading label="Loading destinations" />
-          ) : available.length === 0 ? (
-            <div className="gx-empty">
-              <h3>No destinations yet</h3>
-              <p className="gx-muted">New universities are added regularly. Check back soon.</p>
-            </div>
-          ) : (
-            <div className="gx-pick-grid">
-              {available.map((item) => (
-                <button key={item.id} type="button" className="gx-pick" onClick={() => go({ country: item.name })}>
-                  <span className="gx-pick-badge" aria-hidden="true">{item.code || item.name.slice(0, 2).toUpperCase()}</span>
-                  <span className="gx-pick-text">
-                    <strong>{item.name}</strong>
-                    <span>
-                      {item.institution_count} universit{item.institution_count === 1 ? 'y' : 'ies'} · {item.program_count} courses
-                    </span>
-                  </span>
-                  <Icon name="chevronRight" size={18} strokeWidth={2} className="gx-pick-chevron" />
+          {countries !== null && !country ? (
+            <p className="gx-muted gx-small gx-country-hint">
+              {available.length
+                ? `Partner universities in ${available.map((item) => item.name).join(', ')}.`
+                : 'New universities are added regularly.'}
+            </p>
+          ) : null}
+        </div>
+
+        {country && schoolSlug ? (
+          <nav className="gx-crumbs gx-crumbs-inline" aria-label="Course browser">
+            <ol>
+              <li>
+                <button type="button" className="gx-link" onClick={() => go({ country })}>
+                  Universities in {country}
                 </button>
-              ))}
-            </div>
-          )}
-        </section>
-      ) : null}
+              </li>
+              {school ? (
+                <li>
+                  <Icon name="chevronRight" size={14} strokeWidth={2} />
+                  <span aria-current="page">{school.name}</span>
+                </li>
+              ) : null}
+            </ol>
+          </nav>
+        ) : null}
+      </section>
 
       {/* ── 2. University ── */}
       {country && !schoolSlug ? (
@@ -214,10 +205,15 @@ export function CourseBrowser({ onApply, applyLabel = 'Apply', canApply = true, 
             <Loading label="Loading universities" />
           ) : schools.length === 0 ? (
             <div className="gx-empty">
-              <h3>No universities here yet</h3>
-              <button type="button" className="gx-btn gx-btn-secondary" onClick={() => go({})}>
-                Choose another country
-              </button>
+              <span className="gx-icon-tile" aria-hidden="true">
+                <Icon name="globe" size={22} />
+              </span>
+              <h3>No partner universities in {country} yet</h3>
+              <p className="gx-muted">
+                {available.length
+                  ? `Try ${available.map((item) => item.name).join(' or ')}.`
+                  : 'New universities are added regularly.'}
+              </p>
             </div>
           ) : (
             <div className="gx-pick-grid gx-pick-grid-wide">
@@ -282,7 +278,6 @@ export function CourseBrowser({ onApply, applyLabel = 'Apply', canApply = true, 
                     id="course-search"
                     type="search"
                     className="gx-input"
-                    placeholder="Search this university"
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
                   />

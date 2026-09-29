@@ -131,7 +131,7 @@ class ApplicantRegisterView(generics.CreateAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
-        return session_response(user, request=request, status_code=status.HTTP_201_CREATED)
+        return verification_pending(user)
 
 
 class AgentRegisterView(generics.CreateAPIView):
@@ -143,7 +143,7 @@ class AgentRegisterView(generics.CreateAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
-        return session_response(user, request=request, status_code=status.HTTP_201_CREATED)
+        return verification_pending(user)
 
 
 class MeView(generics.RetrieveUpdateAPIView):
@@ -316,3 +316,81 @@ class PasswordResetConfirmView(APIView):
         user.save(update_fields=["password"])
         send_password_changed_email(user)
         return Response({"detail": "Your password has been changed.", "role": user.role})
+
+
+def verification_pending(user):
+    """What a sign-up answers: no session yet, just where the link went."""
+    return Response(
+        {
+            "detail": "Check your email to confirm your address.",
+            "email": user.email,
+            "verification_required": True,
+        },
+        status=status.HTTP_201_CREATED,
+    )
+
+
+class VerifyEmailThrottle(AnonRateThrottle):
+    scope = "verify"
+
+
+class VerifyResendThrottle(AnonRateThrottle):
+    scope = "verify_resend"
+
+
+class VerifyEmailView(APIView):
+    """Open a verification link: confirm the address, sign in, send the welcome.
+
+    Opening the same link twice is harmless: the second time it simply signs in
+    again, and the welcome email is only ever sent once.
+    """
+
+    permission_classes = (permissions.AllowAny,)
+    authentication_classes = ()
+    throttle_classes = (VerifyEmailThrottle,)
+
+    def post(self, request):
+        from .emails import send_welcome_email
+        from .verification import user_from_token
+
+        user = user_from_token(request.data.get("token"))
+        if user is None:
+            return Response(
+                {"detail": "This link is invalid or has expired.", "code": "invalid_link"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not user.email_verified:
+            user.email_verified = True
+            user.save(update_fields=["email_verified"])
+            send_welcome_email(user)
+        response = session_response(user, request=request)
+        response.data["verified"] = True
+        return response
+
+
+class ResendVerificationView(APIView):
+    """Send the verification email again. Answers the same for any address."""
+
+    permission_classes = (permissions.AllowAny,)
+    authentication_classes = ()
+    throttle_classes = (VerifyResendThrottle,)
+    COOLDOWN_SECONDS = 60
+
+    def post(self, request):
+        from django.core.cache import cache
+
+        from .verification import send_verification
+
+        serializer = PasswordResetRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        email = serializer.validated_data["email"]
+        user = User.objects.filter(email__iexact=email, is_active=True).first()
+        if (
+            user is not None
+            and not user.email_verified
+            and cache.add(f"verify-resend:{email}", 1, self.COOLDOWN_SECONDS)
+        ):
+            send_verification(user)
+        return Response(
+            {"detail": "If that address is waiting to be confirmed, a new link is on its way."}
+        )

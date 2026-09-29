@@ -5,7 +5,7 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 from apps.partners.models import AgentProfile, SupervisorProfile, Wallet
 
-from .models import SupportTicket, User
+from .models import SupportReply, SupportTicket, User
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -64,16 +64,14 @@ class ApplicantRegistrationSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         raw_password = validated_data.get("password")
         send_email = validated_data.pop("send_welcome_email", True)
-        user = User.objects.create_user(role=User.Role.APPLICANT, **validated_data)
+        user = User.objects.create_user(
+            role=User.Role.APPLICANT, email_verified=False, **validated_data
+        )
         if send_email:
-            try:
-                from .emails import send_applicant_welcome_email
-                # They chose this password themselves, so it is never sent back
-                # to them: the email only confirms the account exists.
-                send_applicant_welcome_email(user)
-            except Exception as exc:
-                import logging
-                logging.getLogger(__name__).error("Failed to send applicant welcome email: %s", exc)
+            # The welcome email follows once the address is confirmed.
+            from .verification import send_verification
+
+            send_verification(user)
         return user
 
 
@@ -129,6 +127,7 @@ class AgentRegistrationSerializer(serializers.Serializer):
     @transaction.atomic
     def create(self, validated_data):
         user = User.objects.create_user(
+            email_verified=False,
             email=validated_data["email"],
             password=validated_data["password"],
             full_name=validated_data["full_name"],
@@ -145,12 +144,11 @@ class AgentRegistrationSerializer(serializers.Serializer):
             supervisor=validated_data.get("agent_code"),
         )
         Wallet.objects.create(agent=profile)
-        try:
-            from .emails import send_agent_welcome_email
-            send_agent_welcome_email(user, agent_profile=profile)
-        except Exception as exc:
-            import logging
-            logging.getLogger(__name__).error("Failed to send agent welcome email: %s", exc)
+        # The welcome email follows once the address is confirmed. Sent after the
+        # transaction commits, so a sign-up that rolls back sends nothing.
+        from .verification import send_verification
+
+        transaction.on_commit(lambda: send_verification(user))
         return user
 
 
@@ -185,9 +183,27 @@ class GabstepTokenObtainPairSerializer(TokenObtainPairSerializer):
         return stamp(super().get_token(user), user)
 
     def validate(self, attrs):
+        from rest_framework.exceptions import PermissionDenied
+
         data = super().validate(attrs)
+        # Checked after the password, so this never tells a stranger whether an
+        # address is registered.
+        if not self.user.email_verified:
+            raise PermissionDenied(
+                {
+                    "detail": "Confirm your email address first. We sent you a link when you signed up.",
+                    "code": "email_not_verified",
+                }
+            )
         data["user"] = UserSerializer(self.user, context=self.context).data
         return data
+
+
+class SupportReplySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SupportReply
+        fields = ("id", "body", "created_at")
+        read_only_fields = fields
 
 
 class SupportTicketSerializer(serializers.ModelSerializer):
@@ -195,6 +211,7 @@ class SupportTicketSerializer(serializers.ModelSerializer):
 
     topic_display = serializers.CharField(source="get_topic_display", read_only=True)
     status_display = serializers.CharField(source="get_status_display", read_only=True)
+    replies = SupportReplySerializer(many=True, read_only=True)
 
     class Meta:
         model = SupportTicket
@@ -209,8 +226,9 @@ class SupportTicketSerializer(serializers.ModelSerializer):
             "status_display",
             "emailed",
             "created_at",
+            "replies",
         )
-        read_only_fields = ("reference", "status", "emailed", "created_at")
+        read_only_fields = ("reference", "status", "emailed", "created_at", "replies")
 
     def validate_subject(self, value):
         value = value.strip()

@@ -94,7 +94,7 @@ export default function ResetPasswordPage({ onOpenLogin }) {
 
   return (
     <>
-      <SiteHeader onOpenLogin={onOpenLogin} />
+      <SiteHeader />
       <main className="gx-auth">
         <div className="gx-card gx-auth-card">
           {state === 'checking' ? <Loading label="Checking your link" /> : null}

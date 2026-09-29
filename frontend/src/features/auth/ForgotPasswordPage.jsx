@@ -44,7 +44,7 @@ export default function ForgotPasswordPage({ onOpenLogin }) {
 
   return (
     <>
-      <SiteHeader onOpenLogin={onOpenLogin} />
+      <SiteHeader />
       <main className="gx-auth">
         <div className="gx-card gx-auth-card">
           {sentTo ? (

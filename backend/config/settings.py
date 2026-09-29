@@ -229,6 +229,9 @@ REST_FRAMEWORK = {
         # Opening and using a link. Separate, so someone retrying a password the
         # rules refused is not locked out by the emails they asked for.
         "password_reset_confirm": env("THROTTLE_PASSWORD_RESET_CONFIRM", "30/hour"),
+        # Sending a verification email again, and opening a verification link.
+        "verify_resend": env("THROTTLE_VERIFY_RESEND", "6/hour"),
+        "verify": env("THROTTLE_VERIFY", "30/hour"),
         # Money leaving the platform, and a file being uploaded, are both worth
         # slowing down well below what a person could ever need.
         "money": env("THROTTLE_MONEY", "12/hour"),
@@ -239,6 +242,8 @@ REST_FRAMEWORK = {
 # How long a password reset link works, in seconds. Used once, it stops working
 # at once anyway, because the token is tied to the old password.
 PASSWORD_RESET_TIMEOUT = int(env("PASSWORD_RESET_TIMEOUT", "3600"))
+# How long an email verification link works, in seconds (48 hours).
+VERIFY_EMAIL_MAX_AGE = int(env("VERIFY_EMAIL_MAX_AGE", str(48 * 3600)))
 
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=int(env("ACCESS_TOKEN_MINUTES", "60"))),

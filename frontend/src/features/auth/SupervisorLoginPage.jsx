@@ -72,7 +72,6 @@ export default function SupervisorLoginPage() {
                 id="sv-login-email"
                 className="agent-form-control"
                 autoComplete="email"
-                placeholder="you@gabstep.org"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
                 required
@@ -88,7 +87,6 @@ export default function SupervisorLoginPage() {
                 id="sv-login-pass"
                 className="agent-form-control"
                 autoComplete="current-password"
-                placeholder="Your password"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
                 required

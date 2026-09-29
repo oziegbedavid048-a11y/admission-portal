@@ -119,7 +119,6 @@ export default function SupervisorStudents() {
               type="search"
               id="sv-student-search"
               className="agent-form-control"
-              placeholder="Search a student, agent or institution"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
             />

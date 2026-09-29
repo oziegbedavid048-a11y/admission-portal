@@ -114,7 +114,6 @@ export default function CorrectionPanel() {
               <input
                 type="text"
                 id="correction-correct"
-                placeholder="Corrected value"
                 value={corrected}
                 onChange={(event) => setCorrected(event.target.value)}
               />
@@ -126,7 +125,6 @@ export default function CorrectionPanel() {
             <textarea
               id="correction-reason"
               rows={4}
-              placeholder="Give us enough detail to verify it"
               value={reason}
               onChange={(event) => setReason(event.target.value)}
             />

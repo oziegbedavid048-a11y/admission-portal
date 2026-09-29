@@ -108,7 +108,7 @@ MUTED = "margin:0;color:#6b7280;font-size:13px;"
 LINK = "color:#065f46;"
 
 
-def _render(greeting, paragraphs, facts=None, action=None):
+def _render(greeting, paragraphs, facts=None, action=None, items=None):
     """One message: a greeting, some sentences, an optional list, one link.
 
     `facts` is a list of (label, value) pairs rendered as plain rows. `action`
@@ -117,6 +117,14 @@ def _render(greeting, paragraphs, facts=None, action=None):
     """
     parts = [f'<p style="{P}">{greeting}</p>']
     parts += [f'<p style="{P}">{text}</p>' for text in paragraphs]
+
+    if items:
+        rows = "".join(
+            f'<li style="margin:0 0 10px;"><strong>{title}</strong><br>'
+            f'<span style="color:#374151;">{text}</span></li>'
+            for title, text in items
+        )
+        parts.append(f'<ul style="margin:0 0 16px;padding-left:20px;color:#111827;">{rows}</ul>')
 
     if facts:
         rows = "".join(
@@ -150,9 +158,12 @@ def _render(greeting, paragraphs, facts=None, action=None):
     )
 
 
-def _plain(greeting, paragraphs, facts=None, action=None):
+def _plain(greeting, paragraphs, facts=None, action=None, items=None):
     lines = [greeting, ""]
     lines += [line for text in paragraphs for line in (text, "")]
+    if items:
+        lines += [f"- {title}: {text}" for title, text in items]
+        lines.append("")
     if facts:
         lines += [f"{label}: {value}" for label, value in facts]
         lines.append("")
@@ -162,11 +173,11 @@ def _plain(greeting, paragraphs, facts=None, action=None):
     return "\n".join(lines)
 
 
-def _send(subject, recipients, greeting, paragraphs, facts=None, action=None, wait=False):
+def _send(subject, recipients, greeting, paragraphs, facts=None, action=None, wait=False, items=None):
     return send_async_email(
         subject,
-        _plain(greeting, paragraphs, facts, action),
-        _render(greeting, paragraphs, facts, action),
+        _plain(greeting, paragraphs, facts, action, items),
+        _render(greeting, paragraphs, facts, action, items),
         recipients,
         wait=wait,
     )
@@ -530,3 +541,119 @@ def send_password_changed_email(user):
         ],
         action=("Reset password", _url("/forgot-password")),
     )
+
+
+# ── Email verification and welcome ───────────────────────────────────
+
+
+def send_verification_email(user, link, hours):
+    """Confirm the address someone signed up with. Nothing else is in it."""
+    return _send(
+        subject="Confirm your email address",
+        recipients=[user.email],
+        greeting=f"Hello {_first_name(user.full_name)},",
+        paragraphs=[
+            "Thank you for creating a Gabstep account. Please confirm this is your "
+            "email address to activate it.",
+            f"The link expires in {hours} hours. If you did not create an account, "
+            "you can ignore this email.",
+        ],
+        action=("Confirm my email address", link),
+    )
+
+
+APPLICANT_WELCOME = [
+    ("Browse courses", "Choose a country, then a university, and compare courses with their tuition, duration and start dates."),
+    ("Apply in minutes", "Apply to the course you want from your dashboard and upload your passport, transcripts and CV."),
+    ("Pay securely", "Pay the application fee in your own currency."),
+    ("Track every stage", "Follow your application from review to admission and visa, with an email at each step."),
+    ("Receive your letters", "Your offer and admission letters appear in your dashboard as soon as they are issued."),
+    ("Get help", "Our admissions team answers from the Support page in your dashboard."),
+]
+
+AGENT_WELCOME = [
+    ("Register students", "File applications on behalf of your students and upload their documents in one place."),
+    ("Browse courses", "Search every partner university by country, with tuition, duration and start dates."),
+    ("Track progress", "Follow each student from submission to admission and visa. Updates come to you, not the student."),
+    ("Earn commission", "You are paid when a student's fee is settled, and again when their visa is confirmed."),
+    ("Ad funding", "Request interest-free funding for advertising, repaid from your earnings."),
+    ("Withdraw earnings", "Send your balance to your bank account whenever you like."),
+]
+
+
+def send_welcome_email(user):
+    """Sent once, when someone confirms their address: what the platform does for them."""
+    if user.role == user.Role.AGENT:
+        paragraphs = [
+            "Your email is confirmed and your Gabstep partner account is active. "
+            "Gabstep connects you with partner universities abroad and rewards you "
+            "for every student you place.",
+            "Here is what you can do from your partner portal:",
+        ]
+        items, action = AGENT_WELCOME, ("Open your partner portal", _url("/agent"))
+        subject = "Welcome to the Gabstep partner network"
+    else:
+        paragraphs = [
+            "Your email is confirmed and your Gabstep account is ready. Gabstep helps "
+            "you find the right university abroad, apply with confidence and follow "
+            "every step through to your visa.",
+            "Here is what you can do from your dashboard:",
+        ]
+        items, action = APPLICANT_WELCOME, ("Go to your dashboard", _url("/portal"))
+        subject = "Welcome to Gabstep"
+
+    return _send(
+        subject=subject,
+        recipients=[user.email],
+        greeting=f"Hello {_first_name(user.full_name)},",
+        paragraphs=paragraphs + [],
+        items=items,
+        action=action,
+    )
+
+
+
+def send_support_reply_email(reply):
+    """The desk's answer to a support message. Returns whether it was sent.
+
+    Reply-to is the support inbox, so a person answering back reaches the desk.
+    """
+    from django.utils.html import escape
+
+    ticket = reply.ticket
+    user = ticket.user
+    paragraphs = [escape(reply.body).replace("\n", "<br>")]
+    try:
+        message = EmailMultiAlternatives(
+            subject=f"Re: [{ticket.reference}] {ticket.subject}",
+            body=_plain(
+                f"Hello {_first_name(user.full_name)},",
+                [reply.body, f"Your message: {ticket.message}"],
+                action=("View it in your dashboard", _support_url(user)),
+            ),
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            to=[user.email],
+            reply_to=[getattr(settings, "SUPPORT_EMAIL", "support@gabstep.com")],
+        )
+        message.attach_alternative(
+            _render(
+                f"Hello {_first_name(user.full_name)},",
+                paragraphs + [f'<span style="color:#6b7280;">Your message: {escape(ticket.message)}</span>'],
+                action=("View it in your dashboard", _support_url(user)),
+            ),
+            "text/html",
+        )
+        message.send(fail_silently=False)
+        logger.info("Support reply for %s emailed to %s", ticket.reference, user.email)
+        return True
+    except Exception as exc:
+        logger.error("Support reply for %s could not be emailed: %s", ticket.reference, exc)
+        return False
+
+
+def _support_url(user):
+    if user.role == user.Role.AGENT:
+        return _url("/agent/support")
+    if user.role == user.Role.SUPERVISOR:
+        return _url("/sales-manager/support")
+    return _url("/portal/support")

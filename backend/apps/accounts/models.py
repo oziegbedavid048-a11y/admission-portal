@@ -57,6 +57,12 @@ class User(AbstractUser):
     role = models.CharField(max_length=16, choices=Role.choices, default=Role.APPLICANT)
     avatar = models.ImageField(upload_to=avatar_upload_path, blank=True, null=True)
     country = models.CharField(max_length=80, blank=True)
+    # False only for someone who signed up themselves and has not yet opened the
+    # link in their verification email. See apps/accounts/verification.py.
+    email_verified = models.BooleanField(
+        default=True,
+        help_text="Whether the person has confirmed this email address.",
+    )
 
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = []
@@ -132,3 +138,27 @@ class SupportTicket(models.Model):
 
     def __str__(self):
         return f"{self.reference} · {self.subject}"
+
+
+class SupportReply(models.Model):
+    """A reply the desk wrote to a support message, from the admin.
+
+    It is emailed to the person who asked, and shown under their message on the
+    Support page, so the answer reaches them even if the email does not.
+    """
+
+    ticket = models.ForeignKey(SupportTicket, on_delete=models.CASCADE, related_name="replies")
+    author = models.ForeignKey(
+        "accounts.User", on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    body = models.TextField(max_length=5000)
+    emailed = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("created_at",)
+        verbose_name = "reply"
+        verbose_name_plural = "replies"
+
+    def __str__(self):
+        return f"Reply to {self.ticket.reference}"

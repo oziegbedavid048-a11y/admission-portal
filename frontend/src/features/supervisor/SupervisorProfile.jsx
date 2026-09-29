@@ -184,7 +184,7 @@ export default function SupervisorProfile() {
               },
             })}
             {input('phone', 'Phone / WhatsApp', { type: 'tel' })}
-            {input('region', 'Region or team', { placeholder: 'South West' })}
+            {input('region', 'Region or team', { })}
           </div>
           <button
             type="submit"
@@ -209,11 +209,10 @@ export default function SupervisorProfile() {
             <span className="agent-card-note">Where your bonus is sent</span>
           </div>
           <div className="agent-2col-grid">
-            {input('bank_name', 'Bank name', { placeholder: 'Access Bank' })}
+            {input('bank_name', 'Bank name', { })}
             {input('account_number', 'Account number (10 digits)', {
               inputMode: 'numeric',
               maxLength: 10,
-              placeholder: '0123456789',
             })}
             {input('account_name', 'Account name')}
           </div>

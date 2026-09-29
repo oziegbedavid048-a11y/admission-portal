@@ -117,7 +117,6 @@ export default function ProgramPicker({
             id="custom-course-input"
             type="text"
             className="form-control"
-            placeholder="e.g. Master of Business Administration, Computer Science"
             value={selection.custom_course || ''}
             onChange={(e) =>
               onChange({
@@ -176,7 +175,7 @@ export default function ProgramPicker({
           value={selection.institution || ''}
           onChange={(e) => pickInstitution(e.target.value)}
         >
-          <option value="">Select a school</option>
+          <option value="" />
           {safeInstitutions.map((item) => (
             <option key={item.slug} value={item.slug}>
               {item.name} {item.location ? `— ${item.location}` : ''}
@@ -208,13 +207,7 @@ export default function ProgramPicker({
             if (prog) addProgram(prog);
           }}
         >
-          <option value="">
-            {!institution
-              ? 'Select an institution first'
-              : atLimit
-                ? `Maximum ${MAX_COURSES} courses selected`
-                : 'Select a course'}
-          </option>
+          <option value="" />
           {groups.map((group) => (
             <optgroup key={group.key} label={group.label}>
               {group.programs.map((prog) => (

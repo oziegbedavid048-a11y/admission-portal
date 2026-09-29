@@ -120,7 +120,6 @@ export default function SupervisorAgents() {
                   type="search"
                   id="agent-search"
                   className="agent-form-control"
-                  placeholder="Search a name, email or agency"
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                 />

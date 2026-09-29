@@ -68,17 +68,23 @@ export function AuthProvider({ children }) {
     [adopt],
   );
 
-  const registerApplicant = useCallback(
-    async (payload) => {
-      const { data } = await auth.registerApplicant(payload);
-      return adopt(data);
-    },
-    [adopt],
-  );
+  // Signing up does not sign anyone in: the account waits for its email to be
+  // confirmed. Both return the server's answer, which names the address the
+  // confirmation link went to.
+  const registerApplicant = useCallback(async (payload) => {
+    const { data } = await auth.registerApplicant(payload);
+    return data;
+  }, []);
 
-  const registerAgent = useCallback(
-    async (payload) => {
-      const { data } = await auth.registerAgent(payload);
+  const registerAgent = useCallback(async (payload) => {
+    const { data } = await auth.registerAgent(payload);
+    return data;
+  }, []);
+
+  /** Open a verification link: the server confirms it and starts a session. */
+  const verifyEmail = useCallback(
+    async (token) => {
+      const { data } = await auth.verifyEmail(token);
       return adopt(data);
     },
     [adopt],
@@ -116,6 +122,7 @@ export function AuthProvider({ children }) {
       signOut,
       registerApplicant,
       registerAgent,
+      verifyEmail,
       changePassword,
       refreshUser,
       setUser,
@@ -128,6 +135,7 @@ export function AuthProvider({ children }) {
       signOut,
       registerApplicant,
       registerAgent,
+      verifyEmail,
       changePassword,
       refreshUser,
       adopt,

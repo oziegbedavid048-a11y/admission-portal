@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Navigate, useNavigate } from 'react-router-dom';
+import { Navigate } from 'react-router-dom';
 import SiteHeader from '../../components/layout/SiteHeader';
 import SearchableSelect from '../../components/ui/SearchableSelect';
 import { errorMessage, fieldErrors } from '../../api/client';
@@ -7,6 +7,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { useCatalog } from '../../hooks/useCatalog';
 import Icon from '../../lib/icons';
+import CheckEmailPanel from './CheckEmailPanel';
 
 /**
  * Create an applicant account.
@@ -27,9 +28,9 @@ export default function SignupPage({ onOpenLogin }) {
   const [errors, setErrors] = useState({});
   const [busy, setBusy] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [sentTo, setSentTo] = useState('');
   const { user, isAgent, isSupervisor, registerApplicant } = useAuth();
   const { originNames } = useCatalog();
-  const navigate = useNavigate();
   const toast = useToast();
 
   useEffect(() => {
@@ -78,8 +79,7 @@ export default function SignupPage({ onOpenLogin }) {
         country: form.country,
         password: form.password,
       });
-      toast.success(`Welcome, ${(created.full_name || '').split(' ')[0] || 'there'}.`);
-      navigate('/portal', { replace: true });
+      setSentTo(created?.email || form.email.trim().toLowerCase());
     } catch (error) {
       const fields = fieldErrors(error);
       const mapped = {
@@ -110,10 +110,14 @@ export default function SignupPage({ onOpenLogin }) {
 
   return (
     <>
-      <SiteHeader onOpenLogin={onOpenLogin} />
+      <SiteHeader />
 
       <main className="gx-auth">
         <div className="gx-card gx-auth-card">
+          {sentTo ? (
+            <CheckEmailPanel email={sentTo} onChangeEmail={() => setSentTo('')} />
+          ) : (
+          <>
           <div className="gx-auth-head">
             <h1>Create your account</h1>
             <p className="gx-muted">Browse courses and tuition, then apply from your dashboard.</p>
@@ -158,7 +162,6 @@ export default function SignupPage({ onOpenLogin }) {
                   className="gx-input"
                   autoComplete="tel"
                   inputMode="tel"
-                  placeholder="+234 801 234 5678"
                   value={form.phone}
                   onChange={(event) => update({ phone: event.target.value })}
                   {...aria('phone')}
@@ -174,7 +177,6 @@ export default function SignupPage({ onOpenLogin }) {
                   options={originNames}
                   value={form.country}
                   onChange={(value) => update({ country: value })}
-                  placeholder="Select your country"
                   labelledBy="su-country-label"
                 />
                 {errorFor('country')}
@@ -225,6 +227,8 @@ export default function SignupPage({ onOpenLogin }) {
               Sign in
             </button>
           </p>
+          </>
+          )}
         </div>
       </main>
     </>

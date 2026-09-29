@@ -230,7 +230,6 @@ export default function AgentProfile() {
                   <input
                     id="ap-name"
                     className="ap-input"
-                    placeholder="Chukwudi Emmanuel Okafor"
                     value={form.full_name}
                     onChange={(e) => setForm({ ...form, full_name: e.target.value })}
                     required
@@ -271,7 +270,6 @@ export default function AgentProfile() {
                     id="ap-phone"
                     type="tel"
                     className="ap-input"
-                    placeholder="+234 802 345 6789"
                     value={form.phone}
                     onChange={(e) => setForm({ ...form, phone: e.target.value })}
                   />
@@ -289,7 +287,6 @@ export default function AgentProfile() {
                   <input
                     id="ap-country"
                     className="ap-input"
-                    placeholder="Nigeria"
                     value={form.country}
                     onChange={(e) => setForm({ ...form, country: e.target.value })}
                   />
@@ -344,7 +341,6 @@ export default function AgentProfile() {
                   <input
                     id="ap-bank"
                     className="ap-input"
-                    placeholder="e.g. Access Bank, Zenith Bank, GTBank"
                     value={form.bank_name}
                     onChange={(e) => setForm({ ...form, bank_name: e.target.value })}
                     required
@@ -365,7 +361,6 @@ export default function AgentProfile() {
                     className="ap-input mono"
                     inputMode="numeric"
                     maxLength={10}
-                    placeholder="0123456789"
                     value={form.account_number}
                     onChange={(e) => setForm({ ...form, account_number: e.target.value })}
                     required
@@ -385,7 +380,6 @@ export default function AgentProfile() {
                   <input
                     id="ap-acc-name"
                     className="ap-input"
-                    placeholder="e.g. Chukwudi Emmanuel Okafor"
                     value={form.account_name}
                     onChange={(e) => setForm({ ...form, account_name: e.target.value })}
                     required
@@ -444,7 +438,6 @@ export default function AgentProfile() {
                     type="password"
                     className="ap-input"
                     autoComplete="current-password"
-                    placeholder="Enter current password"
                     value={passwords.current}
                     onChange={(e) => setPasswords({ ...passwords, current: e.target.value })}
                     required
@@ -465,7 +458,6 @@ export default function AgentProfile() {
                     type="password"
                     className="ap-input"
                     autoComplete="new-password"
-                    placeholder="At least 8 characters"
                     value={passwords.next}
                     onChange={(e) => setPasswords({ ...passwords, next: e.target.value })}
                     required
@@ -486,7 +478,6 @@ export default function AgentProfile() {
                     type="password"
                     className="ap-input"
                     autoComplete="new-password"
-                    placeholder="Re-enter new password"
                     value={passwords.confirm}
                     onChange={(e) => setPasswords({ ...passwords, confirm: e.target.value })}
                     required
