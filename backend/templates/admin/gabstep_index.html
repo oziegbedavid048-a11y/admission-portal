@@ -8,46 +8,16 @@ order, so nobody has to learn it by clicking.
 
 {% block content %}
   <div class="gabstep-hint">
-    <strong>Working the pipeline.</strong>
+    <strong>Where each job is done</strong>
     <ol class="gabstep-steps">
-      <li>
-        <strong>Applications</strong> is the main screen. Each action does one job, in
-        this order: verify personal details, academic details, uploaded documents and
-        the application fee (all four makes the file Verified); send to institution;
-        grant admission or decline; transfer to the Visa Support desk. Add an
-        <em>issued letter</em> on an application and the applicant sees it on their
-        dashboard straight away.
-      </li>
-      <li>
-        <strong>Visa Support Queue</strong> lists admitted students only: start visa
-        processing, then confirm the visa, which credits the agent's visa commission.
-      </li>
-      <li>
-        <strong>Documents</strong> and <strong>Correction requests</strong> are for
-        single items: verify or reject one upload, approve or decline one correction.
-      </li>
-      <li>
-        <strong>Support messages</strong> (under Accounts) lists what people sent
-        from the Support page. Open one, type in <em>Reply</em> and save: the answer
-        is emailed to them and shown on their Support page.
-      </li>
-      <li>
-        <strong>Partners &amp; sales</strong> is where agent and sales manager requests
-        are approved: ad funding, agent payouts and sales manager payouts.
-      </li>
-      <li>
-        <strong>Payments</strong> confirms an application fee that arrived off platform,
-        which also pays the agent their commission.
-      </li>
-      <li>
-        <strong>Add course</strong> is the whole catalogue in one screen. Paste a
-        school's course list, check what was read, set the application fee, and the
-        country, the school and every course are created in the right place. Links
-        at the foot of that screen reach the existing rows if one needs correcting.
-      </li>
+      <li><strong>Documents</strong>: open an upload, look at it, then <em>Verify</em> or <em>Reject with a comment</em>. The comment is emailed to the applicant. When every document on a file is verified, the file's documents check ticks itself.</li>
+      <li><strong>Applications</strong>: verify personal details, academic details and the fee; send to the university; grant admission or decline; email a message. One action, one job.</li>
+      <li><strong>Letters</strong>: add a letter to an application, then <em>Publish</em> it. The applicant is emailed and sees it in their dashboard.</li>
+      <li><strong>Visa Support Queue</strong>: admitted students. Start visa processing, then confirm the visa.</li>
+      <li><strong>Correction requests</strong>: approve or decline a requested change.</li>
+      <li><strong>Support messages</strong> (Accounts): open one, type a reply and save. The reply is emailed.</li>
+      <li><strong>Payments</strong>, <strong>Partners &amp; sales</strong> and <strong>Add course</strong>: fees paid off platform, partner payouts, and the course catalogue.</li>
     </ol>
-    Select rows and choose an action from the dropdown to handle several at once.
-    Everything that changes what an applicant can see also writes them a notification.
   </div>
   {{ block.super }}
 {% endblock %}

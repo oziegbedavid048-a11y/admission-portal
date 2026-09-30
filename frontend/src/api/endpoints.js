@@ -76,6 +76,14 @@ export const applications = {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
   },
+  // A new copy of one document, usually after the admissions desk rejected it.
+  replaceDocument: (reference, documentId, file) => {
+    const form = new FormData();
+    form.append('file', file);
+    return api.post(`/applications/${reference}/documents/${documentId}/replace/`, form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
   requestCorrection: (reference, payload) => {
     const form = new FormData();
     Object.entries(payload).forEach(([key, value]) => {

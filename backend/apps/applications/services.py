@@ -270,20 +270,6 @@ def mark_admitted(application):
 
 
 @transaction.atomic
-def transfer_to_visa_desk(application):
-    """Hand an admitted file to the Visa Support desk. Only admitted files move."""
-    if application.status != Application.Status.ADMITTED or application.transferred_to_visa_support:
-        return False
-    application.transferred_to_visa_support = True
-    application.transferred_to_visa_support_at = timezone.now()
-    application.save(
-        update_fields=["transferred_to_visa_support", "transferred_to_visa_support_at", "updated_at"]
-    )
-    notify(application, "Your file has been passed to our Visa Support desk.")
-    return True
-
-
-@transaction.atomic
 def start_visa_processing(application):
     """The visa desk has started work on an admitted file."""
     if application.status != Application.Status.ADMITTED:
@@ -517,3 +503,65 @@ def announce_letter(letter):
         send_email=False,
     )
     transaction.on_commit(lambda: send_letter_issued_email(letter))
+
+
+# ── Document review ──────────────────────────────────────────────────
+# Documents are reviewed one by one on the Documents screen. The application's
+# "uploaded documents" check follows from them: it is ticked when every
+# document on the file is verified, and unticked when one is rejected or
+# replaced. It is never ticked by hand.
+
+
+def sync_documents_checkpoint(application, reviewed_by=None):
+    docs = list(application.documents.values_list("status", flat=True))
+    all_verified = bool(docs) and all(status == "Verified" for status in docs)
+    if application.documents_verified == all_verified:
+        return
+    application.documents_verified = all_verified
+    _refresh_verification_status(application, reviewed_by)
+    application.save(
+        update_fields=["documents_verified", "verification_status", "verified_at", "verified_by", "updated_at"]
+    )
+
+
+@transaction.atomic
+def verify_documents(documents, reviewed_by=None):
+    """Mark documents verified. One notice per application, naming them all."""
+    from collections import defaultdict
+
+    changed = defaultdict(list)
+    for document in documents:
+        if document.status == "Verified":
+            continue
+        document.status = "Verified"
+        document.review_note = ""
+        document.reviewed_at = timezone.now()
+        document.reviewed_by = reviewed_by
+        document.save(update_fields=["status", "review_note", "reviewed_at", "reviewed_by"])
+        changed[document.application_id].append(document)
+
+    for docs in changed.values():
+        application = docs[0].application
+        names = ", ".join(doc.name for doc in docs)
+        notify(application, f"Verified: {names}.")
+        sync_documents_checkpoint(application, reviewed_by)
+    return sum(len(docs) for docs in changed.values())
+
+
+@transaction.atomic
+def reject_document(document, note, reviewed_by=None):
+    """Reject one document with the reviewer's reason, and email that reason."""
+    from apps.accounts.emails import send_document_rejected_email
+
+    note = (note or "").strip()
+    document.status = "Rejected"
+    document.review_note = note
+    document.reviewed_at = timezone.now()
+    document.reviewed_by = reviewed_by
+    document.save(update_fields=["status", "review_note", "reviewed_at", "reviewed_by"])
+
+    application = document.application
+    notify(application, f"{document.name} needs replacing: {note}", send_email=False)
+    sync_documents_checkpoint(application, reviewed_by)
+    transaction.on_commit(lambda: send_document_rejected_email(document))
+    return True

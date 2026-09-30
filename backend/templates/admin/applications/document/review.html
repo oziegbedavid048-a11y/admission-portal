@@ -1,0 +1,40 @@
+{% extends "admin/change_form.html" %}
+
+{% block content %}
+<div class="gs-review">
+  <div class="gs-review__preview">
+    {% if not file_url %}
+      <p class="gs-muted">No file on this document.</p>
+    {% elif is_image %}
+      <img src="{{ file_url }}" alt="{{ doc.name }}">
+    {% elif is_pdf %}
+      <iframe src="{{ file_url }}" title="{{ doc.name }}"></iframe>
+    {% else %}
+      <p class="gs-muted">This file type cannot be previewed here.</p>
+    {% endif %}
+  </div>
+
+  <aside class="gs-card gs-review__decide">
+    <h2>{{ doc.name }}</h2>
+    <p class="gs-muted">{{ doc.application.full_name }} · {{ doc.application.reference }}</p>
+    {% if file_url %}<p><a class="gs-button" href="{{ file_url }}" target="_blank" rel="noopener">Open in a new tab</a></p>{% endif %}
+
+    {% if doc.status == "Rejected" and doc.review_note %}
+      <div class="gs-callout gs-callout--bad"><strong>Your comment</strong><br>{{ doc.review_note|linebreaksbr }}</div>
+    {% endif %}
+
+    <div class="gs-review__buttons">
+      <form method="post" action="{{ verify_url }}">
+        {% csrf_token %}
+        <button type="submit" class="gs-button gs-button--primary"{% if doc.status == "Verified" %} disabled{% endif %}>
+          {% if doc.status == "Verified" %}Verified{% else %}Verify{% endif %}
+        </button>
+      </form>
+      <a class="gs-button gs-button--danger" href="{{ reject_url }}">Reject with a comment</a>
+    </div>
+    <p class="gs-hint">Verify tells the applicant the document is accepted. Reject asks you why, then emails that comment to them.</p>
+  </aside>
+</div>
+
+{{ block.super }}
+{% endblock %}

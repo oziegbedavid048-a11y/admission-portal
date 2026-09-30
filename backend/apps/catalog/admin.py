@@ -9,6 +9,8 @@ from django.contrib import admin, messages
 from django.db.models import Count
 from django.utils.html import format_html
 
+from config.admin_ui import muted, pill
+
 from . import admin_import  # noqa: F401  (registers the Add Course screen)
 from .forms import AddCourseForm
 from .models import DestinationCountry, FaqItem, Institution, OriginCountry, Program
@@ -107,17 +109,14 @@ class InstitutionAdmin(admin.ModelAdmin):
         rate.
         """
         if obj.is_fee_free:
-            return format_html(
-                '<span style="background:#e1f6dd;color:#0b5c43;border-radius:999px;'
-                'padding:2px 9px;font-size:11px;font-weight:700">Fee-free</span>'
-            )
+            return pill("Fee-free", "ok")
         own = f"{obj.application_fee_currency} {obj.application_fee:,.2f}"
         if obj.application_fee_currency.upper() == "NGN":
             return own
         return format_html(
-            "{}<br><small style=\"color:#5f6f69\">≈ ₦{}</small>",
+            "{}<br>{}",
             own,
-            f"{obj.application_fee_ngn:,.0f}",
+            muted(f"≈ ₦{obj.application_fee_ngn:,.0f}"),
         )
 
     @admin.action(description="Show on the site")

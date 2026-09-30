@@ -275,7 +275,16 @@ export default function AgentStudents() {
         </div>
       </section>
 
-      <StudentDossierModal student={open} onClose={() => setOpen(null)} />
+      <StudentDossierModal
+        student={open}
+        onClose={() => setOpen(null)}
+        onDocumentReplaced={async () => {
+          const { data } = await partners.students();
+          setStudents(data);
+          setOpen(data.find((row) => row.reference === open?.reference) || null);
+          toast.success('Replacement uploaded. It is back in review.');
+        }}
+      />
     </div>
   );
 }

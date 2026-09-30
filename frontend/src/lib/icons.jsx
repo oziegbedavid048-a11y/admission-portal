@@ -302,6 +302,13 @@ export const PATHS = {
       <path d="M4 21h16" />
     </>
   ),
+  upload: (
+    <>
+      <path d="M12 16V4" />
+      <polyline points="7 9 12 4 17 9" />
+      <path d="M4 21h16" />
+    </>
+  ),
   printer: (
     <>
       <polyline points="6 9 6 2 18 2 18 9" />

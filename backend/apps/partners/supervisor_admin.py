@@ -197,8 +197,7 @@ class SupervisorProfileAdmin(admin.ModelAdmin):
     @admin.display(description="Agent code", ordering="agent_code")
     def code_badge(self, obj):
         return format_html(
-            '<code style="background:#ecfdf5;border:1px solid #a7f3d0;border-radius:6px;'
-            'padding:3px 8px;font-weight:700;color:#065f46">{}</code>',
+            '<code class="gs-code">{}</code>',
             obj.agent_code,
         )
 
@@ -207,9 +206,7 @@ class SupervisorProfileAdmin(admin.ModelAdmin):
         if not obj.pk:
             return "Generated when you save."
         return format_html(
-            '<code style="background:#ecfdf5;border:1px solid #a7f3d0;border-radius:8px;'
-            'padding:7px 16px;font-size:16px;font-weight:800;letter-spacing:0.1em;'
-            'color:#064e3b">{}</code>',
+            '<code class="gs-code gs-code--large">{}</code>',
             obj.agent_code,
         )
 

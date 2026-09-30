@@ -35,9 +35,10 @@ class DocumentSerializer(serializers.ModelSerializer):
             "size_bytes",
             "human_size",
             "status",
+            "review_note",
             "uploaded_at",
         )
-        read_only_fields = ("id", "status", "uploaded_at", "human_size")
+        read_only_fields = ("id", "status", "review_note", "uploaded_at", "human_size")
 
     def validate_file(self, value):
         from django.conf import settings

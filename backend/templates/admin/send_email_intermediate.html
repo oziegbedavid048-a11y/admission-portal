@@ -1,88 +1,42 @@
 {% extends "admin/base_site.html" %}
-{% load i18n l10n %}
 
 {% block breadcrumbs %}
 <div class="breadcrumbs">
-<a href="{% url 'admin:index' %}">{% translate 'Home' %}</a>
-&rsaquo; <a href="{% url 'admin:app_list' app_label='applications' %}">Applications</a>
-&rsaquo; <a href="{% url 'admin:applications_application_changelist' %}">Applications</a>
-&rsaquo; Email a message
+  <a href="{% url 'admin:index' %}">Home</a>
+  &rsaquo; <a href="{% url 'admin:applications_application_changelist' %}">Applications</a>
+  &rsaquo; Email a message
 </div>
 {% endblock %}
 
 {% block content %}
-<div style="max-width: 780px; margin: 20px 0;">
-  <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
-    <h2 style="margin-top: 0; margin-bottom: 8px; font-size: 20px; color: #0f172a;">
-      Email a message
-    </h2>
-    <p style="color: #64748b; font-size: 14px; margin-bottom: 20px;">
-      The message is emailed once and added to the application's notifications. A file filed by a partner agent is written to the agent, never to the student.
-    </p>
+<div class="gs-card gs-narrow">
+  <h2>Email a message</h2>
+  <p class="gs-muted">Sent once and added to each file's notifications. A file filed by a partner agent is written to the agent, never to the student.</p>
 
-    <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px; margin-bottom: 24px;">
-      <strong style="display: block; font-size: 13px; color: #334155; margin-bottom: 8px;">
-        Selected Recipient(s) ({{ applicants|length }}):
-      </strong>
-      <ul style="margin: 0; padding-left: 20px; font-size: 13px; color: #475569;">
-        {% for app in applicants %}
-          <li><strong>{{ app.full_name }}</strong> &middot; {{ app.reference }} &middot; <span style="color:#0284c7;">{{ app.email }}</span></li>
-        {% endfor %}
-      </ul>
-    </div>
-
-    <form action="" method="post">
-      {% csrf_token %}
-      {% for app in applicants %}
-        <input type="hidden" name="_selected_action" value="{{ app.pk }}">
-      {% endfor %}
-      <input type="hidden" name="action" value="action_send_email_to_applicants">
-      <input type="hidden" name="apply" value="send_email">
-
-      <div style="margin-bottom: 18px;">
-        <label for="id_subject" style="display: block; font-weight: 600; font-size: 14px; color: #1e293b; margin-bottom: 6px;">
-          Subject <span style="color: #ef4444;">*</span>
-        </label>
-        <input
-          type="text"
-          id="id_subject"
-          name="subject"
-          placeholder="e.g. Document Verification Update or Additional Information Required"
-          required
-          style="width: 100%; box-sizing: border-box; padding: 10px 14px; font-size: 14px; border: 1px solid #cbd5e1; border-radius: 6px; outline: none;"
-        >
-      </div>
-
-      <div style="margin-bottom: 24px;">
-        <label for="id_message" style="display: block; font-weight: 600; font-size: 14px; color: #1e293b; margin-bottom: 6px;">
-          Message Body <span style="color: #ef4444;">*</span>
-        </label>
-        <textarea
-          id="id_message"
-          name="message"
-          rows="6"
-          placeholder="Write your message to the applicant here. Provide specific instructions or updates regarding their credentials or application."
-          required
-          style="width: 100%; box-sizing: border-box; padding: 12px 14px; font-size: 14px; font-family: inherit; border: 1px solid #cbd5e1; border-radius: 6px; outline: none; resize: vertical;"
-        ></textarea>
-      </div>
-
-      <div style="display: flex; gap: 12px; align-items: center;">
-        <button
-          type="submit"
-          class="button"
-          style="background: #0284c7; color: #ffffff; font-weight: 600; font-size: 14px; padding: 10px 22px; border: none; border-radius: 6px; cursor: pointer;"
-        >
-          Send message
-        </button>
-        <a
-          href="{% url 'admin:applications_application_changelist' %}"
-          style="color: #64748b; font-size: 14px; text-decoration: none; padding: 10px 16px;"
-        >
-          Cancel
-        </a>
-      </div>
-    </form>
+  <div class="gs-callout">
+    <strong>To ({{ applicants|length }})</strong>
+    <ul>
+      {% for app in applicants %}<li>{{ app.full_name }} · {{ app.reference }}</li>{% endfor %}
+    </ul>
   </div>
+
+  <form method="post">
+    {% csrf_token %}
+    {% for app in applicants %}<input type="hidden" name="_selected_action" value="{{ app.pk }}">{% endfor %}
+    <input type="hidden" name="action" value="action_send_email_to_applicants">
+    <input type="hidden" name="apply" value="send_email">
+    <div class="gs-field">
+      <label for="id_subject">Subject</label>
+      <input type="text" id="id_subject" name="subject" maxlength="150" required>
+    </div>
+    <div class="gs-field">
+      <label for="id_message">Message</label>
+      <textarea id="id_message" name="message" rows="7" required></textarea>
+    </div>
+    <div class="gs-actions">
+      <button type="submit" class="gs-button gs-button--primary">Send message</button>
+      <a class="gs-button" href="{% url 'admin:applications_application_changelist' %}">Cancel</a>
+    </div>
+  </form>
 </div>
 {% endblock %}

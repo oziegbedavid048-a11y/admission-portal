@@ -838,3 +838,54 @@ def send_application_received_email(application):
         facts=facts,
         action=("Track your application", _url("/portal")),
     )
+
+
+
+def send_document_rejected_email(document):
+    """Tell the owner exactly which document was not accepted, why, and how to fix it."""
+    from django.utils.html import escape
+
+    application = document.application
+    agent = application.submitted_by_agent
+    to_agent = bool(agent and agent.user and agent.user.email)
+    if not to_agent and not application.email:
+        return None
+
+    facts = []
+    if to_agent:
+        facts.append(("Student", application.full_name))
+    facts += [("Document", document.name)]
+    if document.original_filename:
+        facts.append(("File", document.original_filename))
+    facts += [
+        ("Reference", application.reference),
+        ("University", application.institution.name if application.institution else "To be confirmed"),
+    ]
+
+    where = "the student's file in your partner portal" if to_agent else "Application in your dashboard"
+    steps = [
+        ("Open the file", f"Go to {where} and find {document.name} under Documents."),
+        ("Upload a replacement", "Press Upload a replacement and choose a clear, complete copy (PDF or photo, up to 10MB)."),
+        ("We review it again", "The new copy goes straight back to our admissions desk. We email you once it is checked."),
+    ]
+    reason = escape(document.review_note or "It could not be accepted as uploaded.").replace("\n", "<br>")
+
+    if to_agent:
+        greeting = f"Hello {_first_name(agent.user.full_name, 'there')},"
+        opening = f"We reviewed the {escape(document.name)} uploaded for <strong>{escape(application.full_name)}</strong> and could not accept it."
+        recipients, link = [agent.user.email], ("Open the student's file", _url("/agent/students"))
+    else:
+        greeting = f"Hello {_first_name(application.full_name, 'there')},"
+        opening = f"We reviewed your {escape(document.name)} and could not accept it yet."
+        recipients, link = [application.email], ("Upload a replacement", _url("/portal/details"))
+
+    return _send(
+        subject=f"Action needed: please replace your {document.name}",
+        recipients=recipients,
+        greeting=greeting,
+        paragraphs=[opening, f"<strong>Reason from our admissions desk:</strong><br>{reason}"],
+        facts=facts,
+        items_intro="How to fix it:",
+        items=steps,
+        action=link,
+    )

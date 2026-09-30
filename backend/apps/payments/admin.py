@@ -1,6 +1,8 @@
 from django.contrib import admin, messages
 from django.utils.html import format_html
 
+from config.admin_ui import pill
+
 from apps.applications import services
 
 from .models import Payment
@@ -39,19 +41,8 @@ class PaymentAdmin(admin.ModelAdmin):
 
     @admin.display(description="Status", ordering="status")
     def status_badge(self, obj):
-        colours = {
-            Payment.Status.PAID: ("#dcfce7", "#166534"),
-            Payment.Status.WAIVED: ("#e0e7ff", "#3730a3"),
-            Payment.Status.FAILED: ("#fee2e2", "#991b1b"),
-        }
-        background, colour = colours.get(obj.status, ("#fef3c7", "#92400e"))
-        return format_html(
-            '<span style="display:inline-block;padding:2px 9px;border-radius:999px;'
-            'background:{};color:{};font-size:11px;font-weight:700">{}</span>',
-            background,
-            colour,
-            obj.get_status_display(),
-        )
+        tones = {Payment.Status.PAID: "ok", Payment.Status.WAIVED: "info", Payment.Status.FAILED: "bad"}
+        return pill(obj.get_status_display(), tones.get(obj.status, "wait"))
 
     @admin.display(description="Total")
     def charged(self, obj):

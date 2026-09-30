@@ -5,6 +5,7 @@ import { formatDate, formatNaira } from '../../lib/format';
 import { partners } from '../../api/endpoints';
 import StageTrack from '../applicant/StageTrack';
 import StatusBadge from './StatusBadge';
+import DocumentReplaceButton from '../../components/ui/DocumentReplaceButton';
 
 /**
  * Everything on one student, including the same stage track the student sees,
@@ -14,7 +15,7 @@ import StatusBadge from './StatusBadge';
  * in the admin, because each one pays commission and an agent should not be
  * able to mark their own student admitted.
  */
-export default function StudentDossierModal({ student, onClose }) {
+export default function StudentDossierModal({ student, onClose, onDocumentReplaced }) {
   const [stages, setStages] = useState([]);
 
   useEffect(() => {
@@ -112,11 +113,24 @@ export default function StudentDossierModal({ student, onClose }) {
             {student.documents.length === 0 ? (
               <span className="d-val">None uploaded.</span>
             ) : (
-              student.documents.map((doc) => (
-                <span className="doc-tag" key={doc}>
-                  {doc}
-                </span>
-              ))
+              student.documents.map((doc) =>
+                doc.status === 'Rejected' ? (
+                  <div className="dossier-doc-rejected" key={doc.id}>
+                    <span className="doc-tag doc-tag-bad">{doc.name} · Needs replacing</span>
+                    <p>{doc.review_note || 'Please upload a clearer, complete copy.'}</p>
+                    <DocumentReplaceButton
+                      reference={student.reference}
+                      documentId={doc.id}
+                      onReplaced={onDocumentReplaced}
+                    />
+                  </div>
+                ) : (
+                  <span className="doc-tag" key={doc.id}>
+                    {doc.name}
+                    {doc.status === 'Verified' ? ' · Verified' : ''}
+                  </span>
+                ),
+              )
             )}
           </div>
         </div>

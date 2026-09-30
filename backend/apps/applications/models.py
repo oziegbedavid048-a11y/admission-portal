@@ -336,6 +336,13 @@ class Document(models.Model):
     status = models.CharField(
         max_length=20, choices=Status.choices, default=Status.PENDING
     )
+    # Why a document was rejected, in the reviewer's words. Emailed to the
+    # applicant and shown beside the document in their dashboard.
+    review_note = models.TextField(blank=True, max_length=2000)
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

@@ -283,7 +283,10 @@ class AgentStudentSerializer(serializers.ModelSerializer):
         return " & ".join(p.name for p in obj.programs.all())
 
     def get_documents(self, obj):
-        return [doc.name for doc in obj.documents.all()]
+        return [
+            {"id": doc.id, "name": doc.name, "status": doc.status, "review_note": doc.review_note}
+            for doc in obj.documents.all()
+        ]
 
     def get_commission_earned(self, obj):
         return sum((c.amount for c in obj.commissions.all()), Decimal("0.00"))

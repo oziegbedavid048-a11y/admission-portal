@@ -12,6 +12,8 @@ from django.db import transaction
 from django.utils import timezone
 from django.utils.html import format_html
 
+from config.admin_ui import pill
+
 from apps.accounts.emails import (
     send_agent_payout_failed_email,
     send_agent_payout_sent_email,
@@ -31,20 +33,7 @@ def _naira(value):
 
 
 def _pill(text, tone):
-    colours = {
-        "ok": ("#dcfce7", "#166534"),
-        "wait": ("#fef3c7", "#92400e"),
-        "bad": ("#fee2e2", "#991b1b"),
-        "idle": ("#f1f5f9", "#475569"),
-    }
-    background, colour = colours.get(tone, colours["idle"])
-    return format_html(
-        '<span style="display:inline-block;padding:2px 9px;border-radius:999px;'
-        'background:{};color:{};font-size:11px;font-weight:700;white-space:nowrap">{}</span>',
-        background,
-        colour,
-        text,
-    )
+    return pill(text, tone)
 
 
 class WalletInline(admin.StackedInline):
@@ -236,7 +225,7 @@ class WithdrawalAdmin(admin.ModelAdmin):
     def deduction(self, obj):
         if not obj.loan_deduction:
             return "None"
-        return format_html('<span style="color:#b45309">-{}</span>', _naira(obj.loan_deduction))
+        return pill(f"-{_naira(obj.loan_deduction)}", "wait")
 
     @admin.display(description="Pay out", ordering="net_amount")
     def net(self, obj):

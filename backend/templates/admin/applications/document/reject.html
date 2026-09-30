@@ -1,0 +1,31 @@
+{% extends "admin/base_site.html" %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">Home</a>
+  &rsaquo; <a href="{% url 'admin:applications_document_changelist' %}">Documents</a>
+  &rsaquo; <a href="{{ back_url }}">{{ doc.name }}</a>
+  &rsaquo; Reject
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="gs-card gs-narrow">
+  <h2>Reject {{ doc.name }}</h2>
+  <p class="gs-muted">{{ doc.application.full_name }} · {{ doc.application.reference }}{% if doc.original_filename %} · {{ doc.original_filename }}{% endif %}</p>
+
+  <form method="post">
+    {% csrf_token %}
+    <div class="gs-field">
+      <label for="{{ form.note.id_for_label }}">{{ form.note.label }}</label>
+      {{ form.note }}
+      {% if form.note.errors %}<div class="gs-error">{{ form.note.errors|join:" " }}</div>{% endif %}
+      <p class="gs-hint">{{ form.note.help_text }}</p>
+    </div>
+    <div class="gs-actions">
+      <button type="submit" class="gs-button gs-button--danger">Reject and email the comment</button>
+      <a class="gs-button" href="{{ back_url }}">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

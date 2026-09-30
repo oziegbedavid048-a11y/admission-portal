@@ -1,9 +1,18 @@
 /* ===================================================================
    Gabstep admin theme.
-   The same deep green the product uses, so staff moving between the
-   admin and the dashboard are looking at one system. Colour carries
-   meaning here too: green is settled, amber waits on someone, red
-   needs attention.
+
+   Light mode carries the product's deep green. Dark mode is plain dark:
+   neutral greys, no green, so every text and button stays readable.
+
+   How the switch works: Django puts data-theme="auto", "light" or "dark"
+   on <html>. Light values sit on :root. Dark values are applied twice,
+   once for an explicit "dark" choice and once for "auto" when the system
+   is dark, because CSS cannot combine a media query and a selector in
+   one rule.
+
+   Every colour in the admin comes from a token below. Python code and
+   templates use classes (gs-pill, gs-button, gs-callout...), never inline
+   colours, so both modes stay correct.
    =================================================================== */
 
 :root,
@@ -16,7 +25,7 @@ html[data-theme='light'] {
   --header-bg: #04231b;
   --header-color: #ffffff;
   --header-branding-color: #ffffff;
-  --header-link-color: #a7f3d0;
+  --header-link-color: #d1fae5;
 
   --breadcrumbs-bg: #065f46;
   --breadcrumbs-fg: #d1fae5;
@@ -35,30 +44,218 @@ html[data-theme='light'] {
   --close-button-hover-bg: #475569;
   --delete-button-bg: #b91c1c;
   --delete-button-hover-bg: #991b1b;
+  --object-tools-bg: #475569;
+  --object-tools-hover-bg: #334155;
 
   --selected-bg: #ecfdf5;
   --selected-row: #d1fae5;
 
+  --body-bg: #ffffff;
   --body-fg: #0f172a;
   --body-quiet-color: #64748b;
+  --body-loud-color: #020617;
+  --darkened-bg: #f8fafc;
   --border-color: #e2e8f0;
   --hairline-color: #f1f5f9;
 
+  --message-success-bg: #dcfce7;
+  --message-warning-bg: #fef3c7;
+  --message-error-bg: #fee2e2;
+
   --font-family-primary: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
     Helvetica, Arial, sans-serif;
+
+  /* Gabstep tokens */
+  --gs-heading-bg: #064e3b;
+  --gs-heading-fg: #ffffff;
+  --gs-brand-sub: #6ee7b7;
+  --gs-panel-bg: #ecfdf5;
+  --gs-panel-line: #a7f3d0;
+  --gs-panel-fg: #065f46;
+  --gs-message-fg: #0f172a;
+
+  --gs-ok-bg: #dcfce7;
+  --gs-ok-fg: #166534;
+  --gs-wait-bg: #fef3c7;
+  --gs-wait-fg: #92400e;
+  --gs-wait-line: #fde68a;
+  --gs-bad-bg: #fee2e2;
+  --gs-bad-fg: #991b1b;
+  --gs-bad-line: #fecaca;
+  --gs-info-bg: #e0f2fe;
+  --gs-info-fg: #075985;
+  --gs-idle-bg: #f1f5f9;
+  --gs-idle-fg: #475569;
+
+  --gs-card-bg: #ffffff;
+  --gs-card-line: #e2e8f0;
+  --gs-input-bg: #ffffff;
+  --gs-preview-bg: #f1f5f9;
+  --gs-danger: #b91c1c;
+  --gs-danger-hover: #991b1b;
 }
 
+/* ── Dark: chosen explicitly ─────────────────────────────────────── */
 html[data-theme='dark'] {
-  --primary: #0b5c43;
-  --accent: #4dbf95;
-  --header-bg: #04231b;
-  --breadcrumbs-bg: #06352a;
-  --link-fg: #6ee7b7;
-  --link-hover-color: #a7f3d0;
-  --button-bg: #0b5c43;
-  --button-hover-bg: #0f4a38;
-  --selected-bg: #13302a;
-  --selected-row: #1b4034;
+  --primary: #2c2c2e;
+  --secondary: #1c1c1e;
+  --accent: #f5f5f7;
+  --primary-fg: #f5f5f7;
+
+  --header-bg: #000000;
+  --header-color: #f5f5f7;
+  --header-branding-color: #f5f5f7;
+  --header-link-color: #d1d1d6;
+
+  --breadcrumbs-bg: #1c1c1e;
+  --breadcrumbs-fg: #a1a1a6;
+  --breadcrumbs-link-fg: #f5f5f7;
+
+  --link-fg: #e5e5ea;
+  --link-hover-color: #ffffff;
+  --link-selected-fg: #ffffff;
+
+  --button-bg: #3a3a3c;
+  --button-fg: #ffffff;
+  --button-hover-bg: #48484a;
+  --default-button-bg: #636366;
+  --default-button-hover-bg: #7c7c80;
+  --close-button-bg: #3a3a3c;
+  --close-button-hover-bg: #48484a;
+  --delete-button-bg: #b3261e;
+  --delete-button-hover-bg: #d0342c;
+  --object-tools-bg: #3a3a3c;
+  --object-tools-hover-bg: #48484a;
+
+  --selected-bg: #2c2c2e;
+  --selected-row: #3a3a3c;
+
+  --body-bg: #121212;
+  --body-fg: #f5f5f7;
+  --body-quiet-color: #a1a1a6;
+  --body-medium-color: #d1d1d6;
+  --body-loud-color: #ffffff;
+  --darkened-bg: #1c1c1e;
+  --border-color: #3a3a3c;
+  --hairline-color: #2c2c2e;
+  --error-fg: #ff8a80;
+
+  --message-success-bg: #2c2c2e;
+  --message-warning-bg: #3a2e12;
+  --message-error-bg: #3b1715;
+
+  --gs-heading-bg: #1c1c1e;
+  --gs-heading-fg: #f5f5f7;
+  --gs-brand-sub: #a1a1a6;
+  --gs-panel-bg: #1c1c1e;
+  --gs-panel-line: #3a3a3c;
+  --gs-panel-fg: #e5e5ea;
+  --gs-message-fg: #f5f5f7;
+
+  --gs-ok-bg: #3a3a3c;
+  --gs-ok-fg: #ffffff;
+  --gs-wait-bg: #3a2e12;
+  --gs-wait-fg: #ffd98a;
+  --gs-wait-line: #5c4a1f;
+  --gs-bad-bg: #3b1715;
+  --gs-bad-fg: #ffaba4;
+  --gs-bad-line: #5e2521;
+  --gs-info-bg: #2c2c2e;
+  --gs-info-fg: #d1d1d6;
+  --gs-idle-bg: #2c2c2e;
+  --gs-idle-fg: #a1a1a6;
+
+  --gs-card-bg: #1c1c1e;
+  --gs-card-line: #3a3a3c;
+  --gs-input-bg: #121212;
+  --gs-preview-bg: #000000;
+  --gs-danger: #b3261e;
+  --gs-danger-hover: #d0342c;
+}
+
+/* ── Dark: "auto" with a dark system setting (same values) ───────── */
+@media (prefers-color-scheme: dark) {
+  html:not([data-theme='light']) {
+    --primary: #2c2c2e;
+    --secondary: #1c1c1e;
+    --accent: #f5f5f7;
+    --primary-fg: #f5f5f7;
+
+    --header-bg: #000000;
+    --header-color: #f5f5f7;
+    --header-branding-color: #f5f5f7;
+    --header-link-color: #d1d1d6;
+
+    --breadcrumbs-bg: #1c1c1e;
+    --breadcrumbs-fg: #a1a1a6;
+    --breadcrumbs-link-fg: #f5f5f7;
+
+    --link-fg: #e5e5ea;
+    --link-hover-color: #ffffff;
+    --link-selected-fg: #ffffff;
+
+    --button-bg: #3a3a3c;
+    --button-fg: #ffffff;
+    --button-hover-bg: #48484a;
+    --default-button-bg: #636366;
+    --default-button-hover-bg: #7c7c80;
+    --close-button-bg: #3a3a3c;
+    --close-button-hover-bg: #48484a;
+    --delete-button-bg: #b3261e;
+    --delete-button-hover-bg: #d0342c;
+    --object-tools-bg: #3a3a3c;
+    --object-tools-hover-bg: #48484a;
+
+    --selected-bg: #2c2c2e;
+    --selected-row: #3a3a3c;
+
+    --body-bg: #121212;
+    --body-fg: #f5f5f7;
+    --body-quiet-color: #a1a1a6;
+    --body-medium-color: #d1d1d6;
+    --body-loud-color: #ffffff;
+    --darkened-bg: #1c1c1e;
+    --border-color: #3a3a3c;
+    --hairline-color: #2c2c2e;
+    --error-fg: #ff8a80;
+
+    --message-success-bg: #2c2c2e;
+    --message-warning-bg: #3a2e12;
+    --message-error-bg: #3b1715;
+
+    --gs-heading-bg: #1c1c1e;
+    --gs-heading-fg: #f5f5f7;
+    --gs-brand-sub: #a1a1a6;
+    --gs-panel-bg: #1c1c1e;
+    --gs-panel-line: #3a3a3c;
+    --gs-panel-fg: #e5e5ea;
+    --gs-message-fg: #f5f5f7;
+
+    --gs-ok-bg: #3a3a3c;
+    --gs-ok-fg: #ffffff;
+    --gs-wait-bg: #3a2e12;
+    --gs-wait-fg: #ffd98a;
+    --gs-wait-line: #5c4a1f;
+    --gs-bad-bg: #3b1715;
+    --gs-bad-fg: #ffaba4;
+    --gs-bad-line: #5e2521;
+    --gs-info-bg: #2c2c2e;
+    --gs-info-fg: #d1d1d6;
+    --gs-idle-bg: #2c2c2e;
+    --gs-idle-fg: #a1a1a6;
+
+    --gs-card-bg: #1c1c1e;
+    --gs-card-line: #3a3a3c;
+    --gs-input-bg: #121212;
+    --gs-preview-bg: #000000;
+    --gs-danger: #b3261e;
+    --gs-danger-hover: #d0342c;
+  }
+}
+
+body {
+  background: var(--body-bg);
+  color: var(--body-fg);
 }
 
 /* ── Branding ─────────────────────────────────────────────────── */
@@ -71,7 +268,7 @@ html[data-theme='dark'] {
 #branding h1 a:visited {
   font-weight: 800;
   letter-spacing: -0.02em;
-  color: #ffffff;
+  color: var(--header-branding-color);
 }
 
 .gabstep-brand {
@@ -91,7 +288,7 @@ html[data-theme='dark'] {
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: #6ee7b7;
+  color: var(--gs-brand-sub);
   padding-left: 10px;
   margin-left: 4px;
   border-left: 1px solid rgba(255, 255, 255, 0.25);
@@ -99,10 +296,16 @@ html[data-theme='dark'] {
 
 /* ── Changelist ───────────────────────────────────────────────── */
 #changelist table thead th {
-  background: #f8fafc;
+  background: var(--darkened-bg);
+  color: var(--body-quiet-color);
   font-size: 11px;
   letter-spacing: 0.04em;
   text-transform: uppercase;
+}
+
+#changelist table thead th a:link,
+#changelist table thead th a:visited {
+  color: var(--body-quiet-color);
 }
 
 #changelist-form .results {
@@ -112,8 +315,9 @@ html[data-theme='dark'] {
 }
 
 #changelist .actions {
-  background: #ecfdf5;
-  border: 1px solid #a7f3d0;
+  background: var(--gs-panel-bg);
+  border: 1px solid var(--gs-panel-line);
+  color: var(--gs-panel-fg);
   border-radius: 10px;
   padding: 10px 12px;
 }
@@ -140,12 +344,22 @@ html[data-theme='dark'] {
 .module h2,
 .module caption,
 .inline-group h2 {
-  background: #064e3b;
-  color: #ffffff;
+  background: var(--gs-heading-bg);
+  color: var(--gs-heading-fg);
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
+}
+
+.module caption a:link,
+.module caption a:visited {
+  color: var(--gs-heading-fg);
+}
+
+fieldset .description,
+.module .description {
+  color: var(--body-quiet-color);
 }
 
 .button,
@@ -161,30 +375,32 @@ a.button {
   border-radius: 10px;
 }
 
-/* A file already attached should be easy to spot and open. */
 .file-upload a {
   font-weight: 600;
+}
+
+/* Read-only values must read as text, not faded placeholders. */
+.readonly {
+  color: var(--body-fg);
 }
 
 /* ── Messages ─────────────────────────────────────────────────── */
 ul.messagelist li {
   border-radius: 8px;
   font-weight: 500;
+  color: var(--gs-message-fg);
 }
 
 ul.messagelist li.success {
-  background: #dcfce7;
-  color: #166534;
+  background-color: var(--message-success-bg);
 }
 
 ul.messagelist li.warning {
-  background: #fef3c7;
-  color: #92400e;
+  background-color: var(--message-warning-bg);
 }
 
 ul.messagelist li.error {
-  background: #fee2e2;
-  color: #991b1b;
+  background-color: var(--message-error-bg);
 }
 
 /* ── Dashboard index ──────────────────────────────────────────── */
@@ -195,21 +411,21 @@ ul.messagelist li.error {
 .gabstep-hint {
   margin: 0 0 18px;
   padding: 14px 16px;
-  background: #ecfdf5;
-  border: 1px solid #a7f3d0;
+  background: var(--gs-panel-bg);
+  border: 1px solid var(--gs-panel-line);
   border-radius: 10px;
-  color: #065f46;
+  color: var(--gs-panel-fg);
   font-size: 13px;
   line-height: 1.6;
 }
 
-.gabstep-hint strong {
-  color: #064e3b;
+.gabstep-hint strong,
+.gabstep-steps strong {
+  color: var(--body-loud-color);
 }
 
-/* ── Orientation note on the index ───────────────────────────────── */
 .gabstep-steps {
-  margin: 10px 0 12px;
+  margin: 10px 0 0;
   padding-left: 20px;
   display: grid;
   gap: 7px;
@@ -218,13 +434,9 @@ ul.messagelist li.error {
 .gabstep-steps li {
   padding: 0;
   line-height: 1.6;
+  list-style: decimal;
 }
 
-.gabstep-steps strong {
-  color: #064e3b;
-}
-
-/* Section headings on the index, so the groups read as separate areas. */
 .dashboard .module caption,
 .dashboard .module h2 {
   letter-spacing: 0.06em;
@@ -232,4 +444,294 @@ ul.messagelist li.error {
 
 .dashboard #content-main .module {
   margin-bottom: 18px;
+}
+
+/* ── Shared pieces (config/admin_ui.py) ─────────────────────────── */
+.gs-pill {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  background: var(--gs-idle-bg);
+  color: var(--gs-idle-fg);
+}
+
+.gs-pill--ok { background: var(--gs-ok-bg); color: var(--gs-ok-fg); }
+.gs-pill--wait { background: var(--gs-wait-bg); color: var(--gs-wait-fg); }
+.gs-pill--bad { background: var(--gs-bad-bg); color: var(--gs-bad-fg); }
+.gs-pill--info { background: var(--gs-info-bg); color: var(--gs-info-fg); }
+
+.gs-muted {
+  color: var(--body-quiet-color);
+}
+
+.gs-hint {
+  color: var(--body-quiet-color);
+  font-size: 12px;
+  line-height: 1.5;
+  margin: 8px 0 0;
+}
+
+a.gs-button,
+button.gs-button,
+.gs-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: var(--gs-card-bg);
+  color: var(--body-fg);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.2;
+  text-decoration: none;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+a.gs-button:hover,
+button.gs-button:hover {
+  background: var(--darkened-bg);
+  color: var(--body-loud-color);
+}
+
+a.gs-button--primary,
+button.gs-button--primary {
+  background: var(--button-bg);
+  border-color: var(--button-bg);
+  color: var(--button-fg);
+}
+
+a.gs-button--primary:hover,
+button.gs-button--primary:hover {
+  background: var(--button-hover-bg);
+  color: var(--button-fg);
+}
+
+a.gs-button--danger,
+button.gs-button--danger {
+  background: var(--gs-danger);
+  border-color: var(--gs-danger);
+  color: #ffffff;
+}
+
+a.gs-button--danger:hover,
+button.gs-button--danger:hover {
+  background: var(--gs-danger-hover);
+  color: #ffffff;
+}
+
+button.gs-button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.gs-callout {
+  margin: 12px 0;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--darkened-bg);
+  border: 1px solid var(--border-color);
+  color: var(--body-fg);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.gs-callout ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
+
+.gs-callout ul li {
+  list-style: disc;
+}
+
+.gs-callout--info { background: var(--gs-info-bg); color: var(--gs-info-fg); border-color: transparent; }
+.gs-callout--bad { background: var(--gs-bad-bg); color: var(--gs-bad-fg); border-color: var(--gs-bad-line); }
+
+.gs-card {
+  background: var(--gs-card-bg);
+  border: 1px solid var(--gs-card-line);
+  border-radius: 12px;
+  padding: 22px;
+  color: var(--body-fg);
+}
+
+.gs-card h2 {
+  margin: 0 0 6px;
+  font-size: 18px;
+  color: var(--body-loud-color);
+  background: none;
+  padding: 0;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.gs-narrow {
+  max-width: 720px;
+  margin: 12px 0 20px;
+}
+
+.gs-field {
+  margin: 16px 0;
+}
+
+.gs-field label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: var(--body-fg);
+}
+
+.gs-field input[type='text'],
+.gs-field textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: var(--gs-input-bg);
+  color: var(--body-fg);
+  font: inherit;
+}
+
+.gs-error {
+  color: var(--error-fg);
+  margin-top: 6px;
+  font-size: 12px;
+}
+
+.gs-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* ── Document review ───────────────────────────────────────────── */
+.gs-review {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 18px;
+  margin: 8px 0 22px;
+  align-items: start;
+}
+
+.gs-review__preview {
+  background: var(--gs-preview-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  overflow: hidden;
+  min-height: 320px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.gs-review__preview img {
+  display: block;
+  max-width: 100%;
+  max-height: 78vh;
+  object-fit: contain;
+}
+
+.gs-review__preview iframe {
+  width: 100%;
+  height: 78vh;
+  border: 0;
+  background: #ffffff;
+}
+
+.gs-review__preview p {
+  padding: 24px;
+}
+
+.gs-review__decide {
+  position: sticky;
+  top: 12px;
+}
+
+.gs-review__buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.gs-review__buttons form,
+.gs-review__buttons .gs-button {
+  width: 100%;
+}
+
+.gs-review__buttons .gs-button {
+  box-sizing: border-box;
+  padding: 10px 14px;
+}
+
+@media (max-width: 900px) {
+  .gs-review {
+    grid-template-columns: 1fr;
+  }
+
+  .gs-review__decide {
+    position: static;
+  }
+
+  #changelist .actions select {
+    min-width: 0;
+    width: 100%;
+  }
+}
+
+.gs-code {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: var(--gs-panel-bg);
+  border: 1px solid var(--gs-panel-line);
+  color: var(--body-loud-color);
+  font-weight: 700;
+}
+
+.gs-code--large {
+  padding: 7px 16px;
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+}
+
+/* Django's own icons are green and yellow. In dark mode they become plain
+   white so nothing green is left. */
+html[data-theme='dark'] a.addlink,
+html[data-theme='dark'] .object-tools a.addlink {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 1792 1792'%3E%3Cpath fill='%23f5f5f7' d='M1600 796v192q0 40-28 68t-68 28h-416v416q0 40-28 68t-68 28h-192q-40 0-68-28t-28-68v-416h-416q-40 0-68-28t-28-68v-192q0-40 28-68t68-28h416v-416q0-40 28-68t68-28h192q40 0 68 28t28 68v416h416q40 0 68 28t28 68z'/%3E%3C/svg%3E");
+}
+
+html[data-theme='dark'] a.changelink {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23f5f5f7' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 20h9'/%3E%3Cpath d='M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z'/%3E%3C/svg%3E");
+}
+
+html[data-theme='dark'] img[src$='icon-yes.svg'],
+html[data-theme='dark'] img[src$='icon-changelink.svg'] {
+  filter: grayscale(1) brightness(1.8);
+}
+
+@media (prefers-color-scheme: dark) {
+  html:not([data-theme='light']) a.addlink {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 1792 1792'%3E%3Cpath fill='%23f5f5f7' d='M1600 796v192q0 40-28 68t-68 28h-416v416q0 40-28 68t-68 28h-192q-40 0-68-28t-28-68v-416h-416q-40 0-68-28t-28-68v-192q0-40 28-68t68-28h416v-416q0-40 28-68t68-28h192q40 0 68 28t28 68v416h416q40 0 68 28t28 68z'/%3E%3C/svg%3E");
+  }
+
+  html:not([data-theme='light']) a.changelink {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23f5f5f7' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 20h9'/%3E%3Cpath d='M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z'/%3E%3C/svg%3E");
+  }
+
+  html:not([data-theme='light']) img[src$='icon-yes.svg'],
+  html:not([data-theme='light']) img[src$='icon-changelink.svg'] {
+    filter: grayscale(1) brightness(1.8);
+  }
 }

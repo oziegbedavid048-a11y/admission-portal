@@ -5,6 +5,13 @@ import { downloadUrl, formatLongDate, resolveMediaUrl } from '../../lib/format';
 import Modal from '../../components/ui/Modal';
 import { useApplication } from './ApplicationContext';
 import CorrectionBottomSheetModal from './CorrectionBottomSheetModal';
+import DocumentReplaceButton from '../../components/ui/DocumentReplaceButton';
+
+const DOC_STATE = {
+  Verified: { pill: 'pill-ok', icon: 'check', label: 'Verified' },
+  Rejected: { pill: 'pill-bad', icon: 'alert', label: 'Needs replacing' },
+};
+const docState = (status) => DOC_STATE[status] || { pill: 'pill-wait', icon: 'clock', label: 'In review' };
 
 export default function DetailsPanel() {
   const { application, reload } = useApplication();
@@ -186,9 +193,10 @@ export default function DetailsPanel() {
             </p>
           ) : (
             documents.map((doc) => {
-              const verified = doc.status === 'Verified';
+              const state = docState(doc.status);
+              const rejected = doc.status === 'Rejected';
               return (
-                <div className="details-doc-row" key={doc.id}>
+                <div className={`details-doc-row${rejected ? ' is-rejected' : ''}`} key={doc.id}>
                   <div className="details-doc-left">
                     <div className="details-doc-avatar">
                       <Icon name="document" size={18} />
@@ -202,9 +210,9 @@ export default function DetailsPanel() {
                   </div>
 
                   <div className="details-doc-right">
-                    <span className={`pill ${verified ? 'pill-ok' : 'pill-wait'}`}>
-                      <Icon name={verified ? 'check' : 'clock'} size={12} strokeWidth={2.6} />
-                      {verified ? 'Verified' : 'In review'}
+                    <span className={`pill ${state.pill}`}>
+                      <Icon name={state.icon} size={12} strokeWidth={2.6} />
+                      {state.label}
                     </span>
                     <button
                       type="button"
@@ -216,6 +224,20 @@ export default function DetailsPanel() {
                       <span>Open document</span>
                     </button>
                   </div>
+
+                  {rejected ? (
+                    <div className="details-doc-review">
+                      <p>
+                        <strong>Why it was not accepted</strong>
+                        {doc.review_note || 'Please upload a clearer, complete copy.'}
+                      </p>
+                      <DocumentReplaceButton
+                        reference={application.reference}
+                        documentId={doc.id}
+                        onReplaced={reload}
+                      />
+                    </div>
+                  ) : null}
                 </div>
               );
             })
@@ -343,17 +365,9 @@ export default function DetailsPanel() {
                   <span className="doc-inapp-filesize">({previewDoc.human_size})</span>
                 ) : null}
               </div>
-              <span
-                className={`pill ${
-                  previewDoc.status === 'Verified' ? 'pill-ok' : 'pill-wait'
-                }`}
-              >
-                <Icon
-                  name={previewDoc.status === 'Verified' ? 'check' : 'clock'}
-                  size={12}
-                  strokeWidth={2.6}
-                />
-                {previewDoc.status === 'Verified' ? 'Verified' : 'In review'}
+              <span className={`pill ${docState(previewDoc.status).pill}`}>
+                <Icon name={docState(previewDoc.status).icon} size={12} strokeWidth={2.6} />
+                {docState(previewDoc.status).label}
               </span>
             </div>
 

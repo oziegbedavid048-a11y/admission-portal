@@ -166,6 +166,47 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             NotificationSerializer(application.notifications.all(), many=True).data
         )
 
+    @action(
+        detail=True,
+        methods=["post"],
+        url_path=r"documents/(?P<document_id>[0-9]+)/replace",
+        parser_classes=(MultiPartParser, FormParser),
+    )
+    def replace_document(self, request, reference=None, document_id=None):
+        """Upload a new copy of one document, usually after it was rejected.
+
+        The same document keeps its place on the file; its old copy is removed,
+        it goes back to Pending review, and the reviewer's note is cleared.
+        """
+        from django.conf import settings
+        from django.shortcuts import get_object_or_404
+
+        from .uploads import validate_upload
+
+        application = self.get_object()
+        document = get_object_or_404(application.documents, pk=document_id)
+        upload = request.FILES.get("file")
+        if upload is None:
+            return Response({"file": ["Choose a file to upload."]}, status=status.HTTP_400_BAD_REQUEST)
+        validate_upload(upload, settings.MAX_UPLOAD_SIZE_MB)
+
+        document.file = upload
+        document.original_filename = upload.name
+        document.status = Document.Status.PENDING
+        document.review_note = ""
+        document.reviewed_at = None
+        document.reviewed_by = None
+        document.save()
+        Notification.objects.create(
+            application=application,
+            text=f"{document.name} replaced and queued for review.",
+            send_email=False,
+        )
+        from . import services
+
+        services.sync_documents_checkpoint(application)
+        return Response(DocumentSerializer(document, context=self.get_serializer_context()).data)
+
     @action(detail=True, methods=["post"], url_path="transfer-to-visa-support")
     def transfer_to_visa_support(self, request, reference=None):
         """The applicant sends their letter to the Visa Support desk.

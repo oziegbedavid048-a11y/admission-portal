@@ -2107,6 +2107,69 @@
   }
 }
 
+/* A rejected document: the reviewer's reason and the way to fix it. */
+.details-doc-row.is-rejected {
+  border-color: var(--g-neg-line);
+}
+
+.details-doc-review {
+  flex: 1 1 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--g-neg-tint);
+  border: 1px solid var(--g-neg-line);
+}
+
+.details-doc-review p {
+  margin: 0;
+  flex: 1 1 260px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--g-ink);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.details-doc-review strong {
+  display: block;
+  margin-bottom: 2px;
+  color: var(--g-neg);
+}
+
+.doc-replace {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.doc-replace-error {
+  margin: 0;
+  font-size: 12px;
+  color: var(--g-neg);
+  max-width: 260px;
+  text-align: right;
+}
+
+@media (max-width: 480px) {
+  .doc-replace {
+    width: 100%;
+    align-items: stretch;
+  }
+  .doc-replace .g-btn {
+    width: 100%;
+  }
+  .doc-replace-error {
+    text-align: left;
+    max-width: none;
+  }
+}
+
 .details-corrections-clean-list {
   display: flex;
   flex-direction: column;

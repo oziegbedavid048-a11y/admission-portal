@@ -1325,6 +1325,20 @@ textarea.agent-form-control { min-height: 96px; resize: vertical; }
   color: var(--g-ink-2);
 }
 
+.doc-tag-bad { background: var(--g-neg-tint); border-color: var(--g-neg-line); color: var(--g-neg); }
+.dossier-doc-rejected {
+  flex: 1 1 100%;
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--g-neg-line);
+  background: var(--g-surface-2);
+}
+.dossier-doc-rejected p { margin: 0; font-size: 13px; line-height: 1.55; color: var(--g-ink); white-space: pre-line; overflow-wrap: anywhere; }
+.dossier-doc-rejected .doc-replace { align-items: flex-start; }
+
 @media (prefers-reduced-motion: reduce) {
   .agent-section *,
   .agent-code-modal-overlay { transition: none !important; animation: none !important; }
