@@ -214,7 +214,6 @@ export default function OverviewPanel() {
           <section className="card">
             <div className="card-head">
               <h2>Recent activity</h2>
-              <span className="card-note">Admissions desk feed</span>
             </div>
 
             <div className="app-activity-stream">

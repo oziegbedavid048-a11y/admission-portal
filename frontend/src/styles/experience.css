@@ -1693,3 +1693,69 @@ html { scroll-behavior: smooth; }
 @media (prefers-reduced-transparency: reduce) {
   .agent-topbar-profile-btn { background: var(--g-surface-2); backdrop-filter: none; -webkit-backdrop-filter: none; }
 }
+
+/* ─────────────── Button spinner ─────────────── */
+
+/* The small spinner shown in a busy button. It used to borrow its border and
+   animation from .spinner, which it never had, so it drew nothing. It is now
+   complete on its own and takes the button's text colour, so it shows on a
+   green button and on a white one alike. */
+.spinner-sm {
+  display: inline-block;
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  opacity: 0.95;
+  animation: gx-spin 0.7s linear infinite;
+  vertical-align: middle;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner-sm { animation-duration: 1.6s; }
+}
+
+/* ─────────────── Public header: the full name on every phone ─────────────── */
+
+@media (max-width: 640px) {
+  .site-header .brand-name { font-size: 17px; gap: 5px; }
+  .brand-name span.sub { display: inline !important; }
+  .site-header .brand-logo-img { height: 30px; }
+}
+
+@media (max-width: 360px) {
+  .site-header .brand-name { font-size: 15px; }
+}
+
+/* ─────────────── Portal top bar: a little larger ─────────────── */
+
+.portal-topbar,
+.agent-topbar { min-height: 78px; }
+
+.portal-topbar-brand { font-size: clamp(18px, 2.4vw, 24px) !important; }
+
+.agent-topbar-profile-btn { min-height: 50px; padding: 4px 14px 4px 4px !important; }
+.agent-topbar-profile-btn .agent-topbar-avatar { width: 42px !important; height: 42px !important; font-size: 14px; }
+
+@media (max-width: 640px) {
+  .portal-topbar, .agent-topbar { min-height: 70px; }
+  .portal-topbar-brand { font-size: 17px !important; }
+  .agent-topbar-profile-btn { min-height: 46px; padding: 3px 10px 3px 3px !important; }
+  .agent-topbar-profile-btn .agent-topbar-avatar { width: 40px !important; height: 40px !important; }
+}
+
+@media (max-width: 360px) {
+  .portal-topbar-brand { font-size: 15px !important; }
+  .agent-topbar-profile-btn .agent-topbar-avatar { width: 36px !important; height: 36px !important; }
+  .agent-topbar-chevron { display: none; }
+  .agent-topbar-profile-btn { padding: 3px !important; }
+}
+
+/* A busy button stays readable: the spinner and label are the point. */
+.gx-btn:disabled,
+.btn:disabled,
+.g-btn:disabled,
+.agent-btn:disabled { opacity: 0.8; }
