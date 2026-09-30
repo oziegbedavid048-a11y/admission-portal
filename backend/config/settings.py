@@ -452,9 +452,20 @@ PAYSTACK_WEBHOOK_IPS = env_list("PAYSTACK_WEBHOOK_IPS", "")
 # configured. These were hardcoded into the checkout dialog as placeholder
 # numbers, which is a fee paid into an account nobody owns; they belong in the
 # environment so they can be the real ones without touching the source.
-PAYOUT_BANK_NAME = env("PAYOUT_BANK_NAME")
-PAYOUT_BANK_ACCOUNT = env("PAYOUT_BANK_ACCOUNT")
-PAYOUT_BANK_BENEFICIARY = env("PAYOUT_BANK_BENEFICIARY")
+# The company accounts a payer in Nigeria can transfer the application fee to.
+# The payer picks one from a dropdown; the "id" is what is recorded on the
+# payment so staff know which account to check.
+COMPANY_ACCOUNTS = [
+    {"id": "keystone", "bank": "Keystone Bank PLC", "account_number": "1014186355",
+     "beneficiary": "GAB STEP SERVICES NIG LTD"},
+    {"id": "uba", "bank": "United Bank for Africa (UBA)", "account_number": "1025867908",
+     "beneficiary": "GAB STEP SERVICES NIG LTD"},
+    {"id": "fidelity", "bank": "Fidelity Bank PLC", "account_number": "5601588730",
+     "beneficiary": "GAB STEP SERVICES NIG LTD"},
+]
+# Bank transfer is offered only to payers in this country; everyone else pays
+# with Paystack.
+TRANSFER_COUNTRY = "Nigeria"
 
 # Where the links in an email point. Every "Sign in" button in a message is
 # built from this, so leaving it at the development default sends real

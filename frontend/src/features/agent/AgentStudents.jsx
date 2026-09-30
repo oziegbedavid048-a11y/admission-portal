@@ -1,106 +1,96 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import Loading from '../../components/ui/Loading';
-import Icon from '../../lib/icons';
-import { partners, payments } from '../../api/endpoints';
 import { errorMessage } from '../../api/client';
-import { formatNaira } from '../../lib/format';
-import useLiveRefresh from '../../hooks/useLiveRefresh';
-import { useAgent } from './AgentContext';
+import { partners } from '../../api/endpoints';
 import { useToast } from '../../context/ToastContext';
-import StatusBadge from './StatusBadge';
+import useLiveRefresh from '../../hooks/useLiveRefresh';
+import { formatDate } from '../../lib/format';
 import StudentDossierModal from './StudentDossierModal';
+import StudentsTable from './StudentsTable';
 
 const FILTERS = [
   { value: 'all', label: 'All statuses' },
-  { value: 'admission_granted', label: 'Admitted' },
   { value: 'submitted', label: 'Submitted' },
   { value: 'in_review', label: 'In review' },
+  { value: 'admission_granted', label: 'Admitted' },
+  { value: 'rejected', label: 'Declined' },
+  { value: 'fee:unpaid', label: 'Fee not paid' },
+  { value: 'fee:review', label: 'Payment awaiting confirmation' },
 ];
 
+/**
+ * Every student this agent registered, and the registrations they saved to
+ * finish later. Register a student sits on its own above both.
+ */
 export default function AgentStudents() {
+  const [tab, setTab] = useState('students');
   const [students, setStudents] = useState([]);
+  const [drafts, setDrafts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState('all');
-  const [open, setOpen] = useState(null);
-  const [paying, setPaying] = useState(null);
-  const { setWallet } = useAgent();
+  const [openRef, setOpenRef] = useState(null);
+  const [deleting, setDeleting] = useState(null);
+  // Deleting a draft cannot be undone, so it takes a second, explicit click.
+  const [confirmId, setConfirmId] = useState(null);
   const toast = useToast();
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const load = useCallback(async (quiet = false) => {
+    try {
+      const [{ data: list }, { data: saved }] = await Promise.all([partners.students(), partners.drafts()]);
+      setStudents(list);
+      setDrafts(saved);
+    } catch {
+      if (!quiet) toast.error('Could not load your students.');
+    } finally {
+      setLoading(false);
+    }
+  }, [toast]);
 
   useEffect(() => {
-    let cancelled = false;
-    partners
-      .students()
-      .then(({ data }) => {
-        if (!cancelled) setStudents(data);
-      })
-      .catch(() => {
-        if (!cancelled) toast.error('Could not load your students.');
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    load();
+  }, [load]);
 
-  // Filtering happens here rather than on the server: an agent's list is small
-  // enough to hold, and typing should not wait on a round trip.
+  // Opened from the overview's Open button.
+  useEffect(() => {
+    if (location.state?.open) setOpenRef(location.state.open);
+  }, [location.state]);
+
+  // Decisions are made by the desk, so the table keeps itself current.
+  useLiveRefresh(() => load(true));
+
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
     return students.filter((student) => {
-      if (status !== 'all' && student.status !== status) return false;
+      if (status.startsWith('fee:')) {
+        const fee = status.slice(4);
+        const current = student.fee_status === 'pending' ? 'unpaid' : student.fee_status;
+        if (current !== fee) return false;
+      } else if (status !== 'all' && student.status !== status) {
+        return false;
+      }
       if (!needle) return true;
-      return [
-        student.full_name,
-        student.reference,
-        student.institution,
-        student.program,
-        student.destination_country,
-      ]
+      return [student.full_name, student.reference, student.institution, student.program, student.destination_country, student.email]
         .filter(Boolean)
         .some((value) => value.toLowerCase().includes(needle));
     });
   }, [students, query, status]);
 
-  // Admission and visa decisions are made by the desk, so the table keeps
-  // itself current instead of showing yesterday's statuses.
-  useLiveRefresh(async () => {
-    try {
-      const { data } = await partners.students();
-      setStudents(data);
-    } catch {
-      // Ignore a failed tick.
-    }
-  });
+  const open = students.find((student) => student.reference === openRef) || null;
 
-  const admitted = students.filter((item) => item.status === 'admission_granted').length;
-
-  const payFee = async (student) => {
-    setPaying(student.reference);
+  const removeDraft = async (draft) => {
+    setDeleting(draft.id);
     try {
-      const { data } = await payments.checkout(student.reference, 'Paystack');
-      if (data.wallet) setWallet(data.wallet);
-      const commission = Number(data.commission_paid) || 0;
-      setStudents((current) =>
-        current.map((item) =>
-          item.reference === student.reference
-            ? { ...item, fee_status: 'paid', fee_display: data.payment.display_total }
-            : item,
-        ),
-      );
-      toast.success(
-        commission
-          ? `Fee settled. ${formatNaira(commission)} added to your balance.`
-          : 'Fee settled.',
-      );
+      await partners.deleteDraft(draft.id);
+      setDrafts((current) => current.filter((item) => item.id !== draft.id));
+      toast.success('Draft deleted.');
     } catch (error) {
-      toast.error(errorMessage(error, 'Could not settle that fee.'));
+      toast.error(errorMessage(error, 'Could not delete that draft.'));
     } finally {
-      setPaying(null);
+      setDeleting(null);
     }
   };
 
@@ -108,182 +98,146 @@ export default function AgentStudents() {
 
   return (
     <div className="agent-stack">
-
-      <div className="agent-stats">
-        <div className="agent-stat">
-          <span className="agent-icon" aria-hidden="true">
-            <Icon name="users" size={20} />
-          </span>
-          <span className="s-label">Registered</span>
-          <span className="s-value">{students.length}</span>
+      <div className="ag-page-head">
+        <div>
+          <h1 className="ag-page-title">Students</h1>
+          <p className="ag-page-sub">
+            {students.length} registered{drafts.length ? ` · ${drafts.length} draft${drafts.length === 1 ? '' : 's'}` : ''}
+          </p>
         </div>
-        <div className="agent-stat">
-          <span className="agent-icon" aria-hidden="true">
-            <Icon name="badgeCheck" size={20} />
-          </span>
-          <span className="s-label">Admitted</span>
-          <span className="s-value">{admitted}</span>
-        </div>
-        <div className="agent-stat">
-          <span className="agent-icon" aria-hidden="true">
-            <Icon name="clock" size={20} />
-          </span>
-          <span className="s-label">In review</span>
-          <span className="s-value">{students.length - admitted}</span>
-        </div>
+        <Link className="agent-btn agent-btn-primary" to="/agent/students/new">
+          Register a student
+        </Link>
       </div>
 
       <section className="agent-card">
-        <div className="agent-card-header">
-          <h2 className="agent-card-title">
-            <span className="agent-icon accent" aria-hidden="true">
-              <Icon name="users" size={18} />
-            </span>
-            Your students
-          </h2>
-          <Link className="agent-btn agent-btn-primary agent-btn-sm" to="/agent/students/new">
-            <Icon name="userPlus" size={16} />
-            Register a student
-          </Link>
+        <div className="ag-tabs" role="tablist" aria-label="Students and drafts">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'students'}
+            className={`ag-tab${tab === 'students' ? ' is-active' : ''}`}
+            onClick={() => setTab('students')}
+          >
+            Your students <span className="ag-tab-count">{students.length}</span>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'drafts'}
+            className={`ag-tab${tab === 'drafts' ? ' is-active' : ''}`}
+            onClick={() => setTab('drafts')}
+          >
+            Drafts <span className="ag-tab-count">{drafts.length}</span>
+          </button>
         </div>
 
-        <div className="applicants-filter-bar">
-          <div className="applicants-search-wrap">
-            <Icon name="search" size={18} />
-            <label className="sr-only" htmlFor="student-search">
-              Search students
-            </label>
-            <input
-              type="search"
-              id="student-search"
-              className="agent-form-control"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-            />
-          </div>
-          <div className="applicants-select-wrap">
-            <label className="sr-only" htmlFor="student-status">
-              Filter by status
-            </label>
-            <select
-              id="student-status"
-              className="agent-form-select"
-              value={status}
-              onChange={(event) => setStatus(event.target.value)}
-            >
-              {FILTERS.map((filter) => (
-                <option key={filter.value} value={filter.value}>
-                  {filter.label}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
+        {tab === 'students' ? (
+          <>
+            <div className="ag-filters">
+              <label className="sr-only" htmlFor="student-search">
+                Search students
+              </label>
+              <input
+                type="search"
+                id="student-search"
+                className="agent-form-control"
+                placeholder="Search by name, reference or university"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+              />
+              <label className="sr-only" htmlFor="student-status">
+                Filter by status
+              </label>
+              <select
+                id="student-status"
+                className="agent-form-select"
+                value={status}
+                onChange={(event) => setStatus(event.target.value)}
+              >
+                {FILTERS.map((filter) => (
+                  <option key={filter.value} value={filter.value}>
+                    {filter.label}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-        <div className="agent-table-wrap">
-          <table className="agent-table">
-            <thead>
-              <tr>
-                <th>Student</th>
-                <th>Destination</th>
-                <th className="t-hide-sm">Programme</th>
-                <th>Fee</th>
-                <th>Admission</th>
-                <th>Visa</th>
-                <th className="t-num">
-                  <span className="sr-only">Details</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {visible.length === 0 ? (
-                <tr className="row-empty">
-                  <td colSpan={7}>
-                    <div className="agent-empty-state">
-                      <p>No students found</p>
-                      <small>
-                        {students.length
-                          ? 'Clear the filters to see everyone.'
-                          : 'Register one to get started.'}
-                      </small>
-                    </div>
-                  </td>
+            {visible.length === 0 ? (
+              <div className="ag-empty">
+                <p>{students.length ? 'No students match.' : 'No students yet.'}</p>
+                <span>{students.length ? 'Clear the search or filter to see everyone.' : 'Register one to get started.'}</span>
+              </div>
+            ) : (
+              <StudentsTable students={visible} onOpen={(student) => setOpenRef(student.reference)} />
+            )}
+          </>
+        ) : drafts.length === 0 ? (
+          <div className="ag-empty">
+            <p>No drafts.</p>
+            <span>Use Save draft while registering a student to finish it later.</span>
+          </div>
+        ) : (
+          <div className="ag-table-scroll" role="region" aria-label="Drafts" tabIndex={0}>
+            <table className="ag-table ag-table-drafts">
+              <thead>
+                <tr>
+                  <th>Student</th>
+                  <th>Destination</th>
+                  <th>Step</th>
+                  <th>Documents</th>
+                  <th>Last saved</th>
+                  <th className="ag-col-action">
+                    <span className="sr-only">Actions</span>
+                  </th>
                 </tr>
-              ) : (
-                visible.map((student) => (
-                  <tr key={student.reference}>
-                    <td data-label="Student">
-                      <span className="cell">
-                        <span className="col-name">{student.full_name}</span>
-                        <span className="col-sub">{student.email}</span>
-                      </span>
-                    </td>
-                    <td data-label="Destination">
-                      <span className="cell">
-                        <span className="col-name">{student.destination_country}</span>
-                        <span className="col-sub">{student.institution}</span>
-                      </span>
-                    </td>
-                    <td data-label="Programme" className="t-hide-sm">
-                      <span className="cell">
-                        <span>{student.program}</span>
-                        <span className="col-sub">{student.qualification}</span>
-                      </span>
-                    </td>
-                    <td data-label="Fee">
-                      {student.fee_status === 'unpaid' ? (
-                        <button
-                          type="button"
-                          className="agent-btn agent-btn-primary agent-btn-sm"
-                          onClick={() => payFee(student)}
-                          disabled={paying === student.reference}
-                        >
-                          {paying === student.reference ? (
-                            <span className="spinner-sm" aria-hidden="true" />
-                          ) : null}
-                          Pay fee
-                        </button>
-                      ) : (
-                        <span className="cell">
-                          <StatusBadge
-                            status={student.fee_status === 'waived' ? 'waived' : 'Paid'}
-                          />
-                          <span className="col-sub">{student.fee_display}</span>
-                        </span>
-                      )}
-                    </td>
-                    <td data-label="Admission">
-                      <StatusBadge status={student.status} />
-                    </td>
-                    <td data-label="Visa">
-                      <StatusBadge status={student.visa_status} />
-                    </td>
-                    <td data-label="Details" className="t-num">
-                      <button
-                        type="button"
-                        className="agent-btn agent-btn-secondary agent-btn-sm"
-                        onClick={() => setOpen(student)}
-                      >
-                        Open
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {drafts.map((draft) => {
+                  const form = draft.data?.form || {};
+                  return (
+                    <tr key={draft.id}>
+                      <td>
+                        <span className="ag-name">{form.fullName || 'Unnamed student'}</span>
+                        <span className="ag-sub">{form.email || 'No email yet'}</span>
+                      </td>
+                      <td className="ag-nowrap">{form.destinationCountry || '—'}</td>
+                      <td className="ag-nowrap">{draft.step} of 5</td>
+                      <td className="ag-nowrap">{draft.files.length}</td>
+                      <td className="ag-nowrap">{formatDate(draft.updated_at)}</td>
+                      <td className="ag-col-action">
+                        <div className="ag-row-actions">
+                          <button
+                            type="button"
+                            className={`ag-text-btn${confirmId === draft.id ? ' is-danger' : ''}`}
+                            onClick={() => (confirmId === draft.id ? removeDraft(draft) : setConfirmId(draft.id))}
+                            onBlur={() => setConfirmId((current) => (current === draft.id ? null : current))}
+                            disabled={deleting === draft.id}
+                          >
+                            {deleting === draft.id ? 'Deleting' : confirmId === draft.id ? 'Confirm delete' : 'Delete'}
+                          </button>
+                          <button
+                            type="button"
+                            className="ag-open-btn"
+                            onClick={() => navigate('/agent/students/new', { state: { draftId: draft.id } })}
+                          >
+                            Continue
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
 
       <StudentDossierModal
         student={open}
-        onClose={() => setOpen(null)}
-        onDocumentReplaced={async () => {
-          const { data } = await partners.students();
-          setStudents(data);
-          setOpen(data.find((row) => row.reference === open?.reference) || null);
-          toast.success('Replacement uploaded. It is back in review.');
-        }}
+        onClose={() => setOpenRef(null)}
+        onChanged={() => load(true)}
       />
     </div>
   );

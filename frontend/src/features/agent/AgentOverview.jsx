@@ -10,7 +10,7 @@ import { useToast } from '../../context/ToastContext';
 import useLiveRefresh from '../../hooks/useLiveRefresh';
 import CurrencyConverter from './CurrencyConverter';
 import { useAgent } from './AgentContext';
-import StatusBadge from './StatusBadge';
+import StudentsTable from './StudentsTable';
 import WeatherBanner from '../../components/ui/WeatherBanner';
 
 const ACTIONS = [
@@ -138,64 +138,29 @@ export default function AgentOverview() {
 
         {recent.length === 0 ? (
           <div className="agent-empty-msg">
-            <p>No active student applications yet.</p>
+            <p>No students yet.</p>
             <button
               type="button"
               className="agent-btn agent-btn-primary agent-btn-sm"
-              style={{ marginTop: 10 }}
               onClick={() => navigate('/agent/students/new')}
             >
               Register your first student
             </button>
           </div>
         ) : (
-          <div className="agent-table-wrap">
-            <table className="agent-table">
-              <thead>
-                <tr>
-                  <th>Student</th>
-                  <th>Destination</th>
-                  <th className="t-hide-sm">Institution</th>
-                  <th>Admission</th>
-                  <th>Visa</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recent.map((student) => (
-                  <tr key={student.reference}>
-                    <td data-label="Student">
-                      <span className="cell">
-                        <span className="col-name">{student.full_name}</span>
-                        {student.email ? <span className="col-sub">{student.email}</span> : null}
-                      </span>
-                    </td>
-                    <td data-label="Destination">
-                      <span className="badge-country">{student.destination_country}</span>
-                    </td>
-                    <td data-label="Institution" className="t-hide-sm">
-                      <span className="col-inst">{student.institution}</span>
-                    </td>
-                    <td data-label="Admission">
-                      <StatusBadge status={student.status} />
-                    </td>
-                    <td data-label="Visa">
-                      <StatusBadge status={student.visa_status} />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <>
+            <StudentsTable
+              compact
+              students={recent.slice(0, 5)}
+              onOpen={(student) => navigate('/agent/students', { state: { open: student.reference } })}
+            />
+            <div className="ag-card-foot">
+              <Link className="agent-btn agent-btn-secondary agent-btn-sm" to="/agent/students">
+                View all students
+              </Link>
+            </div>
+          </>
         )}
-
-        {recent.length > 0 ? (
-          <div className="card-foot-action">
-            <Link className="agent-btn agent-btn-secondary agent-btn-sm" to="/agent/students">
-              View all students
-              <Icon name="arrowRight" size={15} strokeWidth={2} />
-            </Link>
-          </div>
-        ) : null}
       </section>
 
       <section className="agent-card">

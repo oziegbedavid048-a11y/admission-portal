@@ -6,16 +6,15 @@ import SearchableSelect from '../../components/ui/SearchableSelect';
 import { errorMessage, fieldErrors } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
-import Icon from '../../lib/icons';
 import { ALL_WORLD_COUNTRIES } from '../../lib/countries';
 import CheckEmailPanel from './CheckEmailPanel';
 
 /**
  * Registration for a partner agent.
  *
- * One page, four short sections in the order people think about them: who you
- * are, how you will sign in, where commission is paid, and the sales manager
- * who referred you. The payout account is asked for up front because
+ * One clean card with four short sections in the order people think about
+ * them: who you are, how you will sign in, where commission is paid, and the
+ * sales manager who referred you. The payout account is asked for up front because
  * commission is paid into it, and there is no second chance to ask before the
  * first withdrawal.
  */
@@ -33,11 +32,6 @@ const BLANK = {
   agent_code: '',
 };
 
-const BENEFITS = [
-  { icon: 'wallet', title: 'Commission per student', text: 'Paid when the fee settles, and again when the visa is confirmed.' },
-  { icon: 'megaphone', title: 'Ad funding', text: 'Interest-free capital to advertise, repaid from your earnings.' },
-  { icon: 'payout', title: 'Withdraw any time', text: 'Straight to your bank account.' },
-];
 
 export default function AgentRegisterPage() {
   const [form, setForm] = useState(BLANK);
@@ -141,39 +135,20 @@ export default function AgentRegisterPage() {
   return (
     <>
       <SiteHeader />
-      <main className="gx-register">
-        <aside className="gx-register-aside" aria-label="Why partner with Gabstep">
-          <span className="gx-eyebrow">Gabstep partner network</span>
-          <h1>Place students abroad. Earn on every one.</h1>
-          <ul className="gx-benefits">
-            {BENEFITS.map((item) => (
-              <li key={item.title}>
-                <span className="gx-icon-tile" aria-hidden="true">
-                  <Icon name={item.icon} size={20} />
-                </span>
-                <div>
-                  <strong>{item.title}</strong>
-                  <span>{item.text}</span>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </aside>
-
+      <main className="gx-register gx-register-single">
         <div className="gx-card gx-register-card">
           {sentTo ? (
             <CheckEmailPanel email={sentTo} onChangeEmail={() => setSentTo('')} />
           ) : (
           <>
           <div className="gx-auth-head">
-            <h2 className="gx-register-title">Create your agent account</h2>
-            <p className="gx-muted">It takes about two minutes.</p>
+            <h1 className="gx-register-title">Create your agent account</h1>
+            <p className="gx-muted">Register students and earn commission on every one.</p>
           </div>
 
           <form className="gx-form" onSubmit={submit} noValidate>
             <fieldset className="gx-section">
               <legend>
-                <span className="gx-section-num">1</span>
                 About you
               </legend>
               <div className="gx-form-row">
@@ -200,7 +175,6 @@ export default function AgentRegisterPage() {
 
             <fieldset className="gx-section">
               <legend>
-                <span className="gx-section-num">2</span>
                 Password
               </legend>
               <PasswordField
@@ -214,7 +188,6 @@ export default function AgentRegisterPage() {
 
             <fieldset className="gx-section">
               <legend>
-                <span className="gx-section-num">3</span>
                 Payout account
               </legend>
               <p className="gx-muted gx-small gx-section-note">Your commission is paid into this account.</p>
@@ -227,7 +200,6 @@ export default function AgentRegisterPage() {
 
             <fieldset className="gx-section">
               <legend>
-                <span className="gx-section-num">4</span>
                 Referral code (optional)
               </legend>
               {input(

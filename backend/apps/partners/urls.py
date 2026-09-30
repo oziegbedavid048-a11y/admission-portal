@@ -8,12 +8,14 @@ from .views import (
     CommissionListView,
     LoanViewSet,
     SavingsView,
+    StudentDraftViewSet,
     WalletView,
     WithdrawalViewSet,
 )
 
 router = DefaultRouter()
 router.register("students", AgentStudentViewSet, basename="agent-student")
+router.register("drafts", StudentDraftViewSet, basename="agent-draft")
 router.register("loans", LoanViewSet, basename="agent-loan")
 router.register("withdrawals", WithdrawalViewSet, basename="agent-withdrawal")
 

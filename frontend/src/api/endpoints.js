@@ -105,7 +105,18 @@ export const applications = {
 export const payments = {
   quote: (reference) => api.get(`/payments/quote/${reference}/`),
   // Which provider collects the money is a server decision, not the browser's.
-  checkout: (reference) => api.post('/payments/checkout/', { application: reference }),
+  checkout: (reference, returnTo = 'portal') =>
+    api.post('/payments/checkout/', { application: reference, return_to: returnTo }),
+  // A bank transfer to one of the company accounts: the receipt goes to the
+  // desk, and the fee counts as paid only once they confirm the money arrived.
+  transfer: (reference, { receipt, bank }) => {
+    const form = new FormData();
+    form.append('receipt', receipt);
+    form.append('bank', bank);
+    return api.post(`/payments/transfer/${reference}/`, form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
   // Asks the server what happened to a payment. The server asks Paystack, so the
   // browser is never the thing that decides a payment succeeded.
   // `gatewayReference` is the transaction reference Paystack appends to the return
@@ -126,6 +137,25 @@ export const partners = {
   students: (params) => api.get('/partners/students/', { params }),
   createStudent: (payload) => api.post('/partners/students/', payload),
   studentStages: (reference) => api.get(`/partners/students/${reference}/stages/`),
+  // One-page PDF: name, origin, destination and application reference.
+  studentSummary: (reference) =>
+    api.get(`/partners/students/${reference}/summary/`, { responseType: 'blob' }),
+  drafts: () => api.get('/partners/drafts/'),
+  draft: (id) => api.get(`/partners/drafts/${id}/`),
+  createDraft: (payload) => api.post('/partners/drafts/', payload),
+  updateDraft: (id, payload) => api.patch(`/partners/drafts/${id}/`, payload),
+  deleteDraft: (id) => api.delete(`/partners/drafts/${id}/`),
+  uploadDraftFile: (id, { slot, kind, name, file }) => {
+    const form = new FormData();
+    form.append('slot', slot);
+    form.append('kind', kind);
+    form.append('name', name);
+    form.append('file', file);
+    return api.post(`/partners/drafts/${id}/files/`, form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+  deleteDraftFile: (id, fileId) => api.delete(`/partners/drafts/${id}/files/${fileId}/`),
   loans: () => api.get('/partners/loans/'),
   requestLoan: (payload) => api.post('/partners/loans/', payload),
   withdrawals: () => api.get('/partners/withdrawals/'),

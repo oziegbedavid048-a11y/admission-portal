@@ -13,7 +13,7 @@ from apps.applications import services
 from apps.applications.models import Application, Notification
 from apps.applications.serializers import ApplicationCreateSerializer
 
-from .models import AgentProfile, Commission, Loan, Wallet, Withdrawal
+from .models import AgentProfile, Commission, Loan, StudentDraft, StudentDraftFile, Wallet, Withdrawal
 
 
 class WalletSerializer(serializers.ModelSerializer):
@@ -246,6 +246,9 @@ class AgentStudentSerializer(serializers.ModelSerializer):
     commission_earned = serializers.SerializerMethodField()
     fee_status = serializers.SerializerMethodField()
     fee_display = serializers.SerializerMethodField()
+    payment = serializers.SerializerMethodField()
+    verification = serializers.SerializerMethodField()
+    letters = serializers.SerializerMethodField()
 
     class Meta:
         model = Application
@@ -269,6 +272,9 @@ class AgentStudentSerializer(serializers.ModelSerializer):
             "commission_earned",
             "fee_status",
             "fee_display",
+            "payment",
+            "verification",
+            "letters",
             "submitted_at",
         )
         # Everything here is read-only. This serializer is what the agent's
@@ -300,7 +306,7 @@ class AgentStudentSerializer(serializers.ModelSerializer):
         payment = getattr(obj, "payment", None)
         if payment is None:
             return "unpaid"
-        return {"paid": "paid", "waived": "waived"}.get(payment.status, "pending")
+        return {"paid": "paid", "waived": "waived", "review": "review"}.get(payment.status, "pending")
 
     def get_fee_display(self, obj):
         payment = getattr(obj, "payment", None)
@@ -309,6 +315,51 @@ class AgentStudentSerializer(serializers.ModelSerializer):
         if payment.status == "waived":
             return "Waived"
         return payment.display_total
+
+    def get_payment(self, obj):
+        """How the fee stands, including a transfer the desk turned down."""
+        payment = getattr(obj, "payment", None)
+        if payment is None:
+            return None
+        return {
+            "status": payment.status,
+            "status_label": payment.get_status_display(),
+            "method": payment.gateway,
+            "display_total": payment.display_total,
+            "review_note": payment.review_note,
+            "transfer_bank": payment.transfer_bank,
+            "paid_at": payment.paid_at,
+        }
+
+    def get_verification(self, obj):
+        """The same checks the admissions desk ticks in the admin."""
+        summary = obj.verification_summary
+        return {
+            "status": summary["status"],
+            "status_label": obj.get_verification_status_display(),
+            "checkpoints": [
+                {"key": c["key"], "label": c["label"], "verified": c["verified"]}
+                for c in summary["checkpoints"]
+            ],
+        }
+
+    def get_letters(self, obj):
+        request = self.context.get("request")
+        letters = []
+        for letter in obj.letters.all():
+            if not letter.is_published or not letter.file:
+                continue
+            url = letter.file.url
+            letters.append(
+                {
+                    "id": letter.id,
+                    "title": letter.title,
+                    "kind": letter.get_kind_display(),
+                    "url": request.build_absolute_uri(url) if request else url,
+                    "issued_at": letter.issued_at,
+                }
+            )
+        return letters
 
 
 class AgentStudentNoteSerializer(serializers.ModelSerializer):
@@ -327,10 +378,14 @@ class AgentStudentCreateSerializer(ApplicationCreateSerializer):
     over.
     """
 
+    # A saved draft whose documents should join this application.
+    draft = serializers.IntegerField(required=False, write_only=True)
+
     @transaction.atomic
     def create(self, validated_data):
         request = self.context["request"]
         agent = request.user.agent_profile
+        draft_id = validated_data.pop("draft", None)
 
         email = validated_data["email"].lower()
         student = User.objects.filter(email__iexact=email).first()
@@ -371,5 +426,57 @@ class AgentStudentCreateSerializer(ApplicationCreateSerializer):
         # at the moment of registration.
         services.award_supervisor_bonus(application)
 
+        # A draft's documents become the application's documents, and the
+        # draft is finished with.
+        if draft_id:
+            draft = StudentDraft.objects.filter(pk=draft_id, agent=agent).first()
+            if draft is not None:
+                from django.core.files.base import ContentFile
+
+                from apps.applications.models import Document
+
+                for item in draft.files.all():
+                    item.file.open("rb")
+                    try:
+                        content = item.file.read()
+                    finally:
+                        item.file.close()
+                    Document.objects.create(
+                        application=application,
+                        kind=item.kind,
+                        name=item.name,
+                        original_filename=item.original_filename,
+                        file=ContentFile(content, name=item.original_filename or "document"),
+                    )
+                draft.delete()
+
         application.account_created = account_created
         return application
+
+
+
+class StudentDraftFileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = StudentDraftFile
+        fields = ("id", "slot", "kind", "name", "original_filename", "uploaded_at")
+        read_only_fields = fields
+
+
+class StudentDraftSerializer(serializers.ModelSerializer):
+    """A half-finished registration: the form as typed, and its documents."""
+
+    files = StudentDraftFileSerializer(many=True, read_only=True)
+    student_name = serializers.CharField(read_only=True)
+
+    class Meta:
+        model = StudentDraft
+        fields = ("id", "step", "data", "student_name", "files", "created_at", "updated_at")
+        read_only_fields = ("id", "student_name", "files", "created_at", "updated_at")
+
+    def validate_step(self, value):
+        return min(max(int(value or 1), 1), 5)
+
+    def validate_data(self, value):
+        if not isinstance(value, dict):
+            raise serializers.ValidationError("Draft data must be an object.")
+        return value

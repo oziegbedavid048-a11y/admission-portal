@@ -4,7 +4,9 @@ from decimal import Decimal
 
 from django.conf import settings
 from django.db import transaction
+from django.utils import timezone
 from rest_framework import permissions, status
+from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
@@ -13,6 +15,7 @@ from apps.applications.constants import APPLICATION_FEE_NGN
 from apps.applications import services
 from apps.applications.models import Application
 from apps.applications.serializers import ApplicationSerializer
+from apps.applications.uploads import validate_upload
 from apps.applications.views import visible_applications
 
 from . import gateway
@@ -110,19 +113,58 @@ def quote_for(application):
     }
 
 
-def transfer_account():
-    """The account to transfer the fee to, or None if none is configured.
+def _price(payment, quote):
+    """Write the quoted amounts onto a payment."""
+    payment.currency = quote["currency"]
+    payment.symbol = quote["symbol"]
+    payment.amount = quote["amount"]
+    payment.processing_fee = quote["processing_fee"]
+    payment.amount_ngn = quote["amount_ngn"]
+    payment.processing_fee_ngn = quote["processing_fee_ngn"]
+    payment.fx_rate = quote["fx_rate"]
 
-    Returned rather than rendered into the page so the numbers live in the
-    environment. An incomplete set is treated as no account at all: a half-filled
-    transfer instruction is worse than none.
+
+def payer_email(application):
+    """Who Paystack emails the receipt to.
+
+    A student an agent registered is never contacted, so for those files the
+    agent's own address is used.
     """
-    name = getattr(settings, "PAYOUT_BANK_NAME", "")
-    number = getattr(settings, "PAYOUT_BANK_ACCOUNT", "")
-    beneficiary = getattr(settings, "PAYOUT_BANK_BENEFICIARY", "")
-    if not (name and number and beneficiary):
-        return None
-    return {"bank": name, "account_number": number, "beneficiary": beneficiary}
+    agent = application.submitted_by_agent
+    if agent is not None and agent.user.email:
+        return agent.user.email
+    return application.email
+
+
+def company_accounts():
+    """Every company account a transfer can go to, complete ones only."""
+    return [
+        dict(account)
+        for account in getattr(settings, "COMPANY_ACCOUNTS", [])
+        if account.get("bank") and account.get("account_number") and account.get("beneficiary")
+    ]
+
+
+def transfer_allowed(application):
+    """Whether this payer may pay by bank transfer.
+
+    Only payers in Nigeria. For a file an agent registered that is the country
+    the agent signed up with; otherwise the applicant's own country of origin.
+    Everyone else pays with Paystack and is never shown account details.
+    """
+    country = getattr(settings, "TRANSFER_COUNTRY", "Nigeria").strip().lower()
+    agent = application.submitted_by_agent
+    if agent is not None:
+        payer_country = agent.user.country
+    else:
+        payer_country = application.origin_country.name if application.origin_country else ""
+    return bool(company_accounts()) and (payer_country or "").strip().lower() == country
+
+
+def transfer_account():
+    """The first company account, for the applicant checkout's fallback text."""
+    accounts = company_accounts()
+    return accounts[0] if accounts else None
 
 
 class QuoteView(APIView):
@@ -144,7 +186,12 @@ class QuoteView(APIView):
         # How the money is expected to arrive, so the checkout screen can say so
         # rather than printing an account number that was baked into the markup.
         quote["provider"] = "paystack" if gateway.is_live() else "transfer"
-        quote["transfer_account"] = transfer_account()
+        allowed = transfer_allowed(application)
+        quote["paystack_available"] = gateway.is_live()
+        quote["transfer_allowed"] = allowed
+        # Account numbers go only to payers who may transfer.
+        quote["transfer_accounts"] = company_accounts() if allowed else []
+        quote["transfer_account"] = transfer_account() if allowed else None
         return Response(quote)
 
 
@@ -196,15 +243,18 @@ class CheckoutView(APIView):
                     {"payment": PaymentSerializer(existing).data, "already_settled": True}
                 )
 
+            if existing and existing.status == Payment.Status.REVIEW:
+                # A transfer receipt is already with the desk. Starting a card
+                # payment on top of it could take the fee twice.
+                return Response(
+                    {"detail": "A bank transfer for this student is waiting for confirmation."},
+                    status=status.HTTP_409_CONFLICT,
+                )
+
             quote = quote_for(application)
             payment = existing or Payment(application=application)
-            payment.currency = quote["currency"]
-            payment.symbol = quote["symbol"]
-            payment.amount = quote["amount"]
-            payment.processing_fee = quote["processing_fee"]
-            payment.amount_ngn = quote["amount_ngn"]
-            payment.processing_fee_ngn = quote["processing_fee_ngn"]
-            payment.fx_rate = quote["fx_rate"]
+            _price(payment, quote)
+            payment.gateway = Payment.Gateway.PAYSTACK
             payment.status = Payment.Status.PENDING
             payment.save()
 
@@ -245,11 +295,14 @@ class CheckoutView(APIView):
                 host = request.headers.get("X-Forwarded-Host")
                 frontend_base = f"{proto}://{host}"
 
-            callback_url = f"{frontend_base}/payment/{application.reference}"
+            if serializer.validated_data["return_to"] == "agent":
+                callback_url = f"{frontend_base}/agent/payment/{application.reference}"
+            else:
+                callback_url = f"{frontend_base}/payment/{application.reference}"
 
             authorization_url = gateway.initiate(
                 payment,
-                email=application.email,
+                email=payer_email(application),
                 callback_url=callback_url,
             )
 
@@ -269,7 +322,11 @@ class CheckoutView(APIView):
                     "authorization_url": authorization_url,
                     # When it is not, this is how the money is expected to arrive.
                     "pay_by_transfer": authorization_url is None,
-                    "transfer_account": None if authorization_url else transfer_account(),
+                    "transfer_account": (
+                        transfer_account()
+                        if authorization_url is None and transfer_allowed(application)
+                        else None
+                    ),
                     "waived": False,
                 },
                 status=status.HTTP_201_CREATED,
@@ -284,6 +341,73 @@ class CheckoutView(APIView):
                 {"detail": f"Checkout error: {str(exc)}"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+
+
+class TransferReceiptView(APIView):
+    """Record a bank transfer: the payer says they sent it and attaches the receipt.
+
+    Does not settle anything. The payment waits as "Awaiting confirmation" until
+    staff confirm the money arrived, and only then is any commission paid.
+    """
+
+    throttle_classes = (PaymentThrottle,)
+    parser_classes = (MultiPartParser, FormParser)
+
+    @transaction.atomic
+    def post(self, request, reference):
+        application = visible_applications(request.user).filter(reference=reference).first()
+        if application is None:
+            return Response({"detail": "No such application."}, status=status.HTTP_404_NOT_FOUND)
+        if not transfer_allowed(application):
+            return Response(
+                {"detail": "Bank transfer is only available in Nigeria. Pay with Paystack."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        bank = next(
+            (account for account in company_accounts() if account["id"] == request.data.get("bank")),
+            None,
+        )
+        if bank is None:
+            return Response({"bank": ["Choose the bank you sent the money to."]}, status=status.HTTP_400_BAD_REQUEST)
+
+        receipt = request.FILES.get("receipt")
+        if receipt is None:
+            return Response({"receipt": ["Upload the transfer receipt."]}, status=status.HTTP_400_BAD_REQUEST)
+        validate_upload(receipt, settings.MAX_UPLOAD_SIZE_MB)
+
+        existing = getattr(application, "payment", None)
+        if existing and existing.status in {Payment.Status.PAID, Payment.Status.WAIVED}:
+            return Response(
+                {"detail": "This application fee is already settled."}, status=status.HTTP_409_CONFLICT
+            )
+
+        quote = quote_for(application)
+        if quote["waived"]:
+            return Response(
+                {"detail": "This university does not charge an application fee."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        payment = existing or Payment(application=application)
+        _price(payment, quote)
+        # A transfer carries no gateway fee.
+        payment.processing_fee = Decimal("0.00")
+        payment.processing_fee_ngn = Decimal("0.00")
+        payment.gateway = Payment.Gateway.TRANSFER
+        payment.status = Payment.Status.REVIEW
+        payment.receipt = receipt
+        payment.receipt_submitted_at = timezone.now()
+        payment.transfer_bank = f"{bank['bank']} · {bank['account_number']}"
+        payment.review_note = ""
+        payment.save()
+
+        services.notify(
+            application,
+            f"Bank transfer of {payment.display_total} received for review. "
+            "We confirm it once the money reaches our account.",
+            send_email=False,
+        )
+        return Response({"payment": PaymentSerializer(payment).data}, status=status.HTTP_201_CREATED)
 
 
 class PaystackWebhookView(APIView):

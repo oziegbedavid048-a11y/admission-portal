@@ -13,10 +13,15 @@ from decimal import Decimal
 from django.db import models
 from django.utils import timezone
 
+from apps.applications.uploads import receipt_upload_path
+
 
 class Payment(models.Model):
     class Status(models.TextChoices):
         PENDING = "pending", "Pending"
+        # A bank transfer the payer says they have made, with a receipt. It
+        # waits here until staff confirm the money arrived.
+        REVIEW = "review", "Awaiting confirmation"
         PAID = "paid", "Paid"
         WAIVED = "waived", "Waived (partner)"
         FAILED = "failed", "Failed"
@@ -24,6 +29,7 @@ class Payment(models.Model):
     class Gateway(models.TextChoices):
         PAYSTACK = "Paystack", "Paystack"
         FLUTTERWAVE = "Flutterwave", "Flutterwave"
+        TRANSFER = "Bank transfer", "Bank transfer"
         WAIVER = "Institutional Waiver", "Institutional waiver"
         PARTNER = "Agent Payout / Verified Partner", "Partner payout"
 
@@ -65,6 +71,14 @@ class Payment(models.Model):
     # ours, so a retry needs a new one while the payment, the receipt and the
     # application all keep pointing at the same row.
     gateway_reference = models.CharField(max_length=64, blank=True, db_index=True)
+
+    # A bank transfer: the receipt the payer uploaded, when, and why staff
+    # turned it down if they did.
+    receipt = models.FileField(upload_to=receipt_upload_path, blank=True, null=True)
+    receipt_submitted_at = models.DateTimeField(null=True, blank=True)
+    # Which company account the payer says they sent the money to.
+    transfer_bank = models.CharField(max_length=80, blank=True)
+    review_note = models.TextField(blank=True, max_length=1000)
 
     created_at = models.DateTimeField(auto_now_add=True)
     paid_at = models.DateTimeField(null=True, blank=True)
@@ -133,3 +147,16 @@ class Payment(models.Model):
         self.paid_at = timezone.now()
         self.save()
         return self
+
+
+
+class PaymentToConfirm(Payment):
+    """Bank transfers waiting for staff to confirm the money arrived.
+
+    A proxy so the admin can give this one job its own screen.
+    """
+
+    class Meta:
+        proxy = True
+        verbose_name = "payment to confirm"
+        verbose_name_plural = "payments to confirm"

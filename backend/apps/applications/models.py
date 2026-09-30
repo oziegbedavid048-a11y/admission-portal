@@ -540,3 +540,30 @@ def send_notification_email_on_create(sender, instance, created, **kwargs):
                 instance.application.reference,
                 exc,
             )
+
+
+
+# ── Admin views over agent-filed files ─────────────────────────────────
+# Proxies, so the admin can list agent-filed applications apart from the
+# ones applicants made themselves, starting from the agent who filed them.
+
+from apps.partners.models import AgentProfile  # noqa: E402
+
+
+class AgentApplications(AgentProfile):
+    """Every partner agent, as the way in to the students they registered."""
+
+    class Meta:
+        proxy = True
+        app_label = "applications"
+        verbose_name = "agent applications"
+        verbose_name_plural = "agent applications"
+
+
+class AgentApplication(Application):
+    """One application filed by a partner agent."""
+
+    class Meta:
+        proxy = True
+        verbose_name = "agent-filed application"
+        verbose_name_plural = "agent-filed applications"

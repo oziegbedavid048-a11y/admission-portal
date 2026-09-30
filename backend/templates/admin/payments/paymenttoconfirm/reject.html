@@ -1,0 +1,30 @@
+{% extends "admin/base_site.html" %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">Home</a>
+  &rsaquo; <a href="{% url 'admin:payments_paymenttoconfirm_changelist' %}">Payments to confirm</a>
+  &rsaquo; <a href="{{ back_url }}">{{ payment.reference }}</a>
+  &rsaquo; Reject
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="gs-card gs-narrow">
+  <h2>Reject this transfer receipt</h2>
+  <p class="gs-muted">{{ payment.application.full_name }} · {{ payment.application.reference }} · {{ payment.display_total }}</p>
+  <form method="post">
+    {% csrf_token %}
+    <div class="gs-field">
+      <label for="{{ form.note.id_for_label }}">{{ form.note.label }}</label>
+      {{ form.note }}
+      {% if form.note.errors %}<div class="gs-error">{{ form.note.errors|join:" " }}</div>{% endif %}
+      <p class="gs-hint">{{ form.note.help_text }}</p>
+    </div>
+    <div class="gs-actions">
+      <button type="submit" class="gs-button gs-button--danger">Reject and email the reason</button>
+      <a class="gs-button" href="{{ back_url }}">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

@@ -13,7 +13,7 @@ from apps.applications import services
 from apps.applications.constants import AGENT_COMMISSION_PER_MILESTONE
 from apps.applications.models import Application
 
-from .models import Commission, Loan, Withdrawal
+from .models import Commission, Loan, StudentDraft, StudentDraftFile, Withdrawal
 from .permissions import IsAgent
 from .serializers import (
     AgentProfileSerializer,
@@ -23,6 +23,8 @@ from .serializers import (
     CommissionSerializer,
     LoanSerializer,
     ReleaseFromSavingsSerializer,
+    StudentDraftFileSerializer,
+    StudentDraftSerializer,
     SaveToSavingsSerializer,
     WalletSerializer,
     WithdrawalRequestSerializer,
@@ -152,7 +154,7 @@ class AgentStudentViewSet(AgentScopedMixin, viewsets.ModelViewSet):
             Application.objects.filter(submitted_by_agent=self.agent)
             .select_related("institution", "origin_country", "destination_country")
             .select_related("payment")
-            .prefetch_related("programs", "documents", "commissions")
+            .prefetch_related("programs", "documents", "commissions", "letters")
         )
 
     def get_serializer_class(self):
@@ -191,6 +193,78 @@ class AgentStudentViewSet(AgentScopedMixin, viewsets.ModelViewSet):
                 for s in application.stages.all()
             ]
         )
+
+
+    @action(detail=True, methods=["get"])
+    def summary(self, request, reference=None):
+        """The one-page student summary PDF. Only once the fee is settled."""
+        from django.http import HttpResponse
+
+        from apps.applications.dossier import student_summary_pdf
+
+        application = self.get_object()
+        payment = getattr(application, "payment", None)
+        if payment is None or payment.status not in {"paid", "waived"}:
+            return Response(
+                {"detail": "The summary is ready once the application fee is confirmed."},
+                status=status.HTTP_409_CONFLICT,
+            )
+        response = HttpResponse(student_summary_pdf(application), content_type="application/pdf")
+        response["Content-Disposition"] = (
+            f'attachment; filename="{application.reference}-student-summary.pdf"'
+        )
+        return response
+
+
+class StudentDraftViewSet(AgentScopedMixin, viewsets.ModelViewSet):
+    """Registrations an agent saved to finish later.
+
+    ``files`` adds or replaces one document on a draft; ``files/<id>`` removes it.
+    """
+
+    serializer_class = StudentDraftSerializer
+    pagination_class = None
+    http_method_names = ("get", "post", "put", "patch", "delete", "head", "options")
+
+    def get_queryset(self):
+        return StudentDraft.objects.filter(agent=self.agent).prefetch_related("files")
+
+    def perform_create(self, serializer):
+        serializer.save(agent=self.agent)
+
+    @action(detail=True, methods=["post"], parser_classes=(MultiPartParser, FormParser))
+    def files(self, request, pk=None):
+        from django.conf import settings
+
+        from apps.applications.uploads import validate_upload
+
+        draft = self.get_object()
+        upload = request.FILES.get("file")
+        slot = (request.data.get("slot") or "").strip()[:24]
+        name = (request.data.get("name") or "").strip()[:160]
+        kind = (request.data.get("kind") or "other").strip()[:16]
+        if upload is None or not slot or not name:
+            return Response(
+                {"detail": "A file, its slot and its name are all needed."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        validate_upload(upload, settings.MAX_UPLOAD_SIZE_MB)
+        item = draft.files.filter(slot=slot).first() or StudentDraftFile(draft=draft, slot=slot)
+        item.kind = kind if kind in {"passport", "academic", "cv", "other"} else "other"
+        item.name = name
+        item.file = upload
+        item.original_filename = upload.name
+        item.save()
+        draft.save(update_fields=["updated_at"])
+        return Response(StudentDraftFileSerializer(item).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=["delete"], url_path=r"files/(?P<file_id>[0-9]+)")
+    def remove_file(self, request, pk=None, file_id=None):
+        draft = self.get_object()
+        deleted, _ = draft.files.filter(pk=file_id).delete()
+        if not deleted:
+            return Response({"detail": "No such file on this draft."}, status=status.HTTP_404_NOT_FOUND)
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class CommissionListView(AgentScopedMixin, APIView):
@@ -244,8 +318,8 @@ class AgentOverviewView(AgentScopedMixin, APIView):
         recent = (
             Application.objects.filter(submitted_by_agent=agent)
             .select_related("institution", "destination_country", "origin_country", "payment")
-            .prefetch_related("programs", "documents", "commissions")
-            .order_by("-submitted_at")[:4]
+            .prefetch_related("programs", "documents", "commissions", "letters")
+            .order_by("-submitted_at")[:5]
         )
 
         recent_commissions = (

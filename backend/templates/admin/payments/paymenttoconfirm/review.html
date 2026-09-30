@@ -1,0 +1,35 @@
+{% extends "admin/change_form.html" %}
+
+{% block content %}
+<div class="gs-review">
+  <div class="gs-review__preview">
+    {% if not file_url %}
+      <p class="gs-muted">No receipt was attached.</p>
+    {% elif is_image %}
+      <img src="{{ file_url }}" alt="Transfer receipt">
+    {% elif is_pdf %}
+      <iframe src="{{ file_url }}" title="Transfer receipt"></iframe>
+    {% else %}
+      <p class="gs-muted">This file type cannot be previewed here.</p>
+    {% endif %}
+  </div>
+
+  <aside class="gs-card gs-review__decide">
+    <h2>{{ payment.display_total }}</h2>
+    <p class="gs-muted">{{ payment.application.full_name }} · {{ payment.application.reference }}</p>
+    <p class="gs-muted">Sent to: <strong>{{ payment.transfer_bank|default:"bank not stated" }}</strong>. Check the amount reached this account before confirming.</p>
+    {% if file_url %}<p><a class="gs-button" href="{{ file_url }}" target="_blank" rel="noopener">Open receipt in a new tab</a></p>{% endif %}
+
+    <div class="gs-review__buttons">
+      <form method="post" action="{{ confirm_url }}">
+        {% csrf_token %}
+        <button type="submit" class="gs-button gs-button--primary">Confirm payment</button>
+      </form>
+      <a class="gs-button gs-button--danger" href="{{ reject_url }}">Reject with a reason</a>
+    </div>
+    <p class="gs-hint">Confirm marks the fee paid and credits the agent's commission. Reject emails your reason so they can send a new receipt.</p>
+  </aside>
+</div>
+
+{{ block.super }}
+{% endblock %}

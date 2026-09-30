@@ -231,6 +231,8 @@ def connect():
 
     from apps.accounts.models import SupportTicket, User
     from apps.catalog.models import Institution
+    from apps.partners.models import StudentDraftFile
+    from apps.payments.models import Payment
 
     from .models import CorrectionRequest, Document, Letter
 
@@ -241,6 +243,8 @@ def connect():
         (SupportTicket, [("attachment", "document")]),
         (User, [("avatar", "avatar")]),
         (Institution, [("cover_image", "document")]),
+        (Payment, [("receipt", "document")]),
+        (StudentDraftFile, [("file", "document")]),
     ]
     for model, fields in targets:
         pre_save.connect(

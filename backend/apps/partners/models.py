@@ -12,6 +12,7 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models, transaction
 
+from apps.applications.uploads import draft_upload_path
 from apps.applications.constants import (
     AGENT_COMMISSION_PER_MILESTONE,
     LOAN_REPAYMENT_RATE,
@@ -489,3 +490,49 @@ class SupervisorWithdrawal(models.Model):
         )
         supervisor.save(update_fields=["total_withdrawn"])
         return True
+
+
+
+class StudentDraft(models.Model):
+    """A student registration an agent started and will finish later.
+
+    Holds what was typed as JSON, exactly as the registration form keeps it,
+    so a draft reopens on the step it was left on.
+    """
+
+    agent = models.ForeignKey(AgentProfile, on_delete=models.CASCADE, related_name="drafts")
+    step = models.PositiveSmallIntegerField(default=1)
+    data = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("-updated_at",)
+        verbose_name = "student draft"
+        verbose_name_plural = "student drafts"
+
+    def __str__(self):
+        return f"Draft: {self.data.get('fullName') or 'unnamed student'}"
+
+    @property
+    def student_name(self):
+        return (self.data or {}).get("fullName", "")
+
+
+class StudentDraftFile(models.Model):
+    """A document attached to a draft. Becomes a real document on submit."""
+
+    draft = models.ForeignKey(StudentDraft, on_delete=models.CASCADE, related_name="files")
+    # passport, academic, cv, or other-<n> for extra documents.
+    slot = models.CharField(max_length=24)
+    kind = models.CharField(max_length=16, default="other")
+    name = models.CharField(max_length=160)
+    file = models.FileField(upload_to=draft_upload_path)
+    original_filename = models.CharField(max_length=255, blank=True)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("uploaded_at",)
+        constraints = [
+            models.UniqueConstraint(fields=["draft", "slot"], name="one_file_per_draft_slot"),
+        ]

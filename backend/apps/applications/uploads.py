@@ -136,3 +136,11 @@ def support_upload_path(instance, filename):
 
 def institution_cover_path(instance, filename):
     return _stored_name("institutions", filename)
+
+
+def receipt_upload_path(instance, filename):
+    return _stored_name("receipts", filename)
+
+
+def draft_upload_path(instance, filename):
+    return _stored_name("drafts", filename)

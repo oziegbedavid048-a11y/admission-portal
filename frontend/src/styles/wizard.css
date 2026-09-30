@@ -22,9 +22,9 @@
   width: 100%;
 }
 
-/* Wizard Header & Progress Bar *
+/* Wizard Header & Progress Bar */
 
-/* Stepper Track *
+/* Stepper Track */
 
 .step-node.locked {
   cursor: not-allowed;
@@ -132,7 +132,7 @@
   margin-top: var(--space-4);
 }
 
-/* ─── School Card ─── *
+/* ─── School Card ─── */
 
 .school-card.open {
   border-color: var(--slate-300);
@@ -144,26 +144,26 @@
   box-shadow: 0 4px 20px rgba(4, 120, 87, 0.12);
 }
 
-/* ─── School Card Trigger (clickable header) ─── *
+/* ─── School Card Trigger (clickable header) ─── */
 
 .school-card.selected .school-card-trigger { background-color: var(--g-accent-tint); }
 
-/* ─── School Body (expandable) ─── *
+/* ─── School Body (expandable) ─── */
 
 .school-card.open .school-card-body {
   grid-template-rows: 1fr;
   border-top-width: 1px;
 }
 
-/* Inner wrapper needed for grid trick *
+/* Inner wrapper needed for grid trick */
 
-/* ─── Chevron Arrow ─── *
+/* ─── Chevron Arrow ─── */
 .school-card.selected .school-card-arrow { color: var(--brand-700); }
 .school-card.open .school-chevron { transform: rotate(180deg); }
 
-/* ─── School badges row inside trigger ─── *
+/* ─── School badges row inside trigger ─── */
 
-/* ─── Degree Accordion ─── *
+/* ─── Degree Accordion ─── */
 .degree-accordion.open .degree-accordion-trigger { background-color: var(--brand-50); }
 
 .degree-accordion.open .degree-accordion-label { color: var(--brand-800); }
@@ -177,7 +177,7 @@
   color: var(--brand-700);
 }
 
-/* ─── Degree Accordion Body (expandable) ─── *
+/* ─── Degree Accordion Body (expandable) ─── */
 
 .degree-accordion.open .degree-accordion-body {
   grid-template-rows: 1fr;
@@ -194,7 +194,7 @@
   border: 1px solid var(--success-500);
 }
 
-/* Degree-level category headers within the programs list *
+/* Degree-level category headers within the programs list */
 
 .program-item.checked {
   border-color: var(--brand-700);
@@ -488,7 +488,7 @@
   }
 }
 
-/* Course rows carry their duration, tuition and intake under the name. *
+/* Course rows carry their duration, tuition and intake under the name. */
 
 /* ==========================================================================
    STEP 3: SCHOOL, THEN COURSE

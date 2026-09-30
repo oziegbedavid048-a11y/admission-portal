@@ -10,6 +10,7 @@ import AgentOverview from './AgentOverview';
 import AgentProfile from './AgentProfile';
 import AgentStudents from './AgentStudents';
 import AgentNewStudent from './AgentNewStudent';
+import AgentPaymentReturn from './AgentPaymentReturn';
 import AgentWallet from './AgentWallet';
 import { AgentProvider, useAgent } from './AgentContext';
 
@@ -50,6 +51,7 @@ function PortalRoutes() {
         <Route index element={<AgentOverview />} />
         <Route path="students" element={<AgentStudents />} />
         <Route path="students/new" element={<AgentNewStudent />} />
+        <Route path="payment/:reference" element={<AgentPaymentReturn />} />
         <Route path="wallet" element={<AgentWallet />} />
         <Route path="courses" element={<AgentCourses />} />
         <Route path="loans" element={<AgentLoans />} />

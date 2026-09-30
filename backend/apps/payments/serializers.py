@@ -27,6 +27,9 @@ class PaymentSerializer(serializers.ModelSerializer):
             "processing_fee_ngn",
             "total_ngn",
             "fx_rate",
+            "review_note",
+            "receipt_submitted_at",
+            "transfer_bank",
             "created_at",
             "paid_at",
         )
@@ -40,3 +43,6 @@ class CheckoutSerializer(serializers.Serializer):
     gateway = serializers.ChoiceField(
         choices=Payment.Gateway.choices, default=Payment.Gateway.PAYSTACK
     )
+    # Where Paystack sends the payer back to: the applicant's page, or the
+    # agent portal when an agent paid for a student.
+    return_to = serializers.ChoiceField(choices=("portal", "agent"), default="portal")

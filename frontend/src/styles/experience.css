@@ -961,6 +961,13 @@ a.hero-signin-link:hover { color: #ffffff; text-decoration-thickness: 2px; }
   .gx-register-card { padding: 20px 16px; border-radius: var(--g-r-md); }
 }
 
+/* The sign-up is one centred card with nothing above it. */
+.gx-register.gx-register-single {
+  grid-template-columns: minmax(0, 1fr);
+  max-width: 680px;
+}
+.gx-register-single .gx-section legend { margin-bottom: 12px; font-size: 15px; }
+
 /* Course browser: the country picker row. */
 .gx-country-row {
   display: grid;

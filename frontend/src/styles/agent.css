@@ -135,7 +135,7 @@
 .auth-switch-link a:hover,
 .auth-switch-link button.link-btn:hover { text-decoration: underline; }
 
-/* ─────────────── Agent code modal ─────────────── *
+/* ─────────────── Agent code modal ─────────────── */
 
 .agent-code-modal-overlay.active { opacity: 1; pointer-events: all; }
 
@@ -687,7 +687,7 @@
 .chart-empty { padding: 28px 0; text-align: center; font-size: 14px; color: var(--g-ink-3); }
 
 /* Donut + legend. The legend carries the counts, so no value is reachable
-   only by hovering. *
+   only by hovering. */
 
 /* Scoped past the blanket 18px icon sizing on `.agent-section svg`. */
 .agent-section .donut { width: 152px; height: 152px; display: block; }
@@ -1007,7 +1007,7 @@
 .agent-empty-state p { font-size: 15px; font-weight: 500; color: var(--g-ink-2); }
 .agent-empty-state small { display: block; margin-top: 4px; font-size: 14px; color: var(--g-ink-3); }
 
-/* ─────────────── Notices ─────────────── *
+/* ─────────────── Notices ─────────────── */
 
 .loan-eligibility-banner.eligible   { background: var(--g-accent-tint); border: 1px solid var(--g-accent-line); color: var(--g-ink); }
 .loan-eligibility-banner.ineligible { background: var(--g-neg-tint);    border: 1px solid var(--g-neg-line);    color: var(--g-ink); }
@@ -1038,7 +1038,7 @@
 .applicants-search-wrap input { padding-left: 44px; }
 .applicants-select-wrap { flex: 0 1 190px; min-width: 0; }
 
-/* ─────────────── Loan slider ─────────────── *
+/* ─────────────── Loan slider ─────────────── */
 
 .loan-slider-label-row .agent-form-label { margin: 0; }
 
@@ -1055,7 +1055,7 @@
    while the visible track stays a 6px rail painted with a --pct gradient that
    the input handler updates. The thumb is a real grab target with a lift on
    hover and press, and no transition on the fill so dragging tracks the
-   finger exactly rather than lagging behind it. *
+   finger exactly rather than lagging behind it. */
 
 /* Tick marks under the rail give the drag something to read against. */
 .loan-ticks {
@@ -1067,7 +1067,7 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* ─────────────── Simulator ─────────────── *
+/* ─────────────── Simulator ─────────────── */
 
 /* ─────────────── Forms ─────────────── */
 
@@ -1360,7 +1360,7 @@ textarea.agent-form-control { min-height: 96px; resize: vertical; }
   margin: 0 auto;
 }
 
-/* Stepper Nodes & Bar *
+/* Stepper Nodes & Bar */
 
 .ag-step-node.active .ag-step-circle {
   background: var(--g-accent);
@@ -1431,7 +1431,7 @@ textarea.agent-form-control { min-height: 96px; resize: vertical; }
 
 /* ══════════════════════════════════════════════════════════════════
    REDESIGNED LOAN PAGE & INTERACTIVE SLIDER
-   ══════════════════════════════════════════════════════════════════ *
+   ══════════════════════════════════════════════════════════════════ */
 
 .loan-eligibility-card.eligible {
   background: var(--g-accent-tint);
@@ -1602,7 +1602,7 @@ textarea.agent-form-control { min-height: 96px; resize: vertical; }
   font-variant-numeric: tabular-nums;
 }
 
-/* Aligned Financial Metrics Breakdown *
+/* Aligned Financial Metrics Breakdown */
 
 .loan-calc-box.highlight {
   background: var(--g-accent-tint);
@@ -1613,7 +1613,7 @@ textarea.agent-form-control { min-height: 96px; resize: vertical; }
   color: var(--g-accent);
 }
 
-/* Platform Pills *
+/* Platform Pills */
 
 .loan-platform-pill.active {
   background: var(--g-accent-tint);
@@ -1760,7 +1760,7 @@ textarea.agent-form-control { min-height: 96px; resize: vertical; }
 /* ══════════════════════════════════════════════════════════════════
    NEW AGENT OVERVIEW SECTIONS
    ══════════════════════════════════════════════════════════════════ */
-/* Milestone Tier Card *
+/* Milestone Tier Card */
 
 .milestone-perk-item.active {
   background: var(--g-accent-tint);
@@ -1769,11 +1769,11 @@ textarea.agent-form-control { min-height: 96px; resize: vertical; }
   font-weight: 600;
 }
 
-/* Spotlights Grid *
+/* Spotlights Grid */
 
 /* ══════════════════════════════════════════════════════════════════
    DEGREE-LEVEL CATEGORY HEADERS (agent portal course selection)
-   ══════════════════════════════════════════════════════════════════ *
+   ══════════════════════════════════════════════════════════════════ */
 
 /* ══════════════════════════════════════════════════════════════════
    PREMIUM AGENT PROFILE REDESIGN
@@ -1906,9 +1906,9 @@ textarea.agent-form-control { min-height: 96px; resize: vertical; }
   overflow-wrap: anywhere;
 }
 
-/* Hero Right Stats *
+/* Hero Right Stats */
 
-/* Segmented Tab Navigation *
+/* Segmented Tab Navigation */
 
 .ap-tab-btn.active {
   background: var(--g-surface);
@@ -1983,7 +1983,7 @@ textarea.agent-form-control { min-height: 96px; resize: vertical; }
   align-self: center;
 }
 
-/* Callout Box inside Card *
+/* Callout Box inside Card */
 
 /* Form Grid */
 .ap-grid-2col {
@@ -2609,3 +2609,137 @@ textarea.agent-form-control { min-height: 96px; resize: vertical; }
 }
 
 .fig-release:disabled { opacity: 0.55; cursor: progress; }
+
+/* ─────────────── Students table (overview and Students) ───────────────
+   A real table that scrolls sideways on narrow screens instead of turning
+   into cards, so every column stays aligned. Open sits at the end. */
+.ag-table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid var(--g-line);
+  border-radius: var(--g-r-md);
+  background: var(--g-surface);
+}
+.ag-table-scroll:focus-visible { outline: 2px solid var(--g-accent); outline-offset: 2px; }
+
+.ag-table {
+  width: 100%;
+  min-width: 760px;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+.ag-table th {
+  position: sticky;
+  top: 0;
+  padding: 12px 16px;
+  background: var(--g-surface-2);
+  border-bottom: 1px solid var(--g-line);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--g-ink-3);
+  text-align: left;
+  white-space: nowrap;
+}
+.ag-table td {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--g-line);
+  font-size: 14px;
+  color: var(--g-ink-2);
+  vertical-align: middle;
+}
+.ag-table tbody tr:last-child td { border-bottom: none; }
+.ag-table tbody tr:hover td { background: var(--g-surface-2); }
+.ag-name { display: block; font-weight: 600; color: var(--g-ink); white-space: nowrap; }
+.ag-sub { display: block; margin-top: 2px; font-size: 12.5px; color: var(--g-ink-3); white-space: nowrap; }
+.ag-mono { white-space: nowrap; font-weight: 500; color: var(--g-ink); }
+.ag-wrap { min-width: 160px; max-width: 260px; line-height: 1.4; }
+.ag-nowrap { white-space: nowrap; }
+.ag-table .tbl-badge { white-space: nowrap; }
+.ag-col-action { width: 1%; text-align: right; white-space: nowrap; }
+
+.ag-open-btn {
+  min-height: 36px;
+  padding: 0 16px;
+  border-radius: var(--g-r-pill);
+  border: 1px solid var(--g-line-strong);
+  background: var(--g-surface);
+  color: var(--g-ink);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.ag-open-btn:hover { background: var(--g-accent); border-color: var(--g-accent); color: var(--g-accent-ink); }
+.ag-open-btn:focus-visible { outline: 2px solid var(--g-accent); outline-offset: 2px; }
+
+.ag-card-foot { display: flex; justify-content: flex-end; margin-top: 14px; }
+
+/* ─────────────── Currency converter ─────────────── */
+.fx2-swap {
+  min-height: 36px;
+  padding: 0 16px;
+  border-radius: var(--g-r-pill);
+  border: 1px solid var(--g-line-strong);
+  background: var(--g-surface);
+  color: var(--g-ink);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.fx2-swap:hover { background: var(--g-surface-2); }
+
+.fx2-rows { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.fx2-row { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.fx2-label { font-size: 13px; font-weight: 600; color: var(--g-ink-2); }
+.fx2-field {
+  display: flex;
+  align-items: stretch;
+  min-height: 56px;
+  border: 1px solid var(--g-line-strong);
+  border-radius: var(--g-r-md);
+  background: var(--g-surface);
+  overflow: hidden;
+}
+.fx2-field:focus-within { border-color: var(--g-accent); box-shadow: 0 0 0 3px var(--g-accent-tint); }
+.fx2-field-result { background: var(--g-surface-2); }
+.fx2-input,
+.fx2-result {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0 16px;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--g-ink);
+  font-variant-numeric: tabular-nums;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fx2-input:focus { outline: none; }
+.fx2-select {
+  flex: 0 0 auto;
+  width: 96px;
+  padding: 0 12px;
+  border: 0;
+  border-left: 1px solid var(--g-line);
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--g-ink);
+  cursor: pointer;
+}
+.fx2-select:focus { outline: none; background: var(--g-surface-2); }
+.fx2-rate { margin: 14px 0 0; font-size: 13px; color: var(--g-ink-3); font-variant-numeric: tabular-nums; }
+
+@media (max-width: 720px) {
+  .fx2-rows { grid-template-columns: 1fr; }
+  .fx2-input, .fx2-result { font-size: 20px; }
+}

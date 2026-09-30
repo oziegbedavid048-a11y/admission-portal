@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import Modal from '../../components/ui/Modal';
 import SearchableSelect from '../../components/ui/SearchableSelect';
 import Icon from '../../lib/icons';
-import { formatMoney, formatNaira } from '../../lib/format';
+import { formatMoney } from '../../lib/format';
 import { compressImageFile } from '../../lib/compress';
 import { errorMessage } from '../../api/client';
 import { applications, catalog, partners, payments } from '../../api/endpoints';
@@ -11,17 +10,12 @@ import { useToast } from '../../context/ToastContext';
 import { useCatalog, useInstitutions } from '../../hooks/useCatalog';
 import { ALL_WORLD_COUNTRIES } from '../../lib/countries';
 import ProgramPicker from '../wizard/ProgramPicker';
-import { useAgent } from './AgentContext';
+import FeePayment from './FeePayment';
+import { downloadStudentSummary } from './studentSummary';
 
-const TOTAL_STEPS = 5;
+const STEPS = ['Student details', 'Academic background', 'University and course', 'Documents', 'Review and register'];
 
-const QUALIFICATIONS = [
-  "Bachelor's Degree",
-  "Master's Degree",
-  'HND',
-  'OND',
-  'SSCE / High School',
-];
+const QUALIFICATIONS = ["Bachelor's Degree", "Master's Degree", 'HND', 'OND', 'SSCE / High School'];
 
 const BLANK = {
   fullName: '',
@@ -38,29 +32,63 @@ const BLANK = {
   programs: [],
   is_custom_course: false,
   custom_course: '',
-  notes: '',
 };
 
+// The three named documents. Anything else goes under Other documents.
+const SLOTS = [
+  { slot: 'passport', kind: 'passport', name: 'International passport data page', icon: 'passport' },
+  { slot: 'academic', kind: 'academic', name: 'Academic documents & transcripts', icon: 'document' },
+  { slot: 'cv', kind: 'cv', name: 'Curriculum vitae', icon: 'resume' },
+];
+
+const ACCEPT = '.pdf,.jpg,.jpeg,.png,.webp,.heic,.heif,application/pdf,image/*';
+const EMPTY_DOCS = { passport: null, academic: null, cv: null };
+
+/** A form field with its icon, label and an inline asterisk when required. */
+function Field({ icon, label, required, htmlFor, labelId, children }) {
+  const Tag = htmlFor ? 'label' : 'span';
+  return (
+    <div className="nf-field">
+      <Tag className="nf-label" htmlFor={htmlFor} id={labelId}>
+        {icon ? <Icon name={icon} size={16} className="nf-label-icon" /> : null}
+        <span>{label}</span>
+        {required ? <span className="nf-req" aria-hidden="true">*</span> : null}
+      </Tag>
+      {children}
+    </div>
+  );
+}
+
 /**
- * The same five-step application the student would fill in, filed by the agent
- * on their behalf. On submit the student also gets their own portal account,
- * and the one-time password is handed back so the agent can pass it on.
+ * Registering a student on their behalf, in five steps, then paying the fee.
+ *
+ * The form can be saved as a draft at any step and finished later from
+ * Students › Drafts; a draft keeps its documents too. Once registered, the fee
+ * is paid with Paystack or, for agents in Nigeria, by transfer to a company
+ * account.
  */
 export default function AgentNewStudent() {
   const [step, setStep] = useState(1);
   const [form, setForm] = useState(BLANK);
-  const [files, setFiles] = useState({ passport: null, academic: null, cv: null });
+  // Each document is { file } before it is uploaded and { remote } once it
+  // sits on a draft.
+  const [docs, setDocs] = useState(EMPTY_DOCS);
+  const [others, setOthers] = useState([]);
+  const [removedRemote, setRemovedRemote] = useState([]);
+  const [draftId, setDraftId] = useState(null);
+  const [saving, setSaving] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [created, setCreated] = useState(null);
   const [quote, setQuote] = useState(null);
-  const [gateway, setGateway] = useState('Paystack');
+  const [created, setCreated] = useState(null);
+  const [done, setDone] = useState(null);
+  const [downloading, setDownloading] = useState(false);
   const shellRef = useRef(null);
+  const otherCounter = useRef(1);
 
   const navigate = useNavigate();
   const location = useLocation();
   const toast = useToast();
-  const { profile, setWallet } = useAgent();
-  const { originNames, destinations } = useCatalog();
+  const { originNames } = useCatalog();
   const { institutions, loading: institutionsLoading } = useInstitutions(form.destinationCountry);
 
   const safeInstitutions = Array.isArray(institutions) ? institutions : [];
@@ -68,12 +96,11 @@ export default function AgentNewStudent() {
     () => safeInstitutions.find((item) => item.slug === form.institution) || null,
     [safeInstitutions, form.institution],
   );
-  const isCustomCourse = Boolean(
-    form.is_custom_course || (safeInstitutions.length === 0 && !institutionsLoading)
-  );
+  const isCustomCourse = Boolean(form.is_custom_course || (safeInstitutions.length === 0 && !institutionsLoading));
 
   const update = (patch) => setForm((current) => ({ ...current, ...patch }));
 
+  // Arriving from the course browser with a university already chosen.
   useEffect(() => {
     const picked = location.state;
     if (!picked?.destination) return;
@@ -86,16 +113,47 @@ export default function AgentNewStudent() {
     }));
   }, [location.state]);
 
-  // The fee is quoted in the student's own currency, so it can be shown on the
-  // review step before anything is created.
+  // Continuing a draft.
   useEffect(() => {
-    if (step !== 5 || !form.originCountry) return;
+    const id = location.state?.draftId;
+    if (!id) return;
+    let cancelled = false;
+    partners
+      .draft(id)
+      .then(({ data }) => {
+        if (cancelled) return;
+        setDraftId(data.id);
+        setForm({ ...BLANK, ...(data.data?.form || {}) });
+        setStep(Math.min(Math.max(data.step || 1, 1), 5));
+        const nextDocs = { ...EMPTY_DOCS };
+        const nextOthers = [];
+        (data.files || []).forEach((item) => {
+          if (item.slot in nextDocs) nextDocs[item.slot] = { remote: item };
+          else nextOthers.push({ slot: item.slot, name: item.name, remote: item });
+        });
+        const highest = nextOthers.reduce((max, item) => Math.max(max, Number(item.slot.split('-')[1]) || 0), 0);
+        otherCounter.current = highest + 1;
+        setDocs(nextDocs);
+        setOthers(nextOthers);
+      })
+      .catch(() => {
+        if (!cancelled) toast.error('Could not open that draft.');
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state?.draftId]);
+
+  // The fee, in the student's currency, for the review step.
+  useEffect(() => {
+    if (step !== 5 || !form.originCountry) return undefined;
     let cancelled = false;
     catalog
       .feeQuote(form.originCountry, form.institution)
       .then(({ data }) => {
         if (cancelled) return;
-        const waived = institution ? institution.is_fee_free : false;
+        const waived = isCustomCourse || (institution ? institution.is_fee_free : false);
         const amount = waived ? 0 : data.amount;
         const processing = waived ? 0 : data.processing_fee;
         setQuote({ ...data, amount, processing_fee: processing, total: amount + processing, waived });
@@ -106,54 +164,154 @@ export default function AgentNewStudent() {
     return () => {
       cancelled = true;
     };
-  }, [step, form.originCountry, institution]);
+  }, [step, form.originCountry, form.institution, institution, isCustomCourse]);
+
+  const scrollTop = () =>
+    window.setTimeout(() => shellRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 20);
 
   const validate = (which) => {
     if (which === 1) {
       if (!form.fullName.trim()) return toast.warning('Enter the student’s full name.') || false;
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email))
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim()))
         return toast.warning('Enter a valid student email address.') || false;
       if (!form.phone.trim()) return toast.warning('Enter a phone number.') || false;
     }
     if (which === 2) {
-      if (!form.previousSchools.trim())
-        return toast.warning('List the institutions they attended.') || false;
+      if (!form.previousSchools.trim()) return toast.warning('List the institutions they attended.') || false;
       const year = Number(form.yearGraduated);
-      if (!year || year < 1960 || year > 2035)
-        return toast.warning('Enter a valid graduation year.') || false;
-      if (!form.gradeGpa.trim()) return toast.warning('Enter their grade or GPA.') || false;
+      if (!year || year < 1960 || year > 2035) return toast.warning('Enter a valid graduation year.') || false;
+      if (!form.gradeGpa.trim()) return toast.warning('Enter their grade or CGPA.') || false;
     }
     if (which === 3) {
       if (isCustomCourse) {
-        if (!form.custom_course?.trim()) {
-          return toast.warning('Enter the student’s desired course or programme.') || false;
-        }
+        if (!form.custom_course?.trim()) return toast.warning('Enter the course the student wants.') || false;
       } else {
-        if (!form.institution) return toast.warning('Choose a partner institution or type course manually.') || false;
+        if (!form.institution) return toast.warning('Choose a university.') || false;
         if (!form.programs.length) return toast.warning('Choose at least one course.') || false;
       }
+    }
+    if (which === 4) {
+      const unnamed = others.find((item) => (item.file || item.remote) && !item.name.trim());
+      if (unnamed) return toast.warning('Name each of the other documents.') || false;
     }
     return true;
   };
 
   const goTo = (target) => {
-    if (target < 1 || target > TOTAL_STEPS) return;
+    if (target < 1 || target > STEPS.length) return;
     if (target > step) {
       for (let current = step; current < target; current += 1) {
         if (!validate(current)) return;
       }
     }
     setStep(target);
-    window.setTimeout(
-      () => shellRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
-      20,
-    );
+    scrollTop();
   };
+
+  // ── Documents ──
+
+  const pick = async (event) => {
+    const raw = event.target.files?.[0] || null;
+    event.target.value = '';
+    return raw ? compressImageFile(raw) : null;
+  };
+
+  const setSlotFile = (slot, file) => {
+    setDocs((current) => {
+      const previous = current[slot];
+      if (previous?.remote) setRemovedRemote((list) => [...list, previous.remote.id]);
+      return { ...current, [slot]: file ? { file } : null };
+    });
+  };
+
+  const addOther = () => {
+    const slot = `other-${otherCounter.current}`;
+    otherCounter.current += 1;
+    setOthers((current) => [...current, { slot, name: '', file: null, remote: null }]);
+  };
+
+  const updateOther = (slot, patch) =>
+    setOthers((current) =>
+      current.map((item) => {
+        if (item.slot !== slot) return item;
+        if (patch.file && item.remote) setRemovedRemote((list) => [...list, item.remote.id]);
+        return { ...item, ...patch, ...(patch.file ? { remote: null } : {}) };
+      }),
+    );
+
+  const removeOther = (slot) =>
+    setOthers((current) =>
+      current.filter((item) => {
+        if (item.slot === slot && item.remote) setRemovedRemote((list) => [...list, item.remote.id]);
+        return item.slot !== slot;
+      }),
+    );
+
+  // ── Drafts ──
+
+  const saveDraft = async () => {
+    const payload = { step, data: { form } };
+    let id = draftId;
+    if (id) {
+      await partners.updateDraft(id, payload);
+    } else {
+      const { data } = await partners.createDraft(payload);
+      id = data.id;
+      setDraftId(id);
+    }
+
+    await Promise.all(removedRemote.map((fileId) => partners.deleteDraftFile(id, fileId).catch(() => null)));
+    setRemovedRemote([]);
+
+    const nextDocs = { ...docs };
+    for (const meta of SLOTS) {
+      const entry = docs[meta.slot];
+      if (entry?.file) {
+        const { data } = await partners.uploadDraftFile(id, { ...meta, file: entry.file });
+        nextDocs[meta.slot] = { remote: data };
+      }
+    }
+    const nextOthers = [];
+    for (const item of others) {
+      if (item.file) {
+        const { data } = await partners.uploadDraftFile(id, {
+          slot: item.slot,
+          kind: 'other',
+          name: item.name.trim() || 'Other document',
+          file: item.file,
+        });
+        nextOthers.push({ ...item, file: null, remote: data });
+      } else if (item.remote || item.name) {
+        nextOthers.push(item);
+      }
+    }
+    setDocs(nextDocs);
+    setOthers(nextOthers);
+    return id;
+  };
+
+  const onSaveDraft = async () => {
+    if (!form.fullName.trim()) {
+      toast.warning('Enter the student’s name before saving a draft.');
+      return;
+    }
+    setSaving(true);
+    try {
+      await saveDraft();
+      toast.success('Draft saved. Find it under Students › Drafts.');
+    } catch (error) {
+      toast.error(errorMessage(error, 'Could not save the draft.'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // ── Submit ──
 
   const submit = async () => {
     setBusy(true);
     try {
-      const { data } = await partners.createStudent({
+      const payload = {
         full_name: form.fullName.trim(),
         email: form.email.trim(),
         phone: form.phone.trim(),
@@ -167,52 +325,46 @@ export default function AgentNewStudent() {
         program_ids: isCustomCourse ? [] : form.programs.map((program) => program.id),
         is_custom_course: isCustomCourse,
         custom_course_name: isCustomCourse ? form.custom_course.trim() : '',
-        notes: form.notes.trim(),
-      });
+        notes: '',
+      };
 
-      const queue = [
-        files.passport && {
-          file: files.passport,
-          kind: 'passport',
-          name: 'International passport data page',
-        },
-        files.academic && {
-          file: files.academic,
-          kind: 'academic',
-          name: 'Academic documents & transcripts',
-        },
-        files.cv && { file: files.cv, kind: 'cv', name: 'Curriculum vitae' },
-      ].filter(Boolean);
-
-      if (queue.length) {
-        const results = await Promise.allSettled(
-          queue.map((item) => applications.uploadDocument(data.reference, item)),
-        );
-        const failed = results.filter((result) => result.status === 'rejected').length;
-        if (failed) toast.warning(`${failed} document(s) did not upload.`);
-      }
-
-      // Registering does not earn anything on its own. Paying the application
-      // fee does, so the fee is settled here and the commission lands with it.
-      let commission = 0;
-      let feePaid = false;
-      if (!isCustomCourse) {
-        try {
-          const { data: checkout } = await payments.checkout(data.reference, gateway);
-          commission = Number(checkout.commission_paid) || 0;
-          feePaid = true;
-          if (checkout.wallet) setWallet(checkout.wallet);
-        } catch (error) {
-          toast.warning(
-            errorMessage(
-              error,
-              'The student is registered but the fee did not go through. Pay it from Students to earn your commission.',
-            ),
+      let student;
+      if (draftId) {
+        // Every document goes onto the draft first, and the draft's documents
+        // move to the new application in the same request.
+        const id = await saveDraft();
+        ({ data: student } = await partners.createStudent({ ...payload, draft: id }));
+      } else {
+        ({ data: student } = await partners.createStudent(payload));
+        const queue = [
+          ...SLOTS.filter((meta) => docs[meta.slot]?.file).map((meta) => ({
+            file: docs[meta.slot].file,
+            kind: meta.kind,
+            name: meta.name,
+          })),
+          ...others
+            .filter((item) => item.file)
+            .map((item) => ({ file: item.file, kind: 'other', name: item.name.trim() || 'Other document' })),
+        ];
+        if (queue.length) {
+          const results = await Promise.allSettled(
+            queue.map((item) => applications.uploadDocument(student.reference, item)),
           );
+          const failed = results.filter((result) => result.status === 'rejected').length;
+          if (failed) toast.warning(`${failed} document(s) did not upload. Add them from the student’s file.`);
         }
       }
 
-      setCreated({ ...data, commission, feePaid });
+      setCreated(student);
+      if (quote?.waived) {
+        // Records the waiver so the file counts as settled and the summary
+        // can be downloaded.
+        await payments.checkout(student.reference, 'agent').catch(() => null);
+        setDone({ kind: 'waived' });
+      } else {
+        setStep(6);
+      }
+      scrollTop();
     } catch (error) {
       toast.error(errorMessage(error, 'Could not register that student.'));
     } finally {
@@ -220,106 +372,186 @@ export default function AgentNewStudent() {
     }
   };
 
-  const filePicker = (key, label, accept, icon) => (
-    <div className={`dropzone-card ${files[key] ? 'has-file' : ''}`.trim()}>
-      <input
-        type="file"
-        className="dropzone-file-input"
-        accept={accept}
-        onChange={async (event) => {
-          const raw = event.target.files?.[0] || null;
-          const processed = raw ? await compressImageFile(raw) : null;
-          setFiles((current) => ({ ...current, [key]: processed }));
-        }}
-      />
-      <Icon name={icon} size={34} className="dropzone-icon" strokeWidth={1.6} />
-      <div className="dropzone-title">{label}</div>
-      <div className="dropzone-hint">Optional. The student can add it later</div>
-      <button type="button" className="btn btn-sm btn-secondary">
-        {files[key] ? 'Replace file' : 'Browse or drop a file'}
-      </button>
-      <div className={`uploaded-file-tag ${files[key] ? 'visible' : ''}`.trim()}>
-        <div className="uploaded-file-info">
-          <Icon name="check" size={16} className="file-status-icon" strokeWidth={2.4} />
-          <div className="uploaded-file-text">
-            <span className="file-name-display" title={files[key]?.name || ''}>{files[key]?.name || ''}</span>
-          </div>
-        </div>
-        <span className="badge badge-success">Ready</span>
+  const resetAll = () => {
+    setCreated(null);
+    setDone(null);
+    setDraftId(null);
+    setForm(BLANK);
+    setDocs(EMPTY_DOCS);
+    setOthers([]);
+    setRemovedRemote([]);
+    setQuote(null);
+    setStep(1);
+    navigate('/agent/students/new', { replace: true, state: null });
+    scrollTop();
+  };
+
+  const summary = async () => {
+    setDownloading(true);
+    try {
+      await downloadStudentSummary(created.reference);
+    } catch (error) {
+      toast.error(errorMessage(error, 'Could not download the summary.'));
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  // ── Pieces ──
+
+  const docName = (entry) => entry?.file?.name || entry?.remote?.original_filename || '';
+
+  const fileRow = (id, value, onPick, onClear) => (
+    <div className="nf-file">
+      <span className={`nf-file-name${value ? '' : ' is-empty'}`} title={value}>
+        {value || 'No file chosen'}
+      </span>
+      <div className="nf-file-actions">
+        {value ? (
+          <button type="button" className="nf-link-btn" onClick={onClear}>
+            Remove
+          </button>
+        ) : null}
+        <label className="agent-btn agent-btn-secondary agent-btn-sm nf-file-btn" htmlFor={id}>
+          {value ? 'Replace' : 'Choose file'}
+        </label>
+        <input id={id} type="file" accept={ACCEPT} className="sr-only" onChange={onPick} />
       </div>
     </div>
   );
 
+  const footer = (back, next) => (
+    <div className="nf-footer">
+      <div className="nf-footer-start">
+        {back ? (
+          <button type="button" className="agent-btn agent-btn-secondary" onClick={back}>
+            Back
+          </button>
+        ) : (
+          <button type="button" className="agent-btn agent-btn-secondary" onClick={() => navigate('/agent/students')}>
+            Cancel
+          </button>
+        )}
+      </div>
+      <div className="nf-footer-end">
+        <button type="button" className="agent-btn agent-btn-secondary" onClick={onSaveDraft} disabled={saving || busy}>
+          {saving ? <span className="spinner-sm" aria-hidden="true" /> : null}
+          {saving ? 'Saving' : 'Save draft'}
+        </button>
+        {next}
+      </div>
+    </div>
+  );
+
+  const continueBtn = (target, label = 'Continue') => (
+    <button type="button" className="agent-btn agent-btn-primary" onClick={() => goTo(target)}>
+      {label}
+    </button>
+  );
+
+  // ── Finished ──
+
+  if (done) {
+    return (
+      <div className="agent-stack" ref={shellRef}>
+        <div className="nf-card nf-done">
+          <span className={`nf-done-mark${done.kind === 'review' ? ' is-wait' : ''}`} aria-hidden="true">
+            <Icon name={done.kind === 'review' ? 'clock' : 'check'} size={26} strokeWidth={2.4} />
+          </span>
+          <h2>{done.kind === 'review' ? 'Receipt sent' : 'Student registered'}</h2>
+          <p className="nf-done-lede">
+            {done.kind === 'review'
+              ? `We are checking the transfer for ${created.full_name}. You will get an email once it is confirmed.`
+              : `${created.full_name} is registered. This university does not charge an application fee.`}
+          </p>
+          <dl className="nf-done-facts">
+            <div>
+              <dt>Application reference</dt>
+              <dd>{created.reference}</dd>
+            </div>
+            <div>
+              <dt>Payment</dt>
+              <dd>{done.kind === 'review' ? 'Awaiting confirmation' : 'No fee'}</dd>
+            </div>
+          </dl>
+          <div className="nf-done-actions">
+            {done.kind === 'waived' ? (
+              <button type="button" className="agent-btn agent-btn-primary" onClick={summary} disabled={downloading}>
+                {downloading ? <span className="spinner-sm" aria-hidden="true" /> : null}
+                Download student summary
+              </button>
+            ) : null}
+            <button type="button" className="agent-btn agent-btn-secondary" onClick={() => navigate('/agent/students')}>
+              Go to students
+            </button>
+            <button type="button" className="agent-btn agent-btn-secondary" onClick={resetAll}>
+              Register another
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const heading = step === 6 ? 'Payment' : STEPS[step - 1];
+
   return (
     <div className="agent-stack" ref={shellRef}>
-
-      <div className="agent-wizard-shell">
+      <div className="nf-card">
+        <div className="nf-head">
+          <span className="nf-step-count">{step === 6 ? 'Final step' : `Step ${step} of ${STEPS.length}`}</span>
+          <h2 className="nf-title">{heading}</h2>
+          {draftId && step < 6 ? <span className="nf-draft-tag">Draft</span> : null}
+          <div className="nf-progress" aria-hidden="true">
+            {STEPS.map((label, index) => (
+              <span key={label} className={`nf-progress-seg${index < Math.min(step, 5) ? ' is-on' : ''}`} />
+            ))}
+          </div>
+        </div>
 
         {step === 1 ? (
-          <div className="ag-wizard-card">
-            <div className="ag-wizard-card-header">
-              <h3>Student details</h3>
-              <p>As printed on their international passport.</p>
-            </div>
-
-            <div className="agent-2col-grid">
-              <div className="agent-form-group">
-                <label className="agent-form-label" htmlFor="st-name">
-                  Full legal name *
-                </label>
+          <>
+            <div className="nf-grid">
+              <Field icon="user" label="Full legal name" required htmlFor="st-name">
                 <input
                   id="st-name"
                   className="agent-form-control"
+                  autoComplete="off"
                   value={form.fullName}
                   onChange={(event) => update({ fullName: event.target.value })}
                 />
-              </div>
-
-              <div className="agent-form-group">
-                <label className="agent-form-label" htmlFor="st-email">
-                  Student email *
-                </label>
+              </Field>
+              <Field icon="mail" label="Student email" required htmlFor="st-email">
                 <input
                   id="st-email"
                   type="email"
+                  inputMode="email"
+                  autoComplete="off"
                   className="agent-form-control"
                   value={form.email}
                   onChange={(event) => update({ email: event.target.value })}
                 />
-              </div>
-            </div>
-
-            <div className="agent-2col-grid">
-              <div className="agent-form-group">
-                <label className="agent-form-label" htmlFor="st-phone">
-                  Phone / WhatsApp *
-                </label>
+              </Field>
+              <Field icon="chat" label="Phone or WhatsApp" required htmlFor="st-phone">
                 <input
                   id="st-phone"
                   type="tel"
+                  inputMode="tel"
                   className="agent-form-control"
                   value={form.phone}
                   onChange={(event) => update({ phone: event.target.value })}
                 />
-              </div>
-
-              <div className="agent-form-group">
-                <label className="agent-form-label" id="st-origin-label">
-                  Country of origin *
-                </label>
+              </Field>
+              <Field icon="pin" label="Country of origin" required labelId="st-origin-label">
                 <SearchableSelect
                   options={originNames}
                   value={form.originCountry}
                   onChange={(value) => update({ originCountry: value })}
                   labelledBy="st-origin-label"
                 />
-              </div>
+              </Field>
             </div>
-
-            <div className="agent-form-group">
-              <label className="agent-form-label" id="st-dest-label">
-                Destination country *
-              </label>
+            <Field icon="globe" label="Destination country" required labelId="st-dest-label">
               <SearchableSelect
                 options={ALL_WORLD_COUNTRIES}
                 value={form.destinationCountry}
@@ -335,48 +567,23 @@ export default function AgentNewStudent() {
                 }
                 labelledBy="st-dest-label"
               />
-            </div>
-
-            <div className="ag-wizard-footer">
-              <button
-                type="button"
-                className="agent-btn agent-btn-secondary"
-                onClick={() => navigate('/agent/students')}
-              >
-                Cancel
-              </button>
-              <button type="button" className="agent-btn agent-btn-primary" onClick={() => goTo(2)}>
-                Continue
-                <Icon name="arrowRight" size={16} strokeWidth={2} />
-              </button>
-            </div>
-          </div>
+            </Field>
+            {footer(null, continueBtn(2))}
+          </>
         ) : null}
 
         {step === 2 ? (
-          <div className="ag-wizard-card">
-            <div className="ag-wizard-card-header">
-              <h3>Academic background</h3>
-              <p>Their highest completed qualification and grades.</p>
-            </div>
-
-            <div className="agent-form-group">
-              <label className="agent-form-label" htmlFor="st-prev">
-                Institutions attended *
-              </label>
+          <>
+            <Field icon="building" label="Institutions attended" required htmlFor="st-prev">
               <input
                 id="st-prev"
                 className="agent-form-control"
                 value={form.previousSchools}
                 onChange={(event) => update({ previousSchools: event.target.value })}
               />
-            </div>
-
-            <div className="agent-2col-grid">
-              <div className="agent-form-group">
-                <label className="agent-form-label" htmlFor="st-qual">
-                  Highest qualification *
-                </label>
+            </Field>
+            <div className="nf-grid nf-grid-3">
+              <Field icon="cap" label="Highest qualification" required htmlFor="st-qual">
                 <select
                   id="st-qual"
                   className="agent-form-select"
@@ -389,57 +596,35 @@ export default function AgentNewStudent() {
                     </option>
                   ))}
                 </select>
-              </div>
-
-              <div className="agent-form-group">
-                <label className="agent-form-label" htmlFor="st-year">
-                  Graduation year *
-                </label>
+              </Field>
+              <Field icon="calendar" label="Graduation year" required htmlFor="st-year">
                 <input
                   id="st-year"
                   type="number"
+                  inputMode="numeric"
                   min="1960"
                   max="2035"
                   className="agent-form-control"
                   value={form.yearGraduated}
                   onChange={(event) => update({ yearGraduated: event.target.value })}
                 />
-              </div>
+              </Field>
+              <Field icon="medal" label="Grade or CGPA" required htmlFor="st-gpa">
+                <input
+                  id="st-gpa"
+                  className="agent-form-control"
+                  value={form.gradeGpa}
+                  onChange={(event) => update({ gradeGpa: event.target.value })}
+                />
+              </Field>
             </div>
-
-            <div className="agent-form-group">
-              <label className="agent-form-label" htmlFor="st-gpa">
-                Grade or CGPA *
-              </label>
-              <input
-                id="st-gpa"
-                className="agent-form-control"
-                value={form.gradeGpa}
-                onChange={(event) => update({ gradeGpa: event.target.value })}
-              />
-            </div>
-
-            <div className="ag-wizard-footer">
-              <button type="button" className="agent-btn agent-btn-secondary" onClick={() => goTo(1)}>
-                <Icon name="arrowLeft" size={16} strokeWidth={2} />
-                Back
-              </button>
-              <button type="button" className="agent-btn agent-btn-primary" onClick={() => goTo(3)}>
-                Continue
-                <Icon name="arrowRight" size={16} strokeWidth={2} />
-              </button>
-            </div>
-          </div>
+            {footer(() => goTo(1), continueBtn(3))}
+          </>
         ) : null}
 
         {step === 3 ? (
-          <div className="ag-wizard-card">
-            <div className="ag-wizard-card-header">
-              <h3>Institution and courses</h3>
-              <p>One institution, up to two courses.</p>
-            </div>
-
-            <div className="schools-container">
+          <>
+            <div className="nf-picker">
               <ProgramPicker
                 institutions={institutions}
                 loading={institutionsLoading}
@@ -455,254 +640,168 @@ export default function AgentNewStudent() {
                 onNotify={(message, type) => toast.toast(message, type)}
               />
             </div>
-
-            <div className="ag-wizard-footer">
-              <button type="button" className="agent-btn agent-btn-secondary" onClick={() => goTo(2)}>
-                <Icon name="arrowLeft" size={16} strokeWidth={2} />
-                Back
-              </button>
-              <button type="button" className="agent-btn agent-btn-primary" onClick={() => goTo(4)}>
-                Continue
-                <Icon name="arrowRight" size={16} strokeWidth={2} />
-              </button>
-            </div>
-          </div>
+            {footer(() => goTo(2), continueBtn(4))}
+          </>
         ) : null}
 
         {step === 4 ? (
-          <div className="ag-wizard-card">
-            <div className="ag-wizard-card-header">
-              <h3>Documents</h3>
-              <p>Attach what you have. The student can add the rest from their portal.</p>
+          <>
+            <p className="nf-lede">PDF or photo, up to 10MB each. Anything missing can be added later.</p>
+            <div className="nf-docs">
+              {SLOTS.map((meta) => (
+                <div className="nf-doc" key={meta.slot}>
+                  <span className="nf-label">
+                    <Icon name={meta.icon} size={16} className="nf-label-icon" />
+                    <span>{meta.name}</span>
+                  </span>
+                  {fileRow(
+                    `doc-${meta.slot}`,
+                    docName(docs[meta.slot]),
+                    async (event) => {
+                      const file = await pick(event);
+                      if (file) setSlotFile(meta.slot, file);
+                    },
+                    () => setSlotFile(meta.slot, null),
+                  )}
+                </div>
+              ))}
             </div>
 
-            <div className="dropzone-container">
-              {filePicker('passport', 'International passport data page', '.pdf,.jpg,.jpeg,.png', 'passport')}
-              {filePicker('academic', 'Academic documents', '.pdf', 'document')}
-              {filePicker('cv', 'Curriculum vitae', '.pdf', 'resume')}
+            <div className="nf-others">
+              <div className="nf-others-head">
+                <span className="nf-label">
+                  <Icon name="paperclip" size={16} className="nf-label-icon" />
+                  <span>Other documents</span>
+                </span>
+                <button type="button" className="agent-btn agent-btn-secondary agent-btn-sm" onClick={addOther}>
+                  Add a document
+                </button>
+              </div>
+              {others.length === 0 ? (
+                <p className="nf-muted">Birth certificate, reference letter, English test result and so on.</p>
+              ) : (
+                others.map((item, index) => (
+                  <div className="nf-doc nf-doc-other" key={item.slot}>
+                    <label className="sr-only" htmlFor={`other-name-${item.slot}`}>
+                      Name of document {index + 1}
+                    </label>
+                    <input
+                      id={`other-name-${item.slot}`}
+                      className="agent-form-control"
+                      placeholder="Document name"
+                      maxLength={160}
+                      value={item.name}
+                      onChange={(event) => updateOther(item.slot, { name: event.target.value })}
+                    />
+                    {fileRow(
+                      `other-file-${item.slot}`,
+                      docName(item),
+                      async (event) => {
+                        const file = await pick(event);
+                        if (file) updateOther(item.slot, { file });
+                      },
+                      () => removeOther(item.slot),
+                    )}
+                  </div>
+                ))
+              )}
             </div>
-
-            <div className="agent-form-group">
-              <label className="agent-form-label" htmlFor="st-notes">
-                Counselling notes
-              </label>
-              <textarea
-                id="st-notes"
-                className="agent-form-control"
-                rows={3}
-                value={form.notes}
-                onChange={(event) => update({ notes: event.target.value })}
-              />
-            </div>
-
-            <div className="ag-wizard-footer">
-              <button type="button" className="agent-btn agent-btn-secondary" onClick={() => goTo(3)}>
-                <Icon name="arrowLeft" size={16} strokeWidth={2} />
-                Back
-              </button>
-              <button type="button" className="agent-btn agent-btn-primary" onClick={() => goTo(5)}>
-                Review
-                <Icon name="arrowRight" size={16} strokeWidth={2} />
-              </button>
-            </div>
-          </div>
+            {footer(() => goTo(3), continueBtn(5, 'Review'))}
+          </>
         ) : null}
 
         {step === 5 ? (
-          <div className="ag-wizard-card">
-            <div className="ag-wizard-card-header">
-              <h3>Review and submit</h3>
-              <p>Check the file before it joins the admissions queue.</p>
-            </div>
-
-            <div className="dossier-grid">
-              <div className="dossier-item">
-                <span className="d-label">Student</span>
-                <span className="d-val">{form.fullName || 'Not entered'}</span>
+          <>
+            <dl className="nf-review">
+              <div>
+                <dt>Student</dt>
+                <dd>{form.fullName}</dd>
               </div>
-              <div className="dossier-item">
-                <span className="d-label">Email</span>
-                <span className="d-val">{form.email || 'Not entered'}</span>
+              <div>
+                <dt>Email</dt>
+                <dd>{form.email}</dd>
               </div>
-              <div className="dossier-item">
-                <span className="d-label">Phone</span>
-                <span className="d-val">{form.phone || 'Not entered'}</span>
+              <div>
+                <dt>Phone</dt>
+                <dd>{form.phone}</dd>
               </div>
-              <div className="dossier-item">
-                <span className="d-label">Route</span>
-                <span className="d-val">
+              <div>
+                <dt>From and to</dt>
+                <dd>
                   {form.originCountry} to {form.destinationCountry}
-                </span>
+                </dd>
               </div>
-              <div className="dossier-item">
-                <span className="d-label">Previous institution</span>
-                <span className="d-val">{form.previousSchools || 'Not entered'}</span>
+              <div>
+                <dt>Education</dt>
+                <dd>
+                  {form.qualification}, {form.yearGraduated} · {form.gradeGpa}
+                  <small>{form.previousSchools}</small>
+                </dd>
               </div>
-              <div className="dossier-item">
-                <span className="d-label">Qualification</span>
-                <span className="d-val">
-                  {form.qualification} ({form.yearGraduated || 'year not entered'})
-                </span>
+              <div>
+                <dt>University</dt>
+                <dd>
+                  {isCustomCourse ? 'To be matched by our team' : institution?.name || 'Not chosen'}
+                  <small>
+                    {isCustomCourse
+                      ? form.custom_course
+                      : form.programs.map((program) => program.name).join(' and ')}
+                  </small>
+                </dd>
               </div>
-              <div className="dossier-item dossier-item-wide">
-                <span className="d-label">Institution</span>
-                <span className="d-val d-val-accent">
-                  {institution?.name || 'Not chosen'}
-                </span>
-                <span className="d-val d-val-sm">
-                  {form.programs.map((program) => program.name).join(' and ') || 'Not chosen'}
-                </span>
+              <div className="nf-review-wide">
+                <dt>Documents</dt>
+                <dd>
+                  {[
+                    ...SLOTS.filter((meta) => docs[meta.slot]).map((meta) => meta.name),
+                    ...others.filter((item) => item.file || item.remote).map((item) => item.name || 'Other document'),
+                  ].join(', ') || 'None yet'}
+                </dd>
               </div>
-            </div>
+            </dl>
 
-            <div className="summary-invoice">
-              <div className="invoice-header">Application fee</div>
-              <div className="invoice-row">
+            <div className="nf-fee">
+              <div className="nf-fee-row">
                 <span>Application fee</span>
-                <span className="invoice-amount">
-                  {quote ? formatMoney(quote.amount, quote.currency) : 'Calculating'}
-                </span>
+                <span>{quote ? formatMoney(quote.amount, quote.currency) : 'Calculating'}</span>
               </div>
-              <div className="invoice-row">
-                <span>Gateway processing</span>
-                <span className="invoice-amount">
-                  {quote ? formatMoney(quote.processing_fee, quote.currency) : 'Calculating'}
-                </span>
-              </div>
-              <div className="invoice-row total">
-                <span>You pay now</span>
-                <span className="invoice-amount-total">
-                  {quote ? formatMoney(quote.total, quote.currency) : 'Calculating'}
-                </span>
+              {quote && !quote.waived && Number(quote.processing_fee) > 0 ? (
+                <div className="nf-fee-row">
+                  <span>Card processing (Paystack only)</span>
+                  <span>{formatMoney(quote.processing_fee, quote.currency)}</span>
+                </div>
+              ) : null}
+              <div className="nf-fee-row nf-fee-total">
+                <span>{quote?.waived ? 'No fee for this university' : 'Paid on the next step'}</span>
+                <span>{quote ? formatMoney(quote.total, quote.currency) : ''}</span>
               </div>
             </div>
 
-            {quote && !quote.waived ? (
-              <div className="agent-form-group">
-                <label className="agent-form-label" htmlFor="ag-gateway">
-                  Pay with
-                </label>
-                <select
-                  id="ag-gateway"
-                  className="agent-form-select"
-                  value={gateway}
-                  onChange={(event) => setGateway(event.target.value)}
-                >
-                  <option value="Paystack">Paystack</option>
-                  <option value="Flutterwave">Flutterwave</option>
-                </select>
-              </div>
-            ) : null}
-
-            {quote?.waived ? (
-              <div className="callout callout-warning">
-                <Icon name="alert" size={20} className="callout-icon" strokeWidth={2} />
-                <div className="callout-content">
-                  <strong>{institution?.name} waives the application fee.</strong> With no
-                  fee to settle there is no registration commission on this student. You
-                  still earn {formatNaira(30000)} when their visa is verified.
-                </div>
-              </div>
-            ) : (
-              <div className="callout callout-success">
-                <Icon name="checkCircle" size={20} className="callout-icon" strokeWidth={2} />
-                <div className="callout-content">
-                  <strong>{formatNaira(30000)} lands in your wallet the moment this fee
-                  clears</strong>, and {formatNaira(30000)} more once the admissions desk
-                  verifies their visa. Filed by {profile?.full_name} ({profile?.partner_code}).
-                </div>
-              </div>
-            )}
-
-            <div className="ag-wizard-footer">
-              <button type="button" className="agent-btn agent-btn-secondary" onClick={() => goTo(4)}>
-                <Icon name="arrowLeft" size={16} strokeWidth={2} />
-                Back
-              </button>
-              <button
-                type="button"
-                className="agent-btn agent-btn-primary agent-btn-lg"
-                onClick={submit}
-                disabled={busy}
-              >
+            {footer(
+              () => goTo(4),
+              <button type="button" className="agent-btn agent-btn-primary" onClick={submit} disabled={busy || !quote}>
                 {busy ? <span className="spinner-sm" aria-hidden="true" /> : null}
-                {busy
-                  ? 'Submitting'
-                  : quote?.waived
-                    ? 'Register student'
-                    : `Register and pay ${quote ? formatMoney(quote.total, quote.currency) : ''}`}
+                {busy ? 'Registering' : quote?.waived ? 'Register student' : 'Register and pay'}
+              </button>,
+            )}
+          </>
+        ) : null}
+
+        {step === 6 && created ? (
+          <>
+            <p className="nf-lede">
+              <strong>{created.full_name}</strong> is registered as <strong>{created.reference}</strong>. Pay the
+              application fee to send the file to the admissions desk.
+            </p>
+            <FeePayment reference={created.reference} onTransferSent={() => setDone({ kind: 'review' })} />
+            <div className="nf-footer nf-footer-single">
+              <button type="button" className="nf-link-btn" onClick={() => navigate('/agent/students')}>
+                Pay later from Students
               </button>
             </div>
-          </div>
+          </>
         ) : null}
       </div>
-
-      <Modal
-        open={Boolean(created)}
-        dismissable={false}
-        variant="agent"
-        title="Student registered"
-        labelledBy="student-created-title"
-        footer={
-          <>
-            <button
-              type="button"
-              className="agent-btn agent-btn-secondary"
-              onClick={() => {
-                setCreated(null);
-                setForm(BLANK);
-                setFiles({ passport: null, academic: null, cv: null });
-                setStep(1);
-              }}
-            >
-              Register another
-            </button>
-            <button
-              type="button"
-              className="agent-btn agent-btn-primary"
-              onClick={() => navigate('/agent/students')}
-            >
-              Go to students
-            </button>
-          </>
-        }
-      >
-        <p className="sheet-lede">
-          {created?.full_name} is in the admissions queue as{' '}
-          <strong>{created?.reference}</strong>.
-        </p>
-
-        {created?.commission ? (
-          <div className="commission-flash">
-            <Icon name="trend" size={22} />
-            <span>
-              <strong>{formatNaira(created.commission)} added to your balance.</strong>
-              <small>
-                Another {formatNaira(30000)} follows once their visa is verified.
-              </small>
-            </span>
-          </div>
-        ) : (
-          <div className="callout callout-warning">
-            <Icon name="alert" size={20} className="callout-icon" strokeWidth={2} />
-            <div className="callout-content">
-              {created?.feePaid
-                ? 'No fee was charged on this file, so no registration commission was earned.'
-                : 'The application fee is still outstanding. Pay it from Students and your commission is credited straight away.'}
-            </div>
-          </div>
-        )}
-
-        <div className="callout callout-info">
-          <Icon name="info" size={20} className="callout-icon" strokeWidth={2} />
-          <div className="callout-content">
-            {created?.account_created
-              ? 'This file is yours to run. The student is not contacted at all, so every status change and every letter comes to you by email.'
-              : 'This student already had an account. Every status change and every letter on this file still comes to you by email.'}
-          </div>
-        </div>
-
-      </Modal>
     </div>
   );
 }

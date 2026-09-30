@@ -889,3 +889,49 @@ def send_document_rejected_email(document):
         items=steps,
         action=link,
     )
+
+
+
+def send_transfer_rejected_email(payment):
+    """Tell whoever sent a transfer receipt why it could not be confirmed."""
+    from django.utils.html import escape
+
+    application = payment.application
+    agent = application.submitted_by_agent
+    to_agent = bool(agent and agent.user and agent.user.email)
+    if not to_agent and not application.email:
+        return None
+
+    facts = []
+    if to_agent:
+        facts.append(("Student", application.full_name))
+    facts += [
+        ("Amount", payment.display_total),
+        ("Payment reference", payment.reference),
+        ("Application", application.reference),
+    ]
+    reason = escape(payment.review_note or "The transfer could not be matched to our account.").replace("\n", "<br>")
+    steps = [
+        ("Check the transfer", "Make sure the full amount was sent to the Gabstep company account shown on the payment screen."),
+        ("Send the receipt again", "Open the student's payment and upload a clear receipt, or pay with Paystack instead."),
+        ("We confirm it", "We check new receipts quickly and email you once the payment is confirmed."),
+    ]
+    if to_agent:
+        greeting = f"Hello {_first_name(agent.user.full_name, 'there')},"
+        opening = f"We could not confirm the bank transfer for <strong>{escape(application.full_name)}</strong>."
+        recipients, link = [agent.user.email], ("Open your students", _url("/agent/students"))
+    else:
+        greeting = f"Hello {_first_name(application.full_name, 'there')},"
+        opening = "We could not confirm your bank transfer for the application fee."
+        recipients, link = [application.email], ("Open your dashboard", _url("/portal"))
+
+    return _send(
+        subject=f"Payment not confirmed for {application.reference}",
+        recipients=recipients,
+        greeting=greeting,
+        paragraphs=[opening, f"<strong>Reason:</strong><br>{reason}"],
+        facts=facts,
+        items_intro="What to do next:",
+        items=steps,
+        action=link,
+    )

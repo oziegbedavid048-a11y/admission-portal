@@ -88,7 +88,11 @@ def award_commission(application, kind):
     if not created:
         return 0
 
-    wallet = agent.wallet
+    # An agent added from the admin may not have a wallet yet; one is made
+    # rather than losing the commission.
+    from apps.partners.models import Wallet
+
+    wallet, _ = Wallet.objects.get_or_create(agent=agent)
     wallet.credit_commission(kind)
 
     if kind == Commission.Kind.REGISTRATION:
@@ -564,4 +568,22 @@ def reject_document(document, note, reviewed_by=None):
     notify(application, f"{document.name} needs replacing: {note}", send_email=False)
     sync_documents_checkpoint(application, reviewed_by)
     transaction.on_commit(lambda: send_document_rejected_email(document))
+    return True
+
+
+
+@transaction.atomic
+def reject_transfer(payment, note):
+    """Turn down a transfer receipt with a reason. The payer can send another."""
+    from apps.accounts.emails import send_transfer_rejected_email
+
+    payment.status = "pending"
+    payment.review_note = (note or "").strip()
+    payment.save(update_fields=["status", "review_note"])
+    notify(
+        payment.application,
+        f"Bank transfer not confirmed: {payment.review_note}",
+        send_email=False,
+    )
+    transaction.on_commit(lambda: send_transfer_rejected_email(payment))
     return True

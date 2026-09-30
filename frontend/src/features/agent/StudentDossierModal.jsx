@@ -1,22 +1,35 @@
 import { useEffect, useState } from 'react';
 import Modal from '../../components/ui/Modal';
-import Icon from '../../lib/icons';
-import { formatDate, formatNaira } from '../../lib/format';
-import { partners } from '../../api/endpoints';
-import StageTrack from '../applicant/StageTrack';
-import StatusBadge from './StatusBadge';
 import DocumentReplaceButton from '../../components/ui/DocumentReplaceButton';
+import Icon from '../../lib/icons';
+import { formatDate, formatNaira, resolveMediaUrl } from '../../lib/format';
+import { errorMessage } from '../../api/client';
+import { partners } from '../../api/endpoints';
+import { useToast } from '../../context/ToastContext';
+import StageTrack from '../applicant/StageTrack';
+import FeePayment from './FeePayment';
+import StatusBadge from './StatusBadge';
+import { PaymentBadge } from './StudentsTable';
+import { downloadStudentSummary } from './studentSummary';
+
+const DOC_TONE = {
+  Verified: ['approved', 'Verified'],
+  Rejected: ['rejected', 'Needs replacing'],
+};
 
 /**
- * Everything on one student, including the same stage track the student sees,
- * so the agent can answer "where are they?" without asking anyone.
+ * One student's progress, laid out the way the admissions desk sees the file
+ * in the admin: payment, the four verification checks, the stages, each
+ * document with its review, and any letters issued.
  *
- * It is deliberately read-only. Milestones are recorded by the admissions desk
- * in the admin, because each one pays commission and an agent should not be
- * able to mark their own student admitted.
+ * The agent can act only where the desk expects them to: pay the fee, replace
+ * a rejected document, and download the summary once the fee is paid.
+ * Decisions stay with the desk.
  */
-export default function StudentDossierModal({ student, onClose, onDocumentReplaced }) {
+export default function StudentDossierModal({ student, onClose, onChanged }) {
   const [stages, setStages] = useState([]);
+  const [downloading, setDownloading] = useState(false);
+  const toast = useToast();
 
   useEffect(() => {
     if (!student) return undefined;
@@ -32,18 +45,25 @@ export default function StudentDossierModal({ student, onClose, onDocumentReplac
     return () => {
       cancelled = true;
     };
-  }, [student]);
+  }, [student?.reference]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!student) return null;
 
-  const admitted = student.status === 'admission_granted';
-  const visaDone = student.visa_status === 'completed';
+  const fee = student.fee_status;
+  const payment = student.payment;
+  const settled = fee === 'paid' || fee === 'waived';
+  const checkpoints = student.verification?.checkpoints || [];
 
-  const waitingOn = visaDone
-    ? null
-    : admitted
-      ? 'Visa verification. Your second commission is paid when the study permit is confirmed.'
-      : 'The admissions decision. Your first commission is paid when the offer is issued.';
+  const summary = async () => {
+    setDownloading(true);
+    try {
+      await downloadStudentSummary(student.reference);
+    } catch (error) {
+      toast.error(errorMessage(error, 'Could not download the summary.'));
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   return (
     <Modal
@@ -51,117 +71,173 @@ export default function StudentDossierModal({ student, onClose, onDocumentReplac
       onClose={onClose}
       variant="agent"
       title={student.full_name}
-      subtitle={student.email}
+      subtitle={`${student.reference} · ${student.origin_country} to ${student.destination_country}`}
       labelledBy="dossier-title"
-      size={640}
+      size={720}
       footer={
         <button type="button" className="agent-btn agent-btn-secondary" onClick={onClose}>
           Close
         </button>
       }
     >
-      <div className="dossier-grid">
-        <div className="dossier-item">
-          <span className="d-label">Phone</span>
-          <span className="d-val">{student.phone || 'Not provided'}</span>
-        </div>
-        <div className="dossier-item">
-          <span className="d-label">Route</span>
-          <span className="d-val">
-            {student.origin_country} to {student.destination_country}
-          </span>
-        </div>
-        <div className="dossier-item">
-          <span className="d-label">Admission</span>
+      <div className="ds">
+        <dl className="ds-facts">
           <div>
-            <StatusBadge status={student.status} />
+            <dt>University</dt>
+            <dd>{student.institution || 'To be confirmed'}</dd>
           </div>
-        </div>
-        <div className="dossier-item dossier-item-wide">
-          <span className="d-label">Institution</span>
-          <span className="d-val d-val-accent">
-            {student.institution}
-          </span>
-          <span className="d-val d-val-sm">
-            {student.program}
-          </span>
-        </div>
-        <div className="dossier-item">
-          <span className="d-label">Academics</span>
-          <span className="d-val">
-            {student.qualification} ({student.year_graduated})
-          </span>
-          <span style={{ fontSize: '0.75rem', color: 'var(--g-ink-3)' }}>{student.grade_gpa}</span>
-        </div>
-        <div className="dossier-item">
-          <span className="d-label">Registered</span>
-          <span className="d-val">{formatDate(student.submitted_at)}</span>
-        </div>
-        <div className="dossier-item">
-          <span className="d-label">Commission earned</span>
-          <span className="d-val">{formatNaira(student.commission_earned)}</span>
-        </div>
-        <div className="dossier-item">
-          <span className="d-label">Visa</span>
           <div>
-            <StatusBadge status={student.visa_status} />
+            <dt>Course</dt>
+            <dd>{student.program || '—'}</dd>
           </div>
-        </div>
-        <div className="dossier-item dossier-item-wide">
-          <span className="d-label">Documents</span>
-          <div className="dossier-tags">
-            {student.documents.length === 0 ? (
-              <span className="d-val">None uploaded.</span>
-            ) : (
-              student.documents.map((doc) =>
-                doc.status === 'Rejected' ? (
-                  <div className="dossier-doc-rejected" key={doc.id}>
-                    <span className="doc-tag doc-tag-bad">{doc.name} · Needs replacing</span>
-                    <p>{doc.review_note || 'Please upload a clearer, complete copy.'}</p>
-                    <DocumentReplaceButton
-                      reference={student.reference}
-                      documentId={doc.id}
-                      onReplaced={onDocumentReplaced}
-                    />
-                  </div>
-                ) : (
-                  <span className="doc-tag" key={doc.id}>
-                    {doc.name}
-                    {doc.status === 'Verified' ? ' · Verified' : ''}
-                  </span>
-                ),
-              )
-            )}
+          <div>
+            <dt>Application</dt>
+            <dd>
+              <StatusBadge status={student.status} />
+            </dd>
           </div>
-        </div>
-        {student.notes ? (
-          <div className="dossier-item dossier-item-wide">
-            <span className="d-label">Notes</span>
-            <p className="d-note">
-              {student.notes}
+          <div>
+            <dt>Visa</dt>
+            <dd>
+              <StatusBadge status={student.visa_status} />
+            </dd>
+          </div>
+          <div>
+            <dt>Registered</dt>
+            <dd>{formatDate(student.submitted_at)}</dd>
+          </div>
+          <div>
+            <dt>Commission earned</dt>
+            <dd>{formatNaira(student.commission_earned)}</dd>
+          </div>
+        </dl>
+
+        <section className="ds-section">
+          <div className="ds-section-head">
+            <h3>Application fee</h3>
+            <PaymentBadge status={fee} />
+          </div>
+          {settled ? (
+            <div className="ds-row">
+              <span>{fee === 'waived' ? 'No fee for this university.' : `Paid ${student.fee_display}.`}</span>
+              <button type="button" className="agent-btn agent-btn-secondary agent-btn-sm" onClick={summary} disabled={downloading}>
+                {downloading ? <span className="spinner-sm" aria-hidden="true" /> : null}
+                Download student summary
+              </button>
+            </div>
+          ) : fee === 'review' ? (
+            <p className="ds-text">
+              Your transfer receipt{payment?.transfer_bank ? ` for ${payment.transfer_bank}` : ''} is with the
+              admissions desk. Your commission is credited once they confirm the money arrived.
             </p>
+          ) : (
+            <FeePayment
+              reference={student.reference}
+              rejectedNote={payment?.review_note || ''}
+              onTransferSent={() => {
+                toast.success('Receipt sent. We will confirm the payment shortly.');
+                onChanged?.();
+              }}
+              onWaived={() => {
+                toast.success('Done. No fee is due for this university.');
+                onChanged?.();
+              }}
+            />
+          )}
+        </section>
+
+        <section className="ds-section">
+          <div className="ds-section-head">
+            <h3>Verification</h3>
+            <span className="ds-muted">{student.verification?.status_label}</span>
           </div>
+          <ul className="ds-checks">
+            {checkpoints.map((check) => (
+              <li key={check.key} className={check.verified ? 'is-done' : ''}>
+                <span className="ds-check-mark" aria-hidden="true">
+                  {check.verified ? <Icon name="check" size={13} strokeWidth={3} /> : null}
+                </span>
+                <span>{check.label}</span>
+                <span className="ds-check-state">{check.verified ? 'Verified' : 'Waiting'}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        <section className="ds-section">
+          <div className="ds-section-head">
+            <h3>Progress</h3>
+          </div>
+          <StageTrack stages={stages} />
+        </section>
+
+        <section className="ds-section">
+          <div className="ds-section-head">
+            <h3>Documents</h3>
+            <span className="ds-muted">{student.documents.length}</span>
+          </div>
+          {student.documents.length === 0 ? (
+            <p className="ds-text">No documents uploaded.</p>
+          ) : (
+            <ul className="ds-docs">
+              {student.documents.map((doc) => {
+                const [tone, label] = DOC_TONE[doc.status] || ['pending', 'In review'];
+                return (
+                  <li key={doc.id}>
+                    <div className="ds-doc-row">
+                      <span className="ds-doc-name">{doc.name}</span>
+                      <span className={`tbl-badge ${tone}`}>{label}</span>
+                    </div>
+                    {doc.status === 'Rejected' ? (
+                      <div className="ds-doc-review">
+                        <p>{doc.review_note || 'Please upload a clearer, complete copy.'}</p>
+                        <DocumentReplaceButton
+                          reference={student.reference}
+                          documentId={doc.id}
+                          onReplaced={async () => {
+                            toast.success('Replacement uploaded. It is back in review.');
+                            await onChanged?.();
+                          }}
+                        />
+                      </div>
+                    ) : null}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+
+        {student.letters?.length ? (
+          <section className="ds-section">
+            <div className="ds-section-head">
+              <h3>Letters</h3>
+            </div>
+            <ul className="ds-docs">
+              {student.letters.map((letter) => (
+                <li key={letter.id}>
+                  <div className="ds-doc-row">
+                    <span className="ds-doc-name">
+                      {letter.title}
+                      <small>
+                        {letter.kind} · {formatDate(letter.issued_at)}
+                      </small>
+                    </span>
+                    <a
+                      className="agent-btn agent-btn-secondary agent-btn-sm"
+                      href={resolveMediaUrl(letter.url)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      Open
+                    </a>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </section>
         ) : null}
       </div>
-
-      <h4 className="dossier-section-title">Progress</h4>
-      <StageTrack stages={stages} />
-
-      {waitingOn ? (
-        <div className="callout callout-info">
-          <Icon name="clock" size={20} className="callout-icon" strokeWidth={2} />
-          <div className="callout-content">
-            <strong>Waiting on:</strong> {waitingOn}
-          </div>
-        </div>
-      ) : (
-        <div className="callout callout-success">
-          <Icon name="checkCircle" size={20} className="callout-icon" strokeWidth={2} />
-          <div className="callout-content">
-            <strong>Complete.</strong> Both commissions on this student have been paid.
-          </div>
-        </div>
-      )}
     </Modal>
   );
 }

@@ -6,10 +6,13 @@ from .views import (
     PaystackWebhookView,
     QuoteView,
     ReceiptView,
+    TransferReceiptView,
 )
 
 urlpatterns = [
     path("checkout/", CheckoutView.as_view(), name="checkout"),
+    # A bank transfer: the receipt goes to the desk to confirm. One job.
+    path("transfer/<str:reference>/", TransferReceiptView.as_view(), name="payment-transfer"),
     path("quote/<str:reference>/", QuoteView.as_view(), name="payment-quote"),
     path("receipt/<str:reference>/", ReceiptView.as_view(), name="payment-receipt"),
     # Where the applicant lands coming back from Paystack. Asks Paystack what

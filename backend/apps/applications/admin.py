@@ -2,8 +2,11 @@
 
 Each screen has one job, and each action does one thing:
 
-* **Applications**: read the file, verify its parts, and move it along the
-  pipeline. Status fields are read-only here; they change only through the
+* **Applications**: files applicants made themselves. Read the file, verify
+  its parts, and move it along the pipeline.
+* **Agent applications**: every partner agent; open one to see the students
+  that agent registered, with a download of everything on each file.
+  Status fields on both screens are read-only; they change only through the
   actions, so there is one way to do each thing.
 * **Documents**: the one place to review uploads. Open a document, look at it,
   then Verify it or Reject it with a comment. The comment is emailed to the
@@ -30,6 +33,8 @@ from config.admin_ui import button_link, muted, pill, plural
 
 from . import services
 from .models import (
+    AgentApplication,
+    AgentApplications,
     Application,
     CorrectionRequest,
     Document,
@@ -160,19 +165,10 @@ class DocumentsToReviewFilter(admin.SimpleListFilter):
         return queryset
 
 
-class FiledByFilter(admin.SimpleListFilter):
-    title = "filed by"
-    parameter_name = "filed_by"
-
-    def lookups(self, request, model_admin):
-        return (("agent", "Partner agent"), ("applicant", "Applicant"))
-
-    def queryset(self, request, queryset):
-        if self.value() == "agent":
-            return queryset.filter(submitted_by_agent__isnull=False)
-        if self.value() == "applicant":
-            return queryset.filter(submitted_by_agent__isnull=True)
-        return queryset
+def application_admin_url(application_id, agent_filed):
+    """The admin page for an application, on whichever screen owns it."""
+    model = "agentapplication" if agent_filed else "application"
+    return reverse(f"admin:applications_{model}_change", args=[application_id])
 
 
 class PlainSelectsMixin:
@@ -211,7 +207,6 @@ class ApplicationAdmin(PlainSelectsMixin, admin.ModelAdmin):
         "verification_status",
         DocumentsToReviewFilter,
         "destination_country",
-        FiledByFilter,
     )
     search_fields = ("reference", "full_name", "email", "institution__name", "custom_course_name")
     autocomplete_fields = ("institution", "applicant")
@@ -270,10 +265,19 @@ class ApplicationAdmin(PlainSelectsMixin, admin.ModelAdmin):
         "action_send_email_to_applicants",
     )
 
+    # Applications applicants made themselves. Agent-filed files have their
+    # own screen, AgentApplicationAdmin, which flips this.
+    filed_by_agent = False
+
     def get_queryset(self, request):
+        queryset = super().get_queryset(request)
+        match = getattr(request, "resolver_match", None)
+        # The letter form's application picker searches every file, so it
+        # must not be limited to one screen's half.
+        if not (match and match.url_name == "autocomplete"):
+            queryset = queryset.filter(submitted_by_agent__isnull=not self.filed_by_agent)
         return (
-            super()
-            .get_queryset(request)
+            queryset
             .select_related("institution", "destination_country", "submitted_by_agent", "payment")
             .prefetch_related("stages")
             .annotate(
@@ -468,7 +472,7 @@ class DocumentAdmin(admin.ModelAdmin):
     def application_link(self, obj):
         return format_html(
             '<a href="{}">{} · {}</a>',
-            reverse("admin:applications_application_change", args=[obj.application_id]),
+            application_admin_url(obj.application_id, obj.application.submitted_by_agent_id is not None),
             obj.application.full_name,
             obj.application.reference,
         )
@@ -736,3 +740,165 @@ class VisaSupportApplicationAdmin(admin.ModelAdmin):
             )
         if skipped:
             self.message_user(request, f"{plural(skipped, 'application')} skipped: not admitted, or visa already confirmed.", messages.INFO)
+
+
+
+# ── Agent applications ──────────────────────────────────────────────────
+# Opens as a list of agents. Clicking an agent lists only the students that
+# agent registered; each row ends with one download of everything on the file.
+
+
+class AgentFilter(admin.SimpleListFilter):
+    title = "agent"
+    parameter_name = "agent"
+
+    def lookups(self, request, model_admin):
+        from apps.partners.models import AgentProfile
+
+        return [
+            (agent.pk, agent.user.full_name or agent.user.email)
+            for agent in AgentProfile.objects.select_related("user").order_by("user__full_name")
+        ]
+
+    def queryset(self, request, queryset):
+        if self.value():
+            return queryset.filter(submitted_by_agent_id=self.value())
+        return queryset
+
+
+PAYMENT_TONE = {"paid": "ok", "waived": "info", "review": "wait", "failed": "bad"}
+
+
+@admin.register(AgentApplications)
+class AgentApplicationsAdmin(admin.ModelAdmin):
+    """Every partner agent. Click an agent to see the students they registered."""
+
+    list_display = ("agent", "email", "code", "students", "awaiting_payment", "open_link")
+    search_fields = ("user__full_name", "user__email", "agency_name")
+    list_display_links = None
+    list_per_page = 50
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def get_queryset(self, request):
+        return (
+            super()
+            .get_queryset(request)
+            .select_related("user")
+            .annotate(
+                student_count=Count("applications", distinct=True),
+                awaiting_count=Count(
+                    "applications", filter=Q(applications__payment__status="review"), distinct=True
+                ),
+            )
+            .order_by("-student_count", "user__full_name")
+        )
+
+    def _students_url(self, obj):
+        return reverse("admin:applications_agentapplication_changelist") + f"?agent={obj.pk}"
+
+    @admin.display(description="Agent", ordering="user__full_name")
+    def agent(self, obj):
+        return format_html('<a href="{}"><strong>{}</strong></a>', self._students_url(obj), obj.user.full_name or obj.user.email)
+
+    @admin.display(description="Email", ordering="user__email")
+    def email(self, obj):
+        return obj.user.email
+
+    @admin.display(description="Code")
+    def code(self, obj):
+        return obj.partner_code
+
+    @admin.display(description="Students", ordering="student_count")
+    def students(self, obj):
+        return obj.student_count
+
+    @admin.display(description="Payments to confirm", ordering="awaiting_count")
+    def awaiting_payment(self, obj):
+        return pill(str(obj.awaiting_count), "wait") if obj.awaiting_count else muted("None")
+
+    @admin.display(description="")
+    def open_link(self, obj):
+        return button_link(self._students_url(obj), "View students", primary=True)
+
+    def change_view(self, request, object_id, form_url="", extra_context=None):
+        return HttpResponseRedirect(
+            reverse("admin:applications_agentapplication_changelist") + f"?agent={object_id}"
+        )
+
+
+@admin.register(AgentApplication)
+class AgentApplicationAdmin(ApplicationAdmin):
+    """The students one agent registered. Reached from Agent applications."""
+
+    filed_by_agent = True
+    list_display = (
+        "reference",
+        "full_name",
+        "university",
+        "payment_state",
+        "status_label",
+        "submitted_at",
+        "download",
+    )
+    list_filter = (AgentFilter, "status", "verification_status", DocumentsToReviewFilter, "destination_country")
+
+    def get_model_perms(self, request):
+        # Reached through Agent applications, so it is kept out of the menu.
+        return {}
+
+    def has_add_permission(self, request):
+        return False
+
+    def changelist_view(self, request, extra_context=None):
+        from apps.partners.models import AgentProfile
+
+        agent = AgentProfile.objects.select_related("user").filter(pk=request.GET.get("agent") or 0).first()
+        title = (
+            f"Students registered by {agent.user.full_name or agent.user.email}"
+            if agent
+            else "Students registered by agents"
+        )
+        return super().changelist_view(request, {**(extra_context or {}), "title": title})
+
+    @admin.display(description="Payment")
+    def payment_state(self, obj):
+        payment = getattr(obj, "payment", None)
+        if payment is None:
+            return muted("Not paid")
+        return pill(payment.get_status_display(), PAYMENT_TONE.get(payment.status, "idle"))
+
+    @admin.display(description="")
+    def download(self, obj):
+        return button_link(
+            reverse("admin:applications_agentapplication_download", args=[obj.pk]), "Download"
+        )
+
+    def get_urls(self):
+        return [
+            path(
+                "<int:pk>/download/",
+                self.admin_site.admin_view(self.download_view),
+                name="applications_agentapplication_download",
+            ),
+        ] + super().get_urls()
+
+    def download_view(self, request, pk):
+        from django.http import HttpResponse
+
+        from .dossier import dossier_zip
+
+        application = get_object_or_404(
+            Application.objects.filter(submitted_by_agent__isnull=False)
+            .select_related("institution", "origin_country", "destination_country", "payment", "submitted_by_agent__user")
+            .prefetch_related("programs", "documents"),
+            pk=pk,
+        )
+        filename, data = dossier_zip(application)
+        response = HttpResponse(data, content_type="application/zip")
+        response["Content-Disposition"] = f'attachment; filename="{filename}"'
+        return response
