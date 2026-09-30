@@ -229,8 +229,8 @@ export default function CorrectionBottomSheetModal({
             className="g-btn g-btn-primary"
             disabled={busy}
           >
-            <Icon name="arrowRight" size={16} strokeWidth={2.2} />
-            <span>{busy ? 'Submitting...' : 'Submit correction request'}</span>
+            {busy ? <span className="spinner-sm" aria-hidden="true" /> : <Icon name="arrowRight" size={16} strokeWidth={2.2} />}
+            <span>{busy ? 'Submitting' : 'Submit correction request'}</span>
           </button>
         </div>
       }

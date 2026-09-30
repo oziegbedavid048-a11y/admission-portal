@@ -134,3 +134,10 @@ export function resolveMediaUrl(url) {
   if (/^(https?:|\/\/|blob:|data:)/i.test(s)) return s;
   return `${API_ORIGIN}${s.startsWith('/') ? s : `/${s}`}`;
 }
+
+/** The same file, served as a download rather than shown. */
+export function downloadUrl(url) {
+  const resolved = resolveMediaUrl(url);
+  if (!resolved || /^(blob:|data:)/i.test(resolved)) return resolved;
+  return `${resolved}${resolved.includes('?') ? '&' : '?'}download=1`;
+}

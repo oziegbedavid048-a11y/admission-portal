@@ -87,7 +87,7 @@ def quote_for(application):
             "fx_rate": origin.ngn_per_unit,
             "institution": institution.name if institution else "",
             "institution_fee": Decimal("0.00"),
-            "institution_fee_currency": institution.currency if institution else "",
+            "institution_fee_currency": institution.application_fee_currency if institution else "",
             "waived": True,
         }
 
@@ -105,7 +105,7 @@ def quote_for(application):
         # itself calls it, rather than only the converted number.
         "institution": institution.name,
         "institution_fee": institution.application_fee,
-        "institution_fee_currency": institution.currency,
+        "institution_fee_currency": institution.application_fee_currency,
         "waived": False,
     }
 

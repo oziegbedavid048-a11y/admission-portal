@@ -175,6 +175,7 @@ export default function ProfilePanel() {
             style={{ marginTop: 20 }}
             disabled={savingProfile}
           >
+            {savingProfile ? <span className="spinner-sm" aria-hidden="true" /> : null}
             {savingProfile ? 'Saving' : 'Save changes'}
           </button>
         </section>
@@ -224,6 +225,7 @@ export default function ProfilePanel() {
             style={{ marginTop: 20 }}
             disabled={savingPassword}
           >
+            {savingPassword ? <span className="spinner-sm" aria-hidden="true" /> : null}
             {savingPassword ? 'Changing' : 'Change password'}
           </button>
         </section>

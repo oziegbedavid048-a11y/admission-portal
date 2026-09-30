@@ -11,6 +11,8 @@ from django.core.validators import MinValueValidator
 from django.db import models
 
 
+from apps.applications.uploads import institution_cover_path
+
 class OriginCountry(models.Model):
     """A country an applicant can apply from, and the currency they pay in.
 
@@ -93,7 +95,19 @@ class Institution(models.Model):
     country = models.ForeignKey(
         DestinationCountry, on_delete=models.CASCADE, related_name="institutions"
     )
-    location = models.CharField(max_length=160, blank=True)
+    location = models.CharField(
+        max_length=160,
+        blank=True,
+        help_text="Where the campus is, as applicants should see it, e.g. Barcelona.",
+    )
+    # A photo of the campus, shown behind the school's name on the course page.
+    # Stored in the database like every other upload, and compressed first.
+    cover_image = models.ImageField(
+        upload_to=institution_cover_path,
+        blank=True,
+        null=True,
+        help_text="A wide photo of the campus. It is shown darkened behind the school's name.",
+    )
     tagline = models.CharField(max_length=400, blank=True)
     badge = models.CharField(max_length=80, blank=True, default="Partner School")
     currency = models.CharField(max_length=8, default="EUR")

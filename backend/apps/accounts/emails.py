@@ -108,7 +108,7 @@ MUTED = "margin:0;color:#6b7280;font-size:13px;"
 LINK = "color:#065f46;"
 
 
-def _render(greeting, paragraphs, facts=None, action=None, items=None):
+def _render(greeting, paragraphs, facts=None, action=None, items=None, items_intro=None):
     """One message: a greeting, some sentences, an optional list, one link.
 
     `facts` is a list of (label, value) pairs rendered as plain rows. `action`
@@ -117,14 +117,6 @@ def _render(greeting, paragraphs, facts=None, action=None, items=None):
     """
     parts = [f'<p style="{P}">{greeting}</p>']
     parts += [f'<p style="{P}">{text}</p>' for text in paragraphs]
-
-    if items:
-        rows = "".join(
-            f'<li style="margin:0 0 10px;"><strong>{title}</strong><br>'
-            f'<span style="color:#374151;">{text}</span></li>'
-            for title, text in items
-        )
-        parts.append(f'<ul style="margin:0 0 16px;padding-left:20px;color:#111827;">{rows}</ul>')
 
     if facts:
         rows = "".join(
@@ -138,6 +130,16 @@ def _render(greeting, paragraphs, facts=None, action=None, items=None):
             f'<table cellpadding="0" cellspacing="0" border="0" '
             f'style="margin:0 0 16px;border-collapse:collapse;font-size:15px;">{rows}</table>'
         )
+
+    if items:
+        if items_intro:
+            parts.append(f'<p style="{P}">{items_intro}</p>')
+        rows = "".join(
+            f'<li style="margin:0 0 10px;"><strong>{title}</strong><br>'
+            f'<span style="color:#374151;">{text}</span></li>'
+            for title, text in items
+        )
+        parts.append(f'<ul style="margin:0 0 16px;padding-left:20px;color:#111827;">{rows}</ul>')
 
     if action:
         text, url = action
@@ -158,14 +160,16 @@ def _render(greeting, paragraphs, facts=None, action=None, items=None):
     )
 
 
-def _plain(greeting, paragraphs, facts=None, action=None, items=None):
+def _plain(greeting, paragraphs, facts=None, action=None, items=None, items_intro=None):
     lines = [greeting, ""]
     lines += [line for text in paragraphs for line in (text, "")]
-    if items:
-        lines += [f"- {title}: {text}" for title, text in items]
-        lines.append("")
     if facts:
         lines += [f"{label}: {value}" for label, value in facts]
+        lines.append("")
+    if items:
+        if items_intro:
+            lines += [items_intro, ""]
+        lines += [f"- {title}: {text}" for title, text in items]
         lines.append("")
     if action:
         lines += [f"{action[0]}: {action[1]}", ""]
@@ -173,11 +177,11 @@ def _plain(greeting, paragraphs, facts=None, action=None, items=None):
     return "\n".join(lines)
 
 
-def _send(subject, recipients, greeting, paragraphs, facts=None, action=None, wait=False, items=None):
+def _send(subject, recipients, greeting, paragraphs, facts=None, action=None, wait=False, items=None, items_intro=None):
     return send_async_email(
         subject,
-        _plain(greeting, paragraphs, facts, action, items),
-        _render(greeting, paragraphs, facts, action, items),
+        _plain(greeting, paragraphs, facts, action, items, items_intro),
+        _render(greeting, paragraphs, facts, action, items, items_intro),
         recipients,
         wait=wait,
     )
@@ -658,3 +662,62 @@ def _support_url(user):
     if user.role == user.Role.SUPERVISOR:
         return _url("/sales-manager/support")
     return _url("/portal/support")
+
+
+# ── Application received ─────────────────────────────────────────────
+
+
+def send_application_received_email(application):
+    """Confirms a new application to the applicant who submitted it.
+
+    Only for applications people file themselves: a student an agent files is
+    never written to, and the agent already knows what they submitted.
+    """
+    if application.submitted_by_agent_id or not application.email:
+        return None
+
+    institution = application.institution
+    courses = ", ".join(program.name for program in application.programs.all())
+    fee_due = not application.is_custom_course and institution is not None and not institution.is_fee_free
+
+    facts = [("Reference", application.reference)]
+    if application.is_custom_course:
+        facts.append(("Course requested", application.custom_course_name or "To be confirmed"))
+    else:
+        facts.append(("University", institution.name if institution else "To be confirmed"))
+        if courses:
+            facts.append(("Course", courses))
+    facts.append(("Destination", application.destination_country.name))
+
+    if application.is_custom_course:
+        next_steps = [
+            ("Course matching", "Our admissions team will contact you to match your course with a partner university."),
+            ("Document review", "We check the documents you uploaded and tell you if anything needs replacing."),
+            ("Updates", "You receive an email at every stage, and you can follow everything from your dashboard."),
+        ]
+    else:
+        next_steps = []
+        if fee_due:
+            next_steps.append(
+                ("Application fee", "If you have not paid yet, pay it from your dashboard. Your file goes for review once it is paid.")
+            )
+        next_steps += [
+            ("Document review", "Our admissions desk checks your details and documents."),
+            ("University review", "Your file is sent to the university for an admission decision."),
+            ("Offer letter", "Your letter appears in your dashboard as soon as it is issued."),
+            ("Visa support", "Once admitted, our visa desk guides you through your study permit."),
+        ]
+
+    return _send(
+        subject=f"Application received: {application.reference}",
+        recipients=[application.email],
+        greeting=f"Hello {_first_name(application.full_name)},",
+        paragraphs=[
+            "Thank you for applying through Gabstep. We have received your application "
+            "and it is now with our admissions team.",
+        ],
+        items_intro="Here is what happens next:",
+        items=next_steps,
+        facts=facts,
+        action=("Track your application", _url("/portal")),
+    )

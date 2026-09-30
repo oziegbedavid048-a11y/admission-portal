@@ -132,3 +132,7 @@ def avatar_upload_path(instance, filename):
 
 def support_upload_path(instance, filename):
     return _stored_name("support", filename)
+
+
+def institution_cover_path(instance, filename):
+    return _stored_name("institutions", filename)

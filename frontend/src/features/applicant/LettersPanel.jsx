@@ -1,9 +1,13 @@
+import { useState } from 'react';
+import Modal from '../../components/ui/Modal';
+import PdfViewer from '../../components/ui/PdfViewer';
 import Icon from '../../lib/icons';
-import { formatLongDate, resolveMediaUrl } from '../../lib/format';
+import { downloadUrl, formatLongDate, resolveMediaUrl } from '../../lib/format';
 import { useApplication } from './ApplicationContext';
 
 export default function LettersPanel() {
   const { application } = useApplication();
+  const [viewing, setViewing] = useState(null);
 
   const letters = application?.letters || [];
   const institutionName = application?.institution?.name || 'Institution of Higher Education';
@@ -46,12 +50,9 @@ export default function LettersPanel() {
                       className="letter-half-img"
                     />
                   ) : isPdf ? (
-                    <iframe
-                      src={`${fileUrl}#toolbar=0&navpanes=0`}
-                      title={letter.title}
-                      className="letter-half-frame"
-                      tabIndex="-1"
-                    />
+                    <div className="letter-half-pdf">
+                      <PdfViewer url={fileUrl} title={letter.title} />
+                    </div>
                   ) : (
                     <div className="letter-stationery-preview">
                       <div className="stationery-head">
@@ -91,16 +92,24 @@ export default function LettersPanel() {
                   </div>
 
                   {fileUrl ? (
+                    <div className="letter-actions-row">
+                    <button
+                      type="button"
+                      className="g-btn g-btn-quiet"
+                      onClick={() => setViewing({ ...letter, fileUrl, isPdf, isImg })}
+                    >
+                      <Icon name="document" size={16} strokeWidth={2.2} />
+                      <span>View</span>
+                    </button>
                     <a
                       className="g-btn g-btn-primary letter-main-download-btn"
-                      href={fileUrl}
+                      href={downloadUrl(letter.file)}
                       download={letter.title || 'Official_Letter'}
-                      target="_blank"
-                      rel="noopener noreferrer"
                     >
                       <Icon name="download" size={16} strokeWidth={2.2} />
                       <span>Download</span>
                     </a>
+                    </div>
                   ) : null}
                 </div>
               </section>
@@ -108,6 +117,22 @@ export default function LettersPanel() {
           })}
         </div>
       )}
+
+      <Modal
+        open={Boolean(viewing)}
+        onClose={() => setViewing(null)}
+        title={viewing?.title || 'Letter'}
+        labelledBy="letter-view-title"
+        size={760}
+      >
+        {viewing ? (
+          viewing.isImg ? (
+            <img src={viewing.fileUrl} alt={viewing.title} className="doc-inapp-preview-img" />
+          ) : (
+            <PdfViewer url={viewing.fileUrl} title={viewing.title} />
+          )
+        ) : null}
+      </Modal>
     </div>
   );
 }

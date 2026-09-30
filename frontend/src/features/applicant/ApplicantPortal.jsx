@@ -71,6 +71,7 @@ function PortalRoutes() {
     <PortalShell
       prefix="portal"
       brandLabel="Application Portal"
+      siteName="Gabstep Application Portal"
       nav={nav}
       profilePath="/portal/profile"
       onSignOut={() => {

@@ -348,6 +348,11 @@ class ApplicationCreateSerializer(serializers.Serializer):
             text=f"Application submitted for {target_name}.",
             send_email=False,
         )
+        # One confirmation email for the submission, sent once the application
+        # and its courses are saved.
+        from apps.accounts.emails import send_application_received_email
+
+        transaction.on_commit(lambda: send_application_received_email(application))
         return application
 
 

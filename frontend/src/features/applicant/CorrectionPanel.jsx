@@ -150,6 +150,7 @@ export default function CorrectionPanel() {
             Cancel
           </button>
           <button type="submit" className="g-btn g-btn-primary" disabled={busy}>
+            {busy ? <span className="spinner-sm" aria-hidden="true" /> : null}
             {busy ? 'Sending' : 'Submit request'}
           </button>
         </div>

@@ -230,6 +230,7 @@ def connect():
     from django.db.models.signals import post_delete, post_save, pre_save
 
     from apps.accounts.models import SupportTicket, User
+    from apps.catalog.models import Institution
 
     from .models import CorrectionRequest, Document, Letter
 
@@ -239,6 +240,7 @@ def connect():
         (CorrectionRequest, [("evidence", "document")]),
         (SupportTicket, [("attachment", "document")]),
         (User, [("avatar", "avatar")]),
+        (Institution, [("cover_image", "document")]),
     ]
     for model, fields in targets:
         pre_save.connect(

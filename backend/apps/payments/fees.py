@@ -31,9 +31,16 @@ def _setting(name, fallback):
 
 
 def processing_fee_ngn(amount_ngn):
-    """Paystack's cut on this amount, in Naira, rounded to the kobo."""
+    """Paystack's cut on this amount, in Naira, rounded to the kobo.
+
+    Zero unless ADD_PAYSTACK_FEE_TO_TOTAL is on. By default the site quotes and
+    charges the application fee exactly, and Paystack adds its own charge on its
+    payment page ("pass charges to customer" in the Paystack dashboard). Adding
+    it here as well made the applicant pay it twice: 200,000 became 202,000 on
+    the site and 204,000 on Paystack.
+    """
     amount = Decimal(amount_ngn or 0)
-    if amount <= 0:
+    if amount <= 0 or not getattr(settings, "ADD_PAYSTACK_FEE_TO_TOTAL", False):
         return Decimal("0.00")
 
     percent = _setting("PAYSTACK_FEE_PERCENT", constants.PAYSTACK_FEE_PERCENT)

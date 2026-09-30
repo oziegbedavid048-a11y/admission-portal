@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import Icon from '../../lib/icons';
-import { formatLongDate, resolveMediaUrl } from '../../lib/format';
+import PdfViewer from '../../components/ui/PdfViewer';
+import { downloadUrl, formatLongDate, resolveMediaUrl } from '../../lib/format';
 import Modal from '../../components/ui/Modal';
 import { useApplication } from './ApplicationContext';
 import CorrectionBottomSheetModal from './CorrectionBottomSheetModal';
@@ -328,7 +329,7 @@ export default function DetailsPanel() {
             {previewDoc?.file ? (
               <a
                 className="g-btn g-btn-primary"
-                href={resolveMediaUrl(previewDoc.file)}
+                href={downloadUrl(previewDoc.file)}
                 download={previewDoc.original_filename || 'document'}
               >
                 <Icon name="download" size={16} />
@@ -405,16 +406,9 @@ export default function DetailsPanel() {
                   );
                 }
 
-                // For PDF or documents, render an embedded iframe viewer directly on the website
-                return (
-                  <div className="doc-inapp-pdf-frame">
-                    <iframe
-                      src={`${url}#toolbar=0&navpanes=0`}
-                      title={previewDoc.name}
-                      className="doc-inapp-iframe"
-                    />
-                  </div>
-                );
+                // PDFs are drawn in the page with pdf.js, so they read here on a
+                // phone too instead of opening another app.
+                return <PdfViewer url={url} title={previewDoc.name} />;
               })()}
             </div>
           </div>

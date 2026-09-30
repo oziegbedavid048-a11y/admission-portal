@@ -11,14 +11,15 @@ import UserAvatar from '../ui/UserAvatar';
  * that share one structure under different prefixes, so the prefix is a prop
  * rather than two near-identical components.
  *
- * The top bar names the page you are on, not the product: the product name is
- * already in the sidebar, and repeating it told nobody where they were. The
- * profile chip reads the signed-in user, so a new photo shows here the moment
- * it is saved on any profile page.
+ * The top bar carries the site's name, as the header of every page does; the
+ * page you are on is highlighted in the sidebar and named in the browser tab.
+ * The profile chip reads the signed-in user, so a new photo shows here the
+ * moment it is saved on any profile page.
  */
 export default function PortalShell({
   prefix = 'portal',
   brandLabel,
+  siteName,
   nav,
   profilePath,
   footerSlot,
@@ -139,7 +140,7 @@ export default function PortalShell({
           <header className={topbarClass}>
             <div className={topbarLeftClass}>
               <div className="portal-topbar-brand-wrap">
-                <h1 className="portal-topbar-brand">{pageTitle}</h1>
+                <h1 className="portal-topbar-brand">{siteName || pageTitle}</h1>
               </div>
             </div>
 

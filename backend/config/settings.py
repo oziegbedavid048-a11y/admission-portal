@@ -424,6 +424,10 @@ PAYSTACK_PUBLIC_KEY = (
 # Paystack's own charge, from paystack.com/pricing. Overridable because a
 # negotiated rate is normal. The applicant is shown this on top of the fee and the
 # card is debited the sum, so the number on screen is the number on the statement.
+# The site charges the application fee exactly; Paystack adds its own charge on
+# its payment page. Turn this on only if Paystack is set to absorb its fees and
+# the site should add them to the total instead.
+ADD_PAYSTACK_FEE_TO_TOTAL = env_bool("ADD_PAYSTACK_FEE_TO_TOTAL", False)
 PAYSTACK_FEE_PERCENT = env("PAYSTACK_FEE_PERCENT", "1.5")
 PAYSTACK_FEE_FLAT_NGN = env("PAYSTACK_FEE_FLAT_NGN", "100")
 PAYSTACK_FEE_FLAT_WAIVED_UNDER_NGN = env("PAYSTACK_FEE_FLAT_WAIVED_UNDER_NGN", "2500")

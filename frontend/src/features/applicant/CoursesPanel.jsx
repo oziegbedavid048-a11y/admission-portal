@@ -7,7 +7,7 @@ import { useAuth } from '../../context/AuthContext';
 import useLiveRefresh from '../../hooks/useLiveRefresh';
 import Icon from '../../lib/icons';
 import { ALL_WORLD_COUNTRIES } from '../../lib/countries';
-import { formatMoney, formatTuition } from '../../lib/format';
+import { formatMoney, formatTuition, resolveMediaUrl } from '../../lib/format';
 import { useApplication } from './ApplicationContext';
 
 /**
@@ -234,17 +234,38 @@ export function CourseBrowser({ onApply, applyLabel = 'Apply', canApply = true, 
           </section>
         ) : (
           <>
-            <section className="gx-card gx-school-head">
-              <span className="gx-icon-tile" aria-hidden="true">
-                <Icon name="building" size={22} />
-              </span>
-              <div>
-                <h2 className="gx-card-title">{school.name}</h2>
-                <p className="gx-muted">{school.location || country}</p>
-                <div className="gx-facts">
-                  <span className="gx-fact">{feeText(quotes[school.slug], school)}</span>
-                  {school.deposit_note ? <span className="gx-fact">{school.deposit_note}</span> : null}
-                </div>
+            {/* The school over a darkened photo of its campus: name, where it
+                is, and what it costs. */}
+            <section
+              className="gx-school-hero"
+              style={{ backgroundImage: `url("${resolveMediaUrl(school.cover_image) || '/assets/hero/campus-1.jpg'}")` }}
+              aria-labelledby="school-hero-title"
+            >
+              <div className="gx-school-hero-inner">
+                <span className="gx-school-hero-eyebrow">{country}</span>
+                <h2 id="school-hero-title">{school.name}</h2>
+                <p className="gx-school-hero-location">
+                  <Icon name="pin" size={16} strokeWidth={2} />
+                  {!school.location
+                    ? country
+                    : school.location.toLowerCase().includes(country.toLowerCase())
+                      ? school.location
+                      : `${school.location}, ${country}`}
+                </p>
+                <dl className="gx-school-hero-facts">
+                  <div>
+                    <dt>Tuition</dt>
+                    <dd>{school.tuition_summary || 'Varies by course'}</dd>
+                  </div>
+                  <div>
+                    <dt>Application fee</dt>
+                    <dd>{feeText(quotes[school.slug], school).replace('Application fee: ', '')}</dd>
+                  </div>
+                  <div>
+                    <dt>Courses</dt>
+                    <dd>{(school.programs || []).length}</dd>
+                  </div>
+                </dl>
               </div>
             </section>
 

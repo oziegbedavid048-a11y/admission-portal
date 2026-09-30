@@ -60,7 +60,7 @@ class InstitutionAdmin(admin.ModelAdmin):
     save_on_top = True
 
     fieldsets = (
-        (None, {"fields": ("name", "slug", "country", "location", "tagline", "badge")}),
+        (None, {"fields": ("name", "slug", "country", "location", "cover_image", "tagline", "badge")}),
         (
             "Fees and tuition",
             {

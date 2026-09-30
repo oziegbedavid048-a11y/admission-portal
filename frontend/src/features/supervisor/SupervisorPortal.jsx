@@ -33,6 +33,7 @@ function PortalRoutes() {
     <PortalShell
       prefix="agent"
       brandLabel="Manager portal"
+      siteName="Gabstep Manager Portal"
       nav={NAV}
       profilePath="/sales-manager/profile"
       onSignOut={() => {

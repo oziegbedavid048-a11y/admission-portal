@@ -45,6 +45,10 @@ export default function ApplyPanel() {
   const [quote, setQuote] = useState(null);
   const [quoteState, setQuoteState] = useState('idle');
   const [submitting, setSubmitting] = useState(false);
+  // What the submit is doing right now, shown full-screen so nothing else on
+  // the page can take over while documents upload and Paystack loads.
+  const [phase, setPhase] = useState('');
+  const leaving = useRef(false);
   const [submitted, setSubmitted] = useState(null);
   const [form, setForm] = useState(() => ({
     fullName: user?.full_name || '',
@@ -146,7 +150,9 @@ export default function ApplyPanel() {
     if (step === 4) loadQuote();
   }, [step, loadQuote]);
 
-  if (application && !submitted) return <Navigate to="/portal" replace />;
+  // Someone who already has an application goes to it; but not while this page
+  // is the one creating it, or the dashboard flashed up before Paystack opened.
+  if (application && !submitted && !submitting && !leaving.current) return <Navigate to="/portal" replace />;
 
   const validate = (index) => {
     const found = {};
@@ -212,6 +218,7 @@ export default function ApplyPanel() {
       }
     }
     setSubmitting(true);
+    setPhase('saving');
     try {
       const { data: created } = await applications.create({
         full_name: form.fullName.trim(),
@@ -229,6 +236,7 @@ export default function ApplyPanel() {
         custom_course_name: isCustomCourse ? form.custom_course.trim() : '',
       });
 
+      setPhase('uploading');
       const [settlement] = await Promise.all([
         payments.checkout(created.reference).then((response) => response.data).catch(() => null),
         upload(created.reference),
@@ -240,6 +248,9 @@ export default function ApplyPanel() {
       }
 
       if (!isCustomCourse && settlement?.authorization_url) {
+        // Stay on this screen until the browser has left for Paystack.
+        leaving.current = true;
+        setPhase('payment');
         window.location.assign(settlement.authorization_url);
         return;
       }
@@ -253,7 +264,10 @@ export default function ApplyPanel() {
     } catch (error) {
       toast.error(errorMessage(error, 'Your application could not be submitted.'));
     } finally {
-      setSubmitting(false);
+      if (!leaving.current) {
+        setSubmitting(false);
+        setPhase('');
+      }
     }
   };
 
@@ -286,6 +300,28 @@ export default function ApplyPanel() {
           <button type="button" className="gx-btn gx-btn-primary" style={{ marginTop: 12 }} onClick={() => navigate('/portal')}>
             Go to overview
           </button>
+        </section>
+      </div>
+    );
+  }
+
+  if (phase) {
+    const label = {
+      saving: 'Submitting your application',
+      uploading: 'Uploading your documents',
+      payment: 'Opening secure payment',
+    }[phase];
+    return (
+      <div className="gx-page">
+        <section className="gx-card gx-processing" role="status" aria-live="polite">
+          <span className="gx-processing-spinner" aria-hidden="true" />
+          <h2>{label}</h2>
+          <p className="gx-muted">Please keep this page open. This takes a few seconds.</p>
+          <ol className="gx-processing-steps">
+            <li className={phase === 'saving' ? 'is-current' : 'is-done'}>Application</li>
+            <li className={phase === 'uploading' ? 'is-current' : phase === 'payment' ? 'is-done' : ''}>Documents</li>
+            <li className={phase === 'payment' ? 'is-current' : ''}>Payment</li>
+          </ol>
         </section>
       </div>
     );

@@ -49,7 +49,10 @@ def serve_media(request, path):
     response = HttpResponse(bytes(row.content), content_type=content_type)
     name = PurePosixPath(path).name
     response["Content-Length"] = str(row.size)
-    response["Content-Disposition"] = f"inline; filename*=UTF-8''{quote(name)}"
+    # ?download=1 saves the file instead of showing it: a Download button on
+    # another origin cannot rely on the <a download> attribute.
+    disposition = "attachment" if request.GET.get("download") else "inline"
+    response["Content-Disposition"] = f"{disposition}; filename*=UTF-8''{quote(name)}"
     response["X-Content-Type-Options"] = "nosniff"
     response["Content-Security-Policy"] = f"frame-ancestors {_frame_ancestors()}"
     response["Cache-Control"] = "private, max-age=604800, immutable"

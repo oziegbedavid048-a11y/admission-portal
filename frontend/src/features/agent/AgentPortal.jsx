@@ -37,6 +37,7 @@ function PortalRoutes() {
     <PortalShell
       prefix="agent"
       brandLabel="Agent portal"
+      siteName="Gabstep Agent Portal"
       nav={NAV}
       profilePath="/agent/profile"
       onSignOut={() => {

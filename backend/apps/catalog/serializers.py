@@ -77,6 +77,7 @@ class InstitutionSerializer(serializers.ModelSerializer):
             "name",
             "country",
             "location",
+            "cover_image",
             "tagline",
             "badge",
             # What the school quotes tuition and its deposit in. Tuition is
