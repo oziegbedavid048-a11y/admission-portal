@@ -180,6 +180,9 @@ class Application(models.Model):
             models.Index(fields=("visa_status",)),
             models.Index(fields=("transferred_to_visa_support",)),
             models.Index(fields=("verification_status",)),
+            models.Index(fields=["-submitted_at"], name="app_submitted_idx"),
+            models.Index(fields=["email"], name="app_email_idx"),
+            models.Index(fields=["submitted_by_agent", "-submitted_at"], name="app_agent_submitted_idx"),
         ]
 
     def __str__(self):
@@ -337,6 +340,10 @@ class Document(models.Model):
 
     class Meta:
         ordering = ("uploaded_at",)
+        indexes = [
+            models.Index(fields=["application", "uploaded_at"], name="doc_app_uploaded_idx"),
+            models.Index(fields=["status"], name="doc_status_idx"),
+        ]
         verbose_name = "applicant document"
         verbose_name_plural = "applicant documents"
 
@@ -372,6 +379,9 @@ class Notification(models.Model):
 
     class Meta:
         ordering = ("-created_at",)
+        indexes = [
+            models.Index(fields=["application", "-created_at"], name="notif_app_created_idx"),
+        ]
 
     def __str__(self):
         return self.text
@@ -401,6 +411,9 @@ class CorrectionRequest(models.Model):
 
     class Meta:
         ordering = ("-created_at",)
+        indexes = [
+            models.Index(fields=["status"], name="corr_status_idx"),
+        ]
         verbose_name = "correction request"
         verbose_name_plural = "correction requests"
 
@@ -471,6 +484,9 @@ class Letter(models.Model):
 
     class Meta:
         ordering = ("-issued_at",)
+        indexes = [
+            models.Index(fields=["application", "is_published"], name="letter_app_published_idx"),
+        ]
         verbose_name = "issued letter"
         verbose_name_plural = "issued letters"
 

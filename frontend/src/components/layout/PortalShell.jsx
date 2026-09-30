@@ -152,7 +152,10 @@ export default function PortalShell({
                     src={user?.avatar}
                     initials={user?.initials}
                   />
-                  <span className="agent-topbar-name">{user?.full_name || user?.email}</span>
+                  <span className="agent-topbar-name" title={user?.full_name || user?.email}>
+                    {(user?.full_name || user?.email || '').split(' ')[0]}
+                  </span>
+                  <Icon name="chevronDown" size={15} strokeWidth={2.2} className="agent-topbar-chevron" />
                 </Link>
               ) : null}
               <button

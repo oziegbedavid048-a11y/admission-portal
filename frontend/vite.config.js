@@ -15,16 +15,9 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: false,
-    rollupOptions: {
-      output: {
-        // Charts are only reached inside the portals; keeping them in their own
-        // chunk means the landing page never downloads Chart.js.
-        manualChunks(id) {
-          if (!id.includes('node_modules')) return undefined;
-          if (id.includes('chart.js') || id.includes('react-chartjs-2')) return 'charts';
-          return 'vendor';
-        },
-      },
-    },
+    // No hand-made chunk rules. Each page, Chart.js and pdf.js are loaded
+    // with a dynamic import, so the bundler splits them and the first page
+    // downloads only what it shows. Forcing every package into one "vendor"
+    // chunk made the landing page download the charts and the PDF reader.
   },
 });

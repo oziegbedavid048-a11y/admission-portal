@@ -71,9 +71,54 @@ class LoginView(TokenObtainPairView):
     permission_classes = (permissions.AllowAny,)
     throttle_classes = (LoginThrottle,)
 
+    MAX_FAILURES = 5
+    LOCKOUT_SECONDS = 15 * 60
+
     def post(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        """Sign in, with a plain answer when it fails and a lock on guessing.
+
+        Wrong email and wrong password get the same message, so the form never
+        says which addresses have accounts. Five wrong passwords for one address
+        lock that address for 15 minutes, on top of the per-client rate limit,
+        so a password cannot be guessed from many machines at once.
+        """
+        from django.core.cache import cache
+        from rest_framework.exceptions import AuthenticationFailed
+
+        email = str(request.data.get("email", "")).strip().lower()
+        if not email or not request.data.get("password"):
+            return Response(
+                {"detail": "Enter your email and password.", "code": "missing_credentials"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        key = f"login-failures:{email}"
+        if (cache.get(key) or 0) >= self.MAX_FAILURES:
+            return Response(
+                {
+                    "detail": "Too many failed attempts. Wait 15 minutes, or reset your password.",
+                    "code": "locked",
+                },
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+
+        # Addresses are stored in lower case, so "Ada@Example.com" signs in too.
+        serializer = self.get_serializer(
+            data={"email": email, "password": request.data.get("password")}
+        )
+        try:
+            serializer.is_valid(raise_exception=True)
+        except AuthenticationFailed:
+            if cache.add(key, 1, self.LOCKOUT_SECONDS) is False:
+                try:
+                    cache.incr(key)
+                except ValueError:
+                    cache.set(key, 1, self.LOCKOUT_SECONDS)
+            return Response(
+                {"detail": "Invalid email or password.", "code": "invalid_credentials"},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+        cache.delete(key)
         return session_response(serializer.user, request=request)
 
 

@@ -92,7 +92,11 @@ def _url(path="/"):
 
 
 def _first_name(full_name, fallback="there"):
-    return (full_name or "").split(" ")[0] or fallback
+    """The first name, written properly even if it was typed in capitals."""
+    first = (full_name or "").strip().split(" ")[0]
+    if first and (first.isupper() or first.islower()):
+        first = first.capitalize()
+    return first or fallback
 
 
 def _naira(amount):
@@ -161,8 +165,10 @@ def _render(greeting, paragraphs, facts=None, action=None, items=None, items_int
 
 
 def _plain(greeting, paragraphs, facts=None, action=None, items=None, items_intro=None):
+    from django.utils.html import strip_tags
+
     lines = [greeting, ""]
-    lines += [line for text in paragraphs for line in (text, "")]
+    lines += [line for text in paragraphs for line in (strip_tags(text), "")]
     if facts:
         lines += [f"{label}: {value}" for label, value in facts]
         lines.append("")
@@ -275,52 +281,163 @@ def send_sales_manager_welcome_email(user, profile, password=None):
 # ── Applications ─────────────────────────────────────────────────────
 
 
+NEXT_STEP_BY_STAGE = {
+    "Submitted & payment confirmed": "Our admissions desk reviews your details and documents.",
+    "Document verification": "We are checking your documents and will tell you if anything needs replacing.",
+    "Institution review": "The university is reviewing your file. Decisions usually take two to four weeks.",
+    "Offer letter decision": "Your letter appears in your dashboard as soon as the university issues it.",
+    "Visa guidance & enrolment": "Our visa desk guides you through your study permit and enrolment.",
+}
+
+
+def _file_facts(application, *, include_student=False):
+    """The facts every update about a file carries, in the same order each time."""
+    stages = list(application.stages.all())
+    current = application.current_stage
+    position = (stages.index(current) + 1) if current in stages else None
+    courses = ", ".join(program.name for program in application.programs.all()) or application.custom_course_name
+
+    facts = []
+    if include_student:
+        facts.append(("Student", application.full_name))
+    facts.append(("Reference", application.reference))
+    facts.append(("University", application.institution.name if application.institution else "To be confirmed"))
+    if courses:
+        facts.append(("Course", courses))
+    facts.append(("Destination", application.destination_country.name))
+    if current:
+        facts.append(("Stage", f"{current.name} (step {position} of {len(stages)})" if position else current.name))
+    facts.append(("Status", application.get_status_display()))
+    return facts, current
+
+
 def send_application_status_update_email(application, notification_text, subject_override=None):
-    """Tell whoever owns this file that something moved.
+    """Tell whoever owns this file that something moved, with the full picture.
 
     A file registered through the partner portal belongs to the agent, not the
     student: the agent collected the documents, pays the fee and hands over the
     letters. So the update goes to the agent alone, and the student is never
     written to. A file the applicant opened themselves goes to the applicant.
-    """
-    institution = application.institution.name if application.institution else "your institution"
-    stage = application.current_stage.name if application.current_stage else "In progress"
-    agent = application.submitted_by_agent
 
-    if agent and agent.user and agent.user.email:
+    Every update says what changed, where the file stands, and what happens
+    next, so the email makes sense without opening the dashboard.
+    """
+    agent = application.submitted_by_agent
+    to_agent = bool(agent and agent.user and agent.user.email)
+    if not to_agent and not application.email:
+        return
+
+    from django.utils.html import escape
+
+    notification_text = escape(notification_text)
+    facts, current = _file_facts(application, include_student=to_agent)
+    next_step = NEXT_STEP_BY_STAGE.get(current.name) if current else None
+    items = [("What happens next", next_step)] if next_step else None
+
+    if to_agent:
         _send(
-            subject=subject_override
-            or f"{application.full_name}: update on {application.reference}",
+            subject=subject_override or f"{application.full_name}: update on {application.reference}",
             recipients=[agent.user.email],
             greeting=f"Hello {_first_name(agent.user.full_name, 'there')},",
             paragraphs=[
-                f"There is an update on the file you filed for {application.full_name}.",
-                notification_text,
+                f"There is a new update on the application you filed for <strong>{escape(application.full_name)}</strong>.",
+                f"<strong>{notification_text}</strong>",
             ],
-            facts=[
-                ("Student", application.full_name),
-                ("Reference", application.reference),
-                ("Institution", institution),
-                ("Stage", stage),
-            ],
-            action=("Open the file", _url("/agent/students")),
+            facts=facts,
+            items=items,
+            action=("Open the student's file", _url("/agent/students")),
         )
-        return
-
-    if not application.email:
         return
 
     _send(
         subject=subject_override or f"Update on your application {application.reference}",
         recipients=[application.email],
         greeting=f"Hello {_first_name(application.full_name, 'there')},",
-        paragraphs=[notification_text],
-        facts=[
-            ("Reference", application.reference),
-            ("Institution", institution),
-            ("Stage", stage),
+        paragraphs=[
+            "There is a new update on your Gabstep application.",
+            f"<strong>{notification_text}</strong>",
         ],
+        facts=facts,
+        items=items,
         action=("View your application", _url("/portal")),
+    )
+    return
+
+
+LETTER_HEADLINES = {
+    "offer": "you have received an offer of admission",
+    "admission": "you have been admitted",
+    "acceptance": "your place has been confirmed",
+    "visa": "your visa letter is ready",
+    "financial": "your financial letter is ready",
+}
+
+
+def send_letter_issued_email(letter):
+    """A letter was issued. Offers and admissions are written as the good news they are."""
+    from django.utils import timezone
+
+    application = letter.application
+    agent = application.submitted_by_agent
+    to_agent = bool(agent and agent.user and agent.user.email)
+    if not to_agent and not application.email:
+        return None
+
+    school = application.institution.name if application.institution else "The university"
+    courses = ", ".join(program.name for program in application.programs.all()) or application.custom_course_name
+    celebrating = letter.kind in ("offer", "admission", "acceptance")
+    headline = LETTER_HEADLINES.get(letter.kind, "a new letter is ready")
+    issued = timezone.localtime(letter.issued_at).strftime("%d %B %Y") if letter.issued_at else ""
+
+    facts = []
+    if to_agent:
+        facts.append(("Student", application.full_name))
+    facts += [("Letter", letter.title), ("University", school)]
+    if courses:
+        facts.append(("Course", courses))
+    facts += [("Destination", application.destination_country.name), ("Reference", application.reference)]
+    if issued:
+        facts.append(("Issued", issued))
+
+    steps = [("Read and download the letter", "It is in the Letters section of the dashboard, ready to view or save.")]
+    if celebrating:
+        steps.append(("Send it to our visa desk", "Press Send to visa support on the letter, and a visa advisor takes it from there."))
+        deposit = getattr(application.institution, "deposit_note", "") if application.institution else ""
+        if deposit:
+            steps.append(("Tuition deposit", deposit))
+    steps.append(("Questions", "Our team answers from the Support page in the dashboard."))
+
+    if to_agent:
+        subject = f"{application.full_name}: {letter.title} from {school}"
+        greeting = f"Hello {_first_name(agent.user.full_name, 'there')},"
+        opening = (
+            f"Good news: {school} has issued a {letter.title.lower()} for <strong>{application.full_name}</strong>."
+            if celebrating
+            else f"A new letter has been issued for <strong>{application.full_name}</strong>."
+        )
+        recipients, link = [agent.user.email], ("Open the student's file", _url("/agent/students"))
+    else:
+        first = _first_name(application.full_name, "there")
+        subject = f"Congratulations, {first}: {headline}" if celebrating else f"{letter.title} is ready"
+        greeting = f"Congratulations, {first}!" if celebrating else f"Hello {first},"
+        opening = (
+            f"{school} has offered you a place"
+            + (f" on <strong>{courses}</strong>" if courses else "")
+            + ". Your letter is now in your dashboard."
+            if letter.kind == "offer"
+            else f"Your {letter.title.lower()} from {school} is now in your dashboard."
+        )
+        recipients, link = [application.email], ("View your letter", _url("/portal/letters"))
+
+    return _send(
+        subject=subject,
+        recipients=recipients,
+        greeting=greeting,
+        paragraphs=[opening],
+        facts=facts,
+        items_intro="Your next steps:",
+        items=steps,
+        action=link,
     )
 
 

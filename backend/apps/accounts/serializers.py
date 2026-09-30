@@ -51,11 +51,31 @@ class ApplicantRegistrationSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ("email", "full_name", "phone", "country", "password", "send_welcome_email")
+        extra_kwargs = {
+            "full_name": {"required": True, "allow_blank": False},
+            "phone": {"required": True, "allow_blank": False},
+        }
 
     def validate_email(self, value):
+        value = value.strip().lower()
         if User.objects.filter(email__iexact=value).exists():
             raise serializers.ValidationError("An account with this email already exists.")
-        return value.lower()
+        return value
+
+    def validate_full_name(self, value):
+        value = " ".join(value.split())
+        if len(value) < 3 or len(value.split(" ")) < 2:
+            raise serializers.ValidationError("Enter your first and last name.")
+        if len(value) > 180:
+            raise serializers.ValidationError("That name is too long.")
+        return value
+
+    def validate_phone(self, value):
+        value = value.strip()
+        digits = "".join(ch for ch in value if ch.isdigit())
+        if not 7 <= len(digits) <= 15 or any(ch not in "+0123456789 ()-" for ch in value):
+            raise serializers.ValidationError("Enter a valid phone number, for example +234 801 234 5678.")
+        return value
 
     def validate_password(self, value):
         password_validation.validate_password(value)
@@ -89,6 +109,12 @@ class AgentRegistrationSerializer(serializers.Serializer):
         allow_blank=True,
         help_text="The code from your sales manager, if you were referred by one.",
     )
+
+    def validate_full_name(self, value):
+        return ApplicantRegistrationSerializer.validate_full_name(self, value)
+
+    def validate_phone(self, value):
+        return ApplicantRegistrationSerializer.validate_phone(self, value)
 
     def validate_email(self, value):
         if User.objects.filter(email__iexact=value).exists():

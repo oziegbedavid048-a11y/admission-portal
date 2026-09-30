@@ -238,7 +238,7 @@ export function CourseBrowser({ onApply, applyLabel = 'Apply', canApply = true, 
                 is, and what it costs. */}
             <section
               className="gx-school-hero"
-              style={{ backgroundImage: `url("${resolveMediaUrl(school.cover_image) || '/assets/hero/campus-1.jpg'}")` }}
+              style={{ backgroundImage: `url("${resolveMediaUrl(school.cover_image) || '/assets/hero/campus-1.webp'}")` }}
               aria-labelledby="school-hero-title"
             >
               <div className="gx-school-hero-inner">

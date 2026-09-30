@@ -1,4 +1,4 @@
-from django.db.models import Count, Prefetch
+from django.db.models import Count, Prefetch, Q
 from rest_framework import viewsets
 from decimal import Decimal
 
@@ -22,6 +22,12 @@ from .serializers import (
 
 
 class ReadOnlyPublicViewSet(viewsets.ReadOnlyModelViewSet):
+    def list(self, request, *args, **kwargs):
+        return cached_catalog(super().list)(request, *args, **kwargs)
+
+    def retrieve(self, request, *args, **kwargs):
+        return cached_catalog(super().retrieve)(request, *args, **kwargs)
+
     permission_classes = (AllowAny,)
     pagination_class = None
 
@@ -33,8 +39,14 @@ class OriginCountryViewSet(ReadOnlyPublicViewSet):
 
 
 class DestinationCountryViewSet(ReadOnlyPublicViewSet):
-    queryset = DestinationCountry.objects.filter(is_active=True)
     serializer_class = DestinationCountrySerializer
+
+    def get_queryset(self):
+        # Counted in the same query, rather than two extra queries per country.
+        return DestinationCountry.objects.filter(is_active=True).annotate(
+            institution_total=Count("institutions", filter=Q(institutions__is_active=True), distinct=True),
+            program_total=Count("institutions__programs", filter=Q(institutions__is_active=True), distinct=True),
+        )
 
 
 class InstitutionViewSet(ReadOnlyPublicViewSet):
@@ -193,3 +205,51 @@ def exchange_rates(request):
     base = request.query_params.get("base", "NGN")
     force = request.query_params.get("refresh") == "true"
     return Response(get_rates(base, force=force))
+
+
+
+# ── Caching ──────────────────────────────────────────────────────────
+#
+# The catalogue changes a few times a week and is read on every visit, so its
+# answers are cached for a few minutes. Any save or delete of a country, school
+# or course bumps the version, so the next request after an edit is fresh.
+
+CATALOG_TTL = 300
+
+
+def catalog_version():
+    from django.core.cache import cache
+
+    return cache.get_or_set("catalog:version", 1, None)
+
+
+def bump_catalog_version(**kwargs):
+    from django.core.cache import cache
+
+    try:
+        cache.incr("catalog:version")
+    except ValueError:
+        cache.set("catalog:version", 2, None)
+
+
+def cached_catalog(view_func):
+    """Cache a public GET answer by its full address and the catalogue version."""
+    from functools import wraps
+
+    from django.core.cache import cache
+
+    @wraps(view_func)
+    def wrapper(request, *args, **kwargs):
+        raw = getattr(request, "_request", request)
+        key = f"catalog:{catalog_version()}:{raw.get_full_path()}"
+        hit = cache.get(key)
+        if hit is not None:
+            response = Response(hit)
+        else:
+            response = view_func(request, *args, **kwargs)
+            if getattr(response, "status_code", 500) == 200:
+                cache.set(key, response.data, CATALOG_TTL)
+        response["Cache-Control"] = "public, max-age=60"
+        return response
+
+    return wrapper

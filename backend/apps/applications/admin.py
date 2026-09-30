@@ -750,10 +750,7 @@ class ApplicationAdmin(admin.ModelAdmin):
                 instance.issued_by = request.user
             instance.save()
             if is_new_letter and instance.is_published:
-                services.notify(
-                    instance.application,
-                    f"{instance.title} is ready. Open it from Letters in your dashboard.",
-                )
+                services.announce_letter(instance)
 
         formset.save_m2m()
 
@@ -796,10 +793,7 @@ class LetterAdmin(admin.ModelAdmin):
         super().save_model(request, obj, form, change)
 
         if obj.is_published and not was_published:
-            services.notify(
-                obj.application,
-                f"{obj.title} is ready. Open it from Letters in your dashboard.",
-            )
+            services.announce_letter(obj)
 
     @admin.action(description="Publish to the applicant's dashboard")
     def action_publish(self, request, queryset):
@@ -808,10 +802,7 @@ class LetterAdmin(admin.ModelAdmin):
             letter.is_published = True
             letter.issued_at = letter.issued_at or timezone.now()
             letter.save(update_fields=["is_published", "issued_at"])
-            services.notify(
-                letter.application,
-                f"{letter.title} is ready. Open it from Letters in your dashboard.",
-            )
+            services.announce_letter(letter)
             count += 1
         self.message_user(request, f"{_plural(count, 'letter')} published.", messages.SUCCESS)
 
@@ -1048,12 +1039,12 @@ class VisaSupportApplicationAdmin(admin.ModelAdmin):
     )
 
     def get_queryset(self, request):
-        # The queue is admitted students only; everything else is still with
-        # admissions on the Applications screen.
+        # The queue is admitted students, and anyone who sent their letter to
+        # the desk from their Letters page.
         return (
             super()
             .get_queryset(request)
-            .filter(status=Application.Status.ADMITTED)
+            .filter(Q(status=Application.Status.ADMITTED) | Q(transferred_to_visa_support=True))
             .select_related("institution", "destination_country", "submitted_by_agent")
             .prefetch_related("stages", "letters")
             .annotate(letter_count=Count("letters", distinct=True))

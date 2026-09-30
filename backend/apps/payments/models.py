@@ -71,6 +71,9 @@ class Payment(models.Model):
 
     class Meta:
         ordering = ("-created_at",)
+        indexes = [
+            models.Index(fields=["status"], name="payment_status_idx"),
+        ]
         verbose_name = "application fee"
         verbose_name_plural = "application fees"
 

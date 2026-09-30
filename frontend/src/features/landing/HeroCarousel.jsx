@@ -5,7 +5,7 @@ const ROTATION_MS = 6000;
 // Served from this site rather than hotlinked. The middle image used to be an
 // Unsplash address that had been taken down, so one slide in three rendered as a
 // blank panel. Two images the site owns cannot disappear the same way.
-const SLIDES = ['/assets/hero/campus-1.jpg', '/assets/hero/campus-2.jpg'];
+const SLIDES = ['/assets/hero/campus-1.webp', '/assets/hero/campus-2.webp'];
 
 /**
  * The hero's crossfading background. It pauses while the pointer is over the

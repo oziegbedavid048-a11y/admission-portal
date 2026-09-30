@@ -5,12 +5,15 @@ import { errorMessage } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import CheckEmailPanel from './CheckEmailPanel';
+import PasswordField from '../../components/ui/PasswordField';
+import Icon from '../../lib/icons';
 
 export default function LoginModal({ open, onClose }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [unverified, setUnverified] = useState('');
+  const [formError, setFormError] = useState('');
   const { signIn } = useAuth();
   const toast = useToast();
   const navigate = useNavigate();
@@ -18,9 +21,10 @@ export default function LoginModal({ open, onClose }) {
   const submit = async (event) => {
     event.preventDefault();
     if (!email.trim() || !password) {
-      toast.warning('Enter your email and password.');
+      setFormError('Enter your email and password.');
       return;
     }
+    setFormError('');
 
     setBusy(true);
     try {
@@ -36,7 +40,8 @@ export default function LoginModal({ open, onClose }) {
         setUnverified(email.trim());
         return;
       }
-      toast.error(errorMessage(error, 'Those details do not match an account.'));
+      // Shown in the form, where the person is looking, not only as a toast.
+      setFormError(errorMessage(error, 'Invalid email or password.'));
     } finally {
       setBusy(false);
     }
@@ -57,36 +62,42 @@ export default function LoginModal({ open, onClose }) {
           onChangeEmail={() => setUnverified('')}
         />
       ) : (
-      <form onSubmit={submit}>
-        <div className="form-group">
-          <label className="form-label" htmlFor="login_email">
-            Email address <span className="req">*</span>
-          </label>
+      <form className="gx-form" onSubmit={submit} noValidate>
+        {formError ? (
+          <div className="gx-form-alert" role="alert">
+            <Icon name="alert" size={18} strokeWidth={2} />
+            <span>{formError}</span>
+          </div>
+        ) : null}
+
+        <div className="gx-field">
+          <label htmlFor="login_email">Email address</label>
           <input
             type="email"
             id="login_email"
-            className="form-control"
+            className="gx-input"
             autoComplete="email"
+            inputMode="email"
             value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            required
+            onChange={(event) => {
+              setEmail(event.target.value);
+              setFormError('');
+            }}
+            aria-invalid={Boolean(formError)}
           />
         </div>
 
-        <div className="form-group">
-          <label className="form-label" htmlFor="login_password">
-            Password <span className="req">*</span>
-          </label>
-          <input
-            type="password"
-            id="login_password"
-            className="form-control"
-            autoComplete="current-password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            required
-          />
-        </div>
+        <PasswordField
+          id="login_password"
+          label="Password"
+          value={password}
+          onChange={(value) => {
+            setPassword(value);
+            setFormError('');
+          }}
+          autoComplete="current-password"
+          showChecks={false}
+        />
 
         <div className="gx-forgot-row">
           <button
@@ -101,7 +112,7 @@ export default function LoginModal({ open, onClose }) {
           </button>
         </div>
 
-        <button type="submit" className="btn btn-primary btn-block btn-lg" disabled={busy}>
+        <button type="submit" className="gx-btn gx-btn-primary gx-btn-lg gx-btn-block" disabled={busy}>
           {busy ? <span className="spinner-sm" aria-hidden="true" /> : null}
           {busy ? 'Signing in' : 'Sign in'}
         </button>

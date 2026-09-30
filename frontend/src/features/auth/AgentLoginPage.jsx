@@ -10,6 +10,7 @@ export default function AgentLoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
+  const [formError, setFormError] = useState('');
   const [unverified, setUnverified] = useState('');
   const { signIn, user } = useAuth();
   const toast = useToast();
@@ -22,16 +23,18 @@ export default function AgentLoginPage() {
   const submit = async (event) => {
     event.preventDefault();
     if (!email.trim() || !password) {
-      toast.warning('Enter your email and password.');
+      setFormError('Enter your email and password.');
       return;
     }
+    setFormError('');
 
     setBusy(true);
     try {
       const signedIn = await signIn(email.trim(), password);
       if (signedIn.role !== 'agent') {
-        toast.warning('That account is an applicant account. Opening your application.');
-        navigate('/portal');
+        const supervisor = signedIn.role === 'supervisor';
+        toast.info(supervisor ? 'Opening your sales manager portal.' : 'Opening your application dashboard.');
+        navigate(supervisor ? '/sales-manager' : '/portal');
         return;
       }
       toast.success(`Welcome back, ${(signedIn.full_name || '').split(' ')[0]}.`);
@@ -41,7 +44,7 @@ export default function AgentLoginPage() {
         setUnverified(email.trim());
         return;
       }
-      toast.error(errorMessage(error, 'Those details do not match a partner account.'));
+      setFormError(errorMessage(error, 'Invalid email or password.'));
     } finally {
       setBusy(false);
     }
@@ -83,7 +86,7 @@ export default function AgentLoginPage() {
                 className="agent-form-control"
                 autoComplete="email"
                 value={email}
-                onChange={(event) => setEmail(event.target.value)}
+                onChange={(event) => { setEmail(event.target.value); setFormError(''); }}
                 required
               />
             </div>
@@ -98,7 +101,7 @@ export default function AgentLoginPage() {
                 className="agent-form-control"
                 autoComplete="current-password"
                 value={password}
-                onChange={(event) => setPassword(event.target.value)}
+                onChange={(event) => { setPassword(event.target.value); setFormError(''); }}
                 required
               />
             </div>
@@ -108,6 +111,13 @@ export default function AgentLoginPage() {
                 Forgot password?
               </Link>
             </div>
+
+            {formError ? (
+              <div className="gx-form-alert" role="alert">
+                <Icon name="alert" size={18} strokeWidth={2} />
+                <span>{formError}</span>
+              </div>
+            ) : null}
 
             <button
               type="submit"

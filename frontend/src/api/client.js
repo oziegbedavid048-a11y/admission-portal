@@ -72,7 +72,8 @@ export const tokenStore = {
 
 const api = axios.create({
   baseURL: BASE_URL,
-  timeout: 20000,
+  // Long enough for the server to wake from sleep on the first request.
+  timeout: 60000,
   // Sends the refresh cookie on the one endpoint that needs it.
   withCredentials: true,
 });
@@ -118,8 +119,11 @@ api.interceptors.response.use(
     // The refresh endpoint failing is the end of the session, not something to
     // retry: retrying it would loop.
     const isRefresh = original?.url?.includes('/auth/refresh/');
+    // A 401 from signing in, signing up or a reset link means wrong details,
+    // not an expired session: it goes back to the form as it is.
+    const isCredentialCall = /\/auth\/(login|register|password\/forgot|password\/reset|verify-email)\//.test(original?.url || '');
 
-    if (status === 401 && original && !original._retried && !isRefresh) {
+    if (status === 401 && original && !original._retried && !isRefresh && !isCredentialCall) {
       original._retried = true;
       try {
         await restoreSession();
@@ -192,9 +196,18 @@ function isHtmlOrCode(str) {
 export function errorMessage(error, fallback = 'Something went wrong. Please try again.') {
   const data = error?.response?.data;
   if (error?.response?.status === 429) {
-    return 'Too many attempts. Wait a minute and try again.';
+    // The server's own words when it gives them (a locked sign-in says how
+    // long to wait); otherwise the general rate-limit message.
+    return typeof data?.detail === 'string' && !/throttled/i.test(data.detail)
+      ? data.detail
+      : 'Too many attempts. Wait a minute and try again.';
   }
-  if (!data) return error?.message === 'Network Error' ? 'Cannot reach the server.' : fallback;
+  if (error?.code === 'ECONNABORTED') return 'The server took too long to answer. Check your connection and try again.';
+  if (!data) {
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) return 'You are offline. Check your connection and try again.';
+    return error?.message === 'Network Error' ? 'Cannot reach the server. Check your connection and try again.' : fallback;
+  }
+  if (error?.response?.status >= 500) return 'Something went wrong on our side. Please try again in a moment.';
 
   if (typeof data === 'string') {
     if (isHtmlOrCode(data)) return fallback;

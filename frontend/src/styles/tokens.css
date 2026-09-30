@@ -4,7 +4,8 @@
    Palette: Enterprise Dark Green & Crisp Slate Neutrals
    =================================================================== */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+/* Inter is loaded by a <link> in index.html, in parallel with the page,
+   rather than by an @import here that the browser only finds after this file. */
 
 :root {
   /* ================= Layer 1: Primitive Tokens ================= */

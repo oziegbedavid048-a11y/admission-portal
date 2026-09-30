@@ -2,16 +2,57 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "rewrites": [
     {
-      "source": "/api/:path*",
-      "destination": "https://gabstep-backend-orlf.onrender.com/api/:path*"
+      "source": "/api/(.*)",
+      "destination": "https://gabstep-backend-orlf.onrender.com/api/$1"
     },
     {
-      "source": "/media/:path*",
-      "destination": "https://gabstep-backend-orlf.onrender.com/media/:path*"
+      "source": "/media/(.*)",
+      "destination": "https://gabstep-backend-orlf.onrender.com/media/$1"
     },
     {
-      "source": "/((?!api/|media/).*)",
+      "source": "/((?!api/|media/|assets/).*)",
       "destination": "/"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/assets/(.*)\\.(js|css|mjs)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    },
+    {
+      "source": "/assets/(.*)\\.(webp|png|jpg|jpeg|svg)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=604800"
+        }
+      ]
+    },
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(), microphone=(), geolocation=()"
+        }
+      ]
     }
   ]
 }

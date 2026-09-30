@@ -168,24 +168,28 @@ class ApplicationViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["post"], url_path="transfer-to-visa-support")
     def transfer_to_visa_support(self, request, reference=None):
+        """The applicant sends their letter to the Visa Support desk.
+
+        One job: put the file in the desk's queue. The desk decides when visa
+        work starts. Only possible once a letter has been issued, and pressing
+        it twice changes nothing and sends nothing.
+        """
         application = self.get_object()
-        application.transferred_to_visa_support = True
-        if not application.transferred_to_visa_support_at:
+        if not application.letters.filter(is_published=True).exists():
+            return Response(
+                {"detail": "Your letter has not been issued yet."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not application.transferred_to_visa_support:
+            application.transferred_to_visa_support = True
             application.transferred_to_visa_support_at = timezone.now()
-        if application.visa_status == Application.VisaStatus.NOT_STARTED:
-            application.visa_status = Application.VisaStatus.IN_PROGRESS
-        application.save(
-            update_fields=[
-                "transferred_to_visa_support",
-                "transferred_to_visa_support_at",
-                "visa_status",
-                "updated_at",
-            ]
-        )
-        Notification.objects.create(
-            application=application,
-            text="Application file and admission letter transferred to Visa Support Assistant desk. An advisor has been assigned to your visa file.",
-        )
+            application.save(
+                update_fields=["transferred_to_visa_support", "transferred_to_visa_support_at", "updated_at"]
+            )
+            Notification.objects.create(
+                application=application,
+                text="Your letter was sent to our Visa Support desk. An advisor will contact you about your visa.",
+            )
         return Response(
             ApplicationSerializer(application, context=self.get_serializer_context()).data,
             status=status.HTTP_200_OK,

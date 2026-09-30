@@ -80,6 +80,8 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    "config.middleware.ServerTimingMiddleware",
+    "config.middleware.CatalogGZipMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
@@ -276,13 +278,19 @@ _raw_cors = env_list(
     "CORS_ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173"
 )
 CORS_ALLOWED_ORIGINS = [_clean_origin(o) for o in _raw_cors if _clean_origin(o)]
-CORS_ALLOW_ALL_ORIGINS = env_bool("CORS_ALLOW_ALL_ORIGINS", True)
-CORS_ALLOWED_ORIGIN_REGEXES = [
-    r"^https://.*\.vercel\.app$",
-    r"^https://.*\.onrender\.com$",
-    r"^http://localhost(:\d+)?$",
-    r"^http://127\.0\.0\.1(:\d+)?$",
-]
+# The site's own address is always allowed, so the live site keeps working
+# whatever CORS_ALLOWED_ORIGINS says.
+_site_origin = _clean_origin(env("FRONTEND_URL", ""))
+if _site_origin and _site_origin not in CORS_ALLOWED_ORIGINS:
+    CORS_ALLOWED_ORIGINS.append(_site_origin)
+# Only the origins above may call the API from a browser. Allowing every
+# origin, or every *.vercel.app and *.onrender.com site, while the refresh
+# cookie is sent cross-site meant any page on those hosts could ask a visitor's
+# browser for a fresh access token and read it.
+CORS_ALLOW_ALL_ORIGINS = False
+CORS_ALLOWED_ORIGIN_REGEXES = (
+    [r"^http://localhost(:\d+)?$", r"^http://127\.0\.0\.1(:\d+)?$"] if DEBUG else []
+)
 
 # The API is authenticated with a bearer token in the Authorization header, never
 # with a cookie, so the browser has no credentials to attach to a cross-origin
@@ -325,6 +333,7 @@ FILE_UPLOAD_MAX_MEMORY_SIZE = DATA_UPLOAD_MAX_MEMORY_SIZE
 if not DEBUG:
     SECURE_SSL_REDIRECT = env_bool("SECURE_SSL_REDIRECT", True)
     SESSION_COOKIE_SECURE = True
+    SECURE_REFERRER_POLICY = "strict-origin-when-cross-origin"
     CSRF_COOKIE_SECURE = True
     SECURE_HSTS_SECONDS = 31536000
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True

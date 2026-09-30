@@ -11,6 +11,22 @@ export default class ErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error, errorInfo) {
+    // After a new version is deployed, the files of the old one are gone, so a
+    // page that is opened for the first time fails to load. Reloading once
+    // fetches the new version; a flag stops it looping if something else is wrong.
+    const message = String(error?.message || error);
+    if (/Failed to fetch dynamically imported module|Importing a module script failed|error loading dynamically imported module/i.test(message)) {
+      try {
+        const last = Number(sessionStorage.getItem('gabstep_reloaded_for_update') || 0);
+        if (Date.now() - last > 60000) {
+          sessionStorage.setItem('gabstep_reloaded_for_update', String(Date.now()));
+          window.location.reload();
+          return;
+        }
+      } catch {
+        /* storage unavailable: fall through to the error screen */
+      }
+    }
     console.error('ErrorBoundary caught error:', error, errorInfo);
   }
 

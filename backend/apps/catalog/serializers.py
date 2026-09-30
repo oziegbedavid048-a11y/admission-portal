@@ -35,9 +35,13 @@ class DestinationCountrySerializer(serializers.ModelSerializer):
         )
 
     def get_institution_count(self, obj):
-        return obj.institutions.filter(is_active=True).count()
+        total = getattr(obj, "institution_total", None)
+        return total if total is not None else obj.institutions.filter(is_active=True).count()
 
     def get_program_count(self, obj):
+        total = getattr(obj, "program_total", None)
+        if total is not None:
+            return total
         return Program.objects.filter(institution__country=obj, institution__is_active=True).count()
 
 

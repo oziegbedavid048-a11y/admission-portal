@@ -501,3 +501,19 @@ def send_applicant_email_message(application, subject, message_body):
     notify(application, f"Message from the admissions desk: {subject}. {message_body}", send_email=False)
     send_application_status_update_email(application, message_body, subject_override=subject)
     return True
+
+
+def announce_letter(letter):
+    """A letter was published: one feed entry and one detailed email.
+
+    The feed entry is written without its own email, because the letter email
+    below carries the full news and a second, generic update would repeat it.
+    """
+    from apps.accounts.emails import send_letter_issued_email
+
+    notify(
+        letter.application,
+        f"{letter.title} is ready. Open it from Letters in your dashboard.",
+        send_email=False,
+    )
+    transaction.on_commit(lambda: send_letter_issued_email(letter))

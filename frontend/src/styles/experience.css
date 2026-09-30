@@ -1336,3 +1336,360 @@ button,
   position: static;
   box-shadow: none;
 }
+
+/* ─────────────── Application details page ─────────────── */
+
+/* Each section: one bold title on a single line, a hairline under it, then
+   the facts in a tidy two-column grid that becomes one column on a phone. */
+.applicant-details-container .details-clean-card {
+  background: var(--g-surface);
+  border: 1px solid var(--g-line);
+  border-radius: var(--g-r-lg);
+  box-shadow: var(--g-sh-1);
+  padding: clamp(18px, 2.6vw, 26px);
+}
+
+.applicant-details-container .card-head {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  margin: 0 0 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--g-line);
+}
+
+.applicant-details-container .card-head h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--g-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.applicant-details-container .facts-clean-grid { margin-top: 0; gap: 18px 28px; }
+.applicant-details-container .fact-clean-label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--g-ink-3);
+}
+.applicant-details-container .fact-clean-value { color: var(--g-ink); font-weight: 600; }
+
+/* ─────────────── Portal top bar ─────────────── */
+
+.portal-topbar-brand { font-weight: 800; letter-spacing: -0.02em; }
+
+/* The profile control: a rounded chip with the photo and the person's name,
+   on every screen size. */
+.agent-topbar-profile-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 220px;
+  min-height: 44px;
+  padding: 4px 14px 4px 4px;
+  border: 1px solid var(--g-line);
+  border-radius: 14px;
+  background: var(--g-surface-2);
+  color: var(--g-ink);
+  text-decoration: none;
+  transition: border-color 160ms ease, background 160ms ease;
+}
+
+.agent-topbar-profile-btn:hover { border-color: var(--g-accent); background: var(--g-accent-tint); text-decoration: none; }
+.agent-topbar-profile-btn:focus-visible { outline: none; box-shadow: var(--shadow-focus); }
+
+.agent-topbar-profile-btn .agent-topbar-avatar {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--g-accent);
+  color: var(--g-accent-ink);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.agent-topbar-profile-btn .agent-topbar-avatar img { width: 100%; height: 100%; object-fit: cover; }
+
+.agent-topbar-profile-btn .agent-topbar-name {
+  display: block !important;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+@media (max-width: 480px) {
+  .agent-topbar-profile-btn { max-width: 120px; padding-right: 10px; gap: 8px; }
+  .agent-topbar-profile-btn .agent-topbar-avatar { width: 32px; height: 32px; }
+  .agent-topbar-profile-btn .agent-topbar-name { font-size: 13px; }
+  .portal-topbar-brand { font-size: 16px !important; }
+}
+
+@media (max-width: 360px) {
+  .agent-topbar-profile-btn .agent-topbar-name { display: none !important; }
+  .agent-topbar-profile-btn { padding-right: 4px; }
+}
+
+/* ─────────────── Letters ─────────────── */
+
+.letter-half-preview-box.is-clickable { cursor: zoom-in; }
+.letter-half-preview-box.is-clickable:focus-visible { outline: none; box-shadow: inset 0 0 0 3px var(--g-accent); }
+.letter-actions-row .g-btn { white-space: nowrap; }
+.letter-actions-row .g-btn:disabled { opacity: 0.75; cursor: default; }
+
+/* ─────────────── Whole site ─────────────── */
+
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+
+/* A form's own error, shown where the person is looking. */
+.gx-form-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  border-radius: var(--g-r-sm);
+  border: 1px solid var(--g-neg-line);
+  background: var(--g-neg-tint);
+  color: var(--g-neg);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.gx-form-alert .icon { flex-shrink: 0; margin-top: 1px; }
+.gx-form .gx-form-alert { margin-bottom: 0; }
+
+/* Phones: a document row is as tall as its content. In a column layout the
+   file name kept a 200px flex basis as its height, leaving a large empty box. */
+@media (max-width: 480px) {
+  .details-doc-left { flex: 0 0 auto; }
+}
+
+/* Letter buttons stack on a phone so a long label never runs past the card. */
+@media (max-width: 520px) {
+  .letter-actions-row { flex-direction: column; }
+  .letter-actions-row .g-btn { flex: 0 0 auto; width: 100%; white-space: normal; }
+}
+
+/* Top bar on a phone: the full site name, and a compact chip with the first name. */
+@media (max-width: 480px) {
+  .portal-topbar-brand { font-size: 15px !important; }
+  .agent-topbar-profile-btn { max-width: 104px; padding: 3px 10px 3px 3px; gap: 6px; }
+  .agent-topbar-profile-btn .agent-topbar-avatar { width: 30px; height: 30px; border-radius: 9px; }
+  .portal-topbar, .agent-topbar { gap: 8px; }
+}
+
+/* Phones: the site name shows in full, so the profile chip is the photo alone.
+   The name returns beside the photo where there is room for both. */
+@media (max-width: 640px) {
+  .agent-topbar-profile-btn .agent-topbar-name { display: none !important; }
+  .agent-topbar-profile-btn { max-width: none; padding: 3px; border-radius: 12px; }
+  .portal-topbar-brand { white-space: nowrap; overflow: visible; text-overflow: clip; }
+  .portal-topbar-brand-wrap { overflow: visible; }
+}
+
+@media (max-width: 360px) {
+  .portal-topbar-brand { font-size: 14px !important; }
+}
+
+/* ─────────────── Admission celebration ─────────────── */
+
+.admission-celebration-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(4, 35, 27, 0.62);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.admission-celebration-overlay .admission-confetti-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.celebration-card {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 440px;
+  padding: 40px 32px 28px;
+  border-radius: var(--g-r-xl);
+  background: var(--g-surface);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.35);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  animation: celebration-in 420ms cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+}
+
+@keyframes celebration-in {
+  from { opacity: 0; transform: translateY(18px) scale(0.96); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .celebration-card { animation: none; }
+}
+
+.celebration-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--g-surface-2);
+  color: var(--g-ink-2);
+  cursor: pointer;
+}
+
+.celebration-close:hover { background: var(--g-line); color: var(--g-ink); }
+.celebration-close:focus-visible { outline: none; box-shadow: var(--shadow-focus); }
+
+.celebration-seal {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 76px;
+  height: 76px;
+  margin-bottom: 6px;
+  border-radius: 50%;
+  background: var(--g-accent);
+  color: var(--g-accent-ink);
+  box-shadow: 0 0 0 8px var(--g-accent-tint), 0 12px 28px rgba(11, 92, 67, 0.35);
+}
+
+.celebration-eyebrow {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--g-accent);
+}
+
+.celebration-card h2 {
+  margin: 0;
+  font-size: clamp(24px, 6vw, 30px);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  color: var(--g-ink);
+}
+
+.celebration-text {
+  margin: 4px 0 8px;
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--g-ink-2);
+}
+
+.celebration-text strong { color: var(--g-ink); }
+
+.celebration-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  margin-top: 6px;
+}
+
+.celebration-actions .gx-btn { width: 100%; }
+
+@media (max-width: 420px) {
+  .celebration-card { padding: 34px 20px 22px; }
+}
+
+/* ─────────────── Top bar: glass, and the profile pill ─────────────── */
+
+/* The bar is a floating layer over the page, so it is glass: content scrolls
+   under it softly blurred. Falls back to solid where blur is unsupported or the
+   person has asked for less transparency. */
+.portal-topbar,
+.agent-topbar {
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: saturate(170%) blur(18px);
+  -webkit-backdrop-filter: saturate(170%) blur(18px);
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .portal-topbar, .agent-topbar { background: var(--g-surface); backdrop-filter: none; -webkit-backdrop-filter: none; }
+}
+
+.agent-topbar-profile-btn {
+  position: relative;
+  gap: 8px;
+  min-height: 44px;
+  padding: 4px 12px 4px 4px !important;
+  margin-right: 6px;
+  border-radius: 999px !important;
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(225, 246, 221, 0.55) 55%, rgba(255, 255, 255, 0.7) 100%);
+  backdrop-filter: saturate(180%) blur(16px);
+  -webkit-backdrop-filter: saturate(180%) blur(16px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    inset 0 -1px 0 rgba(11, 92, 67, 0.08),
+    0 1px 2px rgba(8, 33, 27, 0.06),
+    0 6px 18px rgba(8, 33, 27, 0.10);
+  transition: transform 160ms ease, box-shadow 160ms ease;
+}
+
+.agent-topbar-profile-btn:hover {
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(225, 246, 221, 0.8) 60%, rgba(255, 255, 255, 0.8) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 1),
+    0 2px 4px rgba(8, 33, 27, 0.08),
+    0 10px 24px rgba(8, 33, 27, 0.14);
+}
+
+.agent-topbar-profile-btn:active { transform: scale(0.97); }
+
+.agent-topbar-profile-btn .agent-topbar-avatar {
+  width: 36px !important;
+  height: 36px !important;
+  border-radius: 50% !important;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.95);
+}
+
+.agent-topbar-chevron { color: var(--g-ink-3); flex-shrink: 0; }
+
+@media (max-width: 640px) {
+  .agent-topbar-profile-btn { padding: 3px 10px 3px 3px !important; margin-right: 4px; }
+  .agent-topbar-profile-btn .agent-topbar-avatar { width: 32px !important; height: 32px !important; }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .agent-topbar-profile-btn { background: var(--g-surface-2); backdrop-filter: none; -webkit-backdrop-filter: none; }
+}

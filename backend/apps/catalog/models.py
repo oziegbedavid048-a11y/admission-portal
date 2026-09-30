@@ -149,6 +149,10 @@ class Institution(models.Model):
 
     class Meta:
         ordering = ("display_order", "name")
+        indexes = [
+            models.Index(fields=["country", "is_active"], name="inst_country_active_idx"),
+            models.Index(fields=["display_order", "name"], name="inst_order_idx"),
+        ]
 
     def __str__(self):
         return self.name
@@ -224,6 +228,11 @@ class Program(models.Model):
 
     class Meta:
         ordering = ("display_order", "name")
+        indexes = [
+            models.Index(fields=["institution", "level"], name="prog_inst_level_idx"),
+            models.Index(fields=["level"], name="prog_level_idx"),
+            models.Index(fields=["name"], name="prog_name_idx"),
+        ]
         verbose_name = "course"
         verbose_name_plural = "courses"
         constraints = [

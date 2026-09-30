@@ -1,4 +1,7 @@
 import { useState } from 'react';
+import { applications } from '../../api/endpoints';
+import { errorMessage } from '../../api/client';
+import { useToast } from '../../context/ToastContext';
 import Modal from '../../components/ui/Modal';
 import PdfViewer from '../../components/ui/PdfViewer';
 import Icon from '../../lib/icons';
@@ -6,8 +9,27 @@ import { downloadUrl, formatLongDate, resolveMediaUrl } from '../../lib/format';
 import { useApplication } from './ApplicationContext';
 
 export default function LettersPanel() {
-  const { application } = useApplication();
+  const { application, setApplication } = useApplication();
+  const toast = useToast();
   const [viewing, setViewing] = useState(null);
+  const [sending, setSending] = useState(false);
+  const sent = Boolean(application?.transferred_to_visa_support);
+
+  // Hands the letter to the Visa Support desk in the admin. One press: after
+  // that the button stays disabled and says it was sent.
+  const sendToVisa = async () => {
+    if (sent || sending || !application) return;
+    setSending(true);
+    try {
+      const { data } = await applications.transferToVisaSupport(application.reference);
+      setApplication(data);
+      toast.success('Sent to our visa support desk. An advisor will contact you.');
+    } catch (error) {
+      toast.error(errorMessage(error, 'It could not be sent. Try again in a moment.'));
+    } finally {
+      setSending(false);
+    }
+  };
 
   const letters = application?.letters || [];
   const institutionName = application?.institution?.name || 'Institution of Higher Education';
@@ -42,7 +64,19 @@ export default function LettersPanel() {
             return (
               <section className="card letter-preview-card" key={letter.id}>
                 {/* ── Top / Half Preview of the Letter ── */}
-                <div className="letter-half-preview-box">
+                <div
+                  className="letter-half-preview-box is-clickable"
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`Open ${letter.title}`}
+                  onClick={() => fileUrl && setViewing({ ...letter, fileUrl, isPdf, isImg })}
+                  onKeyDown={(event) => {
+                    if ((event.key === 'Enter' || event.key === ' ') && fileUrl) {
+                      event.preventDefault();
+                      setViewing({ ...letter, fileUrl, isPdf, isImg });
+                    }
+                  }}
+                >
                   {isImg ? (
                     <img
                       src={fileUrl}
@@ -93,22 +127,28 @@ export default function LettersPanel() {
 
                   {fileUrl ? (
                     <div className="letter-actions-row">
-                    <button
-                      type="button"
-                      className="g-btn g-btn-quiet"
-                      onClick={() => setViewing({ ...letter, fileUrl, isPdf, isImg })}
-                    >
-                      <Icon name="document" size={16} strokeWidth={2.2} />
-                      <span>View</span>
-                    </button>
                     <a
-                      className="g-btn g-btn-primary letter-main-download-btn"
+                      className="g-btn g-btn-quiet letter-main-download-btn"
                       href={downloadUrl(letter.file)}
                       download={letter.title || 'Official_Letter'}
                     >
                       <Icon name="download" size={16} strokeWidth={2.2} />
                       <span>Download</span>
                     </a>
+                    <button
+                      type="button"
+                      className="g-btn g-btn-primary"
+                      onClick={sendToVisa}
+                      disabled={sent || sending}
+                      aria-disabled={sent || sending}
+                    >
+                      {sending ? (
+                        <span className="spinner-sm" aria-hidden="true" />
+                      ) : (
+                        <Icon name={sent ? 'check' : 'send'} size={16} strokeWidth={2.2} />
+                      )}
+                      <span>{sent ? 'Sent to visa support' : sending ? 'Sending' : 'Send to visa support'}</span>
+                    </button>
                     </div>
                   ) : null}
                 </div>

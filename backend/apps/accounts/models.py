@@ -71,6 +71,10 @@ class User(AbstractUser):
 
     class Meta:
         ordering = ("-date_joined",)
+        indexes = [
+            models.Index(fields=["role"], name="user_role_idx"),
+            models.Index(fields=["-date_joined"], name="user_joined_idx"),
+        ]
 
     def __str__(self):
         return f"{self.full_name or self.email} ({self.role})"
@@ -133,6 +137,9 @@ class SupportTicket(models.Model):
 
     class Meta:
         ordering = ("-created_at",)
+        indexes = [
+            models.Index(fields=["status", "-created_at"], name="ticket_status_idx"),
+        ]
         verbose_name = "support message"
         verbose_name_plural = "support messages"
 

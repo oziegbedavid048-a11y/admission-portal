@@ -30,3 +30,56 @@ class UploadedFileHeadersMiddleware:
             # the person's own browser keep it.
             response.headers.setdefault("Cache-Control", "private, max-age=0, no-store")
         return response
+
+
+
+class ServerTimingMiddleware:
+    """Say how long the server took, and how much of that was the database.
+
+    Browsers show it in the Network panel (Timing tab), which makes a slow
+    page easy to place: the app, the database, or the network between.
+    """
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        import time
+
+        from django.db import connection
+
+        started = time.perf_counter()
+        db_time = [0.0]
+
+        def timed(execute, sql, params, many, context):
+            begun = time.perf_counter()
+            try:
+                return execute(sql, params, many, context)
+            finally:
+                db_time[0] += time.perf_counter() - begun
+
+        with connection.execute_wrapper(timed):
+            response = self.get_response(request)
+        total = (time.perf_counter() - started) * 1000
+        response["Server-Timing"] = f"app;dur={total:.1f}, db;dur={db_time[0] * 1000:.1f}"
+        return response
+
+
+class CatalogGZipMiddleware:
+    """Compress the public course catalogue, which is the largest JSON sent.
+
+    Limited to /api/catalog/ on purpose: those responses are public and carry
+    no secrets, so compressing them cannot leak anything (the BREACH attack
+    needs a secret and attacker-controlled text in the same response).
+    """
+
+    def __init__(self, get_response):
+        from django.middleware.gzip import GZipMiddleware
+
+        self.get_response = get_response
+        self.gzip = GZipMiddleware(get_response)
+
+    def __call__(self, request):
+        if request.path.startswith("/api/catalog/"):
+            return self.gzip(request)
+        return self.get_response(request)

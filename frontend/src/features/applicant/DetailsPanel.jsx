@@ -36,8 +36,7 @@ export default function DetailsPanel() {
       {/* ── Section 1: Personal Information ── */}
       <section className="card details-clean-card">
         <div className="card-head">
-          <h2>Personal information</h2>
-          <span className="card-note">Verified applicant identity</span>
+          <h2>Personal details</h2>
         </div>
 
         <div className="facts-clean-grid">
@@ -89,7 +88,6 @@ export default function DetailsPanel() {
       <section className="card details-clean-card">
         <div className="card-head">
           <h2>Academic record</h2>
-          <span className="card-note">Prior qualification history</span>
         </div>
 
         <div className="facts-clean-grid">
@@ -118,8 +116,7 @@ export default function DetailsPanel() {
       {/* ── Section 3: Selected University & Programme ── */}
       <section className="card details-clean-card">
         <div className="card-head">
-          <h2>Selected university & programme</h2>
-          <span className="card-note">Choice of institution</span>
+          <h2>University and course</h2>
         </div>
 
         <div className="facts-clean-grid">
@@ -179,8 +176,7 @@ export default function DetailsPanel() {
       {/* ── Section 4: Uploaded Credentials & Documents ── */}
       <section className="card details-clean-card">
         <div className="card-head">
-          <h2>Uploaded supporting documents</h2>
-          <span className="card-note">{documents.length} document(s) on file</span>
+          <h2>Documents</h2>
         </div>
 
         <div className="details-docs-clean-list">
@@ -231,8 +227,7 @@ export default function DetailsPanel() {
       {corrections.length > 0 && (
         <section className="card details-clean-card">
           <div className="card-head">
-            <h2>Correction requests log</h2>
-            <span className="card-note">{corrections.length} request(s) recorded</span>
+            <h2>Correction requests</h2>
           </div>
 
           <div className="details-corrections-clean-list">

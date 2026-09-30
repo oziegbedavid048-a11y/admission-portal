@@ -13,6 +13,7 @@ export default function SupervisorLoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
+  const [formError, setFormError] = useState('');
   const { signIn, user } = useAuth();
   const toast = useToast();
   const navigate = useNavigate();
@@ -24,9 +25,10 @@ export default function SupervisorLoginPage() {
   const submit = async (event) => {
     event.preventDefault();
     if (!email.trim() || !password) {
-      toast.warning('Enter your email and password.');
+      setFormError('Enter your email and password.');
       return;
     }
+    setFormError('');
 
     setBusy(true);
     try {
@@ -39,7 +41,7 @@ export default function SupervisorLoginPage() {
       toast.success(`Welcome back, ${(signedIn.full_name || '').split(' ')[0]}.`);
       navigate('/sales-manager');
     } catch (error) {
-      toast.error(errorMessage(error, 'Those details do not match a Sales Manager account.'));
+      setFormError(errorMessage(error, 'Invalid email or password.'));
     } finally {
       setBusy(false);
     }
@@ -73,7 +75,7 @@ export default function SupervisorLoginPage() {
                 className="agent-form-control"
                 autoComplete="email"
                 value={email}
-                onChange={(event) => setEmail(event.target.value)}
+                onChange={(event) => { setEmail(event.target.value); setFormError(''); }}
                 required
               />
             </div>
@@ -88,7 +90,7 @@ export default function SupervisorLoginPage() {
                 className="agent-form-control"
                 autoComplete="current-password"
                 value={password}
-                onChange={(event) => setPassword(event.target.value)}
+                onChange={(event) => { setPassword(event.target.value); setFormError(''); }}
                 required
               />
             </div>
@@ -98,6 +100,13 @@ export default function SupervisorLoginPage() {
                 Forgot password?
               </Link>
             </div>
+
+            {formError ? (
+              <div className="gx-form-alert" role="alert">
+                <Icon name="alert" size={18} strokeWidth={2} />
+                <span>{formError}</span>
+              </div>
+            ) : null}
 
             <button
               type="submit"

@@ -314,6 +314,9 @@ class Loan(models.Model):
 
     class Meta:
         ordering = ("-requested_at",)
+        indexes = [
+            models.Index(fields=["status"], name="loan_status_idx"),
+        ]
         verbose_name = "ad funding request"
         verbose_name_plural = "ad funding requests"
 
@@ -354,6 +357,9 @@ class Withdrawal(models.Model):
 
     class Meta:
         ordering = ("-created_at",)
+        indexes = [
+            models.Index(fields=["status"], name="withdrawal_status_idx"),
+        ]
         verbose_name = "agent payout"
         verbose_name_plural = "agent payouts"
 
