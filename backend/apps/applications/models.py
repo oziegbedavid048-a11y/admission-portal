@@ -10,7 +10,7 @@ from django.utils import timezone
 from apps.catalog.models import DestinationCountry, Institution, OriginCountry, Program
 
 from .constants import DEFAULT_STAGES
-from .uploads import correction_upload_path, document_upload_path, letter_upload_path
+from .uploads import correction_upload_path, document_upload_path, draft_upload_path, letter_upload_path
 
 
 def generate_reference():
@@ -210,26 +210,20 @@ class Application(models.Model):
     def verification_summary(self):
         """Calculates verification completion score and checkpoint breakdown."""
         checkpoints = [
+            # Two checks only. Personal and academic details are not verified:
+            # a mistake there is fixed with a correction request instead.
             {
                 "key": "payment",
                 "label": "Application fee",
                 "verified": bool(
                     self.payment_verified
-                    or (hasattr(self, "payment") and getattr(self, "payment") and getattr(self.payment, "status", "") == "paid")
+                    or (
+                        hasattr(self, "payment")
+                        and getattr(self, "payment")
+                        and getattr(self.payment, "status", "") in ("paid", "waived")
+                    )
                 ),
-                "description": "Application fee settlement and payment confirmation verified.",
-            },
-            {
-                "key": "personal",
-                "label": "Personal details",
-                "verified": bool(self.personal_details_verified),
-                "description": "Full name, contact details, address, and nationality verified.",
-            },
-            {
-                "key": "academic",
-                "label": "Academic details",
-                "verified": bool(self.academic_details_verified),
-                "description": "Prior academic qualifications, target university, and program selection verified.",
+                "description": "Application fee paid and confirmed.",
             },
             {
                 "key": "documents",
@@ -445,6 +439,25 @@ class ApplicationDraft(models.Model):
 
     def __str__(self):
         return f"Draft for {self.user.email} (step {self.current_step})"
+
+
+class ApplicationDraftFile(models.Model):
+    """A document saved with an applicant's draft. Becomes a real document on submit."""
+
+    draft = models.ForeignKey(ApplicationDraft, on_delete=models.CASCADE, related_name="files")
+    # passport, academic, cv, or other-<n>.
+    slot = models.CharField(max_length=24)
+    kind = models.CharField(max_length=16, default="other")
+    name = models.CharField(max_length=160)
+    file = models.FileField(upload_to=draft_upload_path)
+    original_filename = models.CharField(max_length=255, blank=True)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("uploaded_at",)
+        constraints = [
+            models.UniqueConstraint(fields=["draft", "slot"], name="one_file_per_application_draft_slot"),
+        ]
 
 
 class Letter(models.Model):

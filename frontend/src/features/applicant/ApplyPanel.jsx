@@ -1,34 +1,39 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
-import Dropzone from '../../components/ui/Dropzone';
 import SearchableSelect from '../../components/ui/SearchableSelect';
+import StepField from '../../components/form/StepField';
 import { applications, catalog, payments } from '../../api/endpoints';
 import { errorMessage } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { useCatalog, useInstitutions } from '../../hooks/useCatalog';
 import Icon from '../../lib/icons';
+import { compressImageFile } from '../../lib/compress';
 import { formatMoney, formatTuition } from '../../lib/format';
 import ProgramPicker from '../wizard/ProgramPicker';
 import { useApplication } from './ApplicationContext';
 
 /**
- * The application, filled in from inside the dashboard.
+ * The application, filled in from inside the dashboard, one step at a time.
  *
- * The applicant already has an account, so there is nothing to create and no
- * password to hand out: the personal step is prefilled from the account, and
- * the course arrives already chosen from the course list. Four short steps are
- * left, then the fee.
+ * It looks and works like the agent's Register a student: an icon beside each
+ * label, the asterisk inline, Back on the left and Save draft and Continue on
+ * the right. Save draft keeps what was typed and every document on the server,
+ * so the applicant can come back before paying and carry on from the Overview.
  *
- * The fee shown is the quote from the server for this school in the
- * applicant's currency. Nothing on this page invents a figure: until the quote
- * arrives it says so, and if it cannot be fetched it offers to try again.
+ * The fee shown is the server's quote for this school in the applicant's
+ * currency. Nothing here invents a figure.
  */
 
-const STEPS = ['Your details', 'Education', 'Course', 'Documents', 'Review'];
-const DRAFT_KEY = 'gabstep_portal_apply_draft';
-
+const STEPS = ['Your details', 'Education', 'University and course', 'Documents', 'Review and pay'];
 const QUALIFICATIONS = ['SSCE / High School', 'OND', 'HND', "Bachelor's Degree", "Master's Degree"];
+const ACCEPT = '.pdf,.jpg,.jpeg,.png,.webp,.heic,.heif,application/pdf,image/*';
+const SLOTS = [
+  { slot: 'passport', kind: 'passport', name: 'International passport data page', label: 'Passport data page', icon: 'passport' },
+  { slot: 'academic', kind: 'academic', name: 'Academic documents & transcripts', label: 'Academic documents', icon: 'document' },
+  { slot: 'cv', kind: 'cv', name: 'Curriculum vitae', label: 'CV', icon: 'resume' },
+];
+const EMPTY_DOCS = { passport: null, academic: null, cv: null };
 
 export default function ApplyPanel() {
   const { user } = useAuth();
@@ -41,14 +46,19 @@ export default function ApplyPanel() {
 
   const [step, setStep] = useState(0);
   const [errors, setErrors] = useState({});
-  const [files, setFiles] = useState({ passport: null, academic: null, cv: null });
+  // Each document is { file } before it is saved and { remote } once it sits
+  // on the draft.
+  const [docs, setDocs] = useState(EMPTY_DOCS);
+  const [others, setOthers] = useState([]);
+  const [removedRemote, setRemovedRemote] = useState([]);
+  const [hasDraft, setHasDraft] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [quote, setQuote] = useState(null);
   const [quoteState, setQuoteState] = useState('idle');
   const [submitting, setSubmitting] = useState(false);
-  // What the submit is doing right now, shown full-screen so nothing else on
-  // the page can take over while documents upload and Paystack loads.
   const [phase, setPhase] = useState('');
   const leaving = useRef(false);
+  const otherCounter = useRef(1);
   const [submitted, setSubmitted] = useState(null);
   const [form, setForm] = useState(() => ({
     fullName: user?.full_name || '',
@@ -83,8 +93,7 @@ export default function ApplyPanel() {
     });
   }, []);
 
-  // The course chosen on the course list arrives as ?program=, and is selected
-  // once the school's programmes have loaded.
+  // The course chosen on the course list arrives as ?program=.
   const wantedProgram = params.get('program');
   const preselected = useRef(false);
   useEffect(() => {
@@ -96,39 +105,49 @@ export default function ApplyPanel() {
     }
   }, [institution, wantedProgram, update]);
 
-  // Restore typed answers from an earlier visit. Files are never kept.
+  // Reopen a saved draft. A course picked just now on the course list wins
+  // over the one in the draft.
   useEffect(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null');
-      if (saved?.previousSchools !== undefined) {
+    let cancelled = false;
+    applications
+      .getDraft()
+      .then(({ data }) => {
+        if (cancelled || !data) return;
+        setHasDraft(true);
+        const saved = data.data?.form || {};
+        const pickedNow = params.get('institution');
         setForm((current) => ({
           ...current,
-          previousSchools: saved.previousSchools || '',
-          qualification: saved.qualification || '',
-          yearGraduated: saved.yearGraduated || '',
-          gradeGpa: saved.gradeGpa || '',
+          ...saved,
+          ...(pickedNow
+            ? {
+                destinationCountry: current.destinationCountry,
+                institution: current.institution,
+                level: current.level,
+                programs: current.programs,
+                is_custom_course: false,
+                custom_course: '',
+              }
+            : {}),
         }));
-      }
-    } catch {
-      /* a damaged draft is simply ignored */
-    }
+        if (!pickedNow) setStep(Math.min(Math.max((data.current_step || 1) - 1, 0), 4));
+        const nextDocs = { ...EMPTY_DOCS };
+        const nextOthers = [];
+        (data.files || []).forEach((item) => {
+          if (item.slot in nextDocs) nextDocs[item.slot] = { remote: item };
+          else nextOthers.push({ slot: item.slot, name: item.name, remote: item });
+        });
+        otherCounter.current =
+          nextOthers.reduce((max, item) => Math.max(max, Number(item.slot.split('-')[1]) || 0), 0) + 1;
+        setDocs(nextDocs);
+        setOthers(nextOthers);
+      })
+      .catch(() => null);
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(
-        DRAFT_KEY,
-        JSON.stringify({
-          previousSchools: form.previousSchools,
-          qualification: form.qualification,
-          yearGraduated: form.yearGraduated,
-          gradeGpa: form.gradeGpa,
-        }),
-      );
-    } catch {
-      /* storage can be unavailable in private windows */
-    }
-  }, [form.previousSchools, form.qualification, form.yearGraduated, form.gradeGpa]);
 
   const loadQuote = useCallback(() => {
     if (feeFree || !form.institution) {
@@ -150,9 +169,9 @@ export default function ApplyPanel() {
     if (step === 4) loadQuote();
   }, [step, loadQuote]);
 
-  // Someone who already has an application goes to it; but not while this page
-  // is the one creating it, or the dashboard flashed up before Paystack opened.
   if (application && !submitted && !submitting && !leaving.current) return <Navigate to="/portal" replace />;
+
+  const hasDoc = (slot) => Boolean(docs[slot]?.file || docs[slot]?.remote);
 
   const validate = (index) => {
     const found = {};
@@ -175,9 +194,10 @@ export default function ApplyPanel() {
       else if (!isCustomCourse && !form.programs.length) found.course = 'Choose at least one course.';
     }
     if (index === 3) {
-      if (!files.passport) found.passport = 'Add your passport data page.';
-      if (!files.academic) found.academic = 'Add your academic documents.';
-      if (!files.cv) found.cv = 'Add your CV.';
+      if (!hasDoc('passport')) found.passport = 'Add your passport data page.';
+      if (!hasDoc('academic')) found.academic = 'Add your academic documents.';
+      if (!hasDoc('cv')) found.cv = 'Add your CV.';
+      if (others.some((item) => (item.file || item.remote) && !item.name.trim())) found.others = 'Name each of the other documents.';
     }
     setErrors(found);
     if (Object.keys(found).length) {
@@ -187,28 +207,107 @@ export default function ApplyPanel() {
     return true;
   };
 
+  const scrollTop = () =>
+    window.setTimeout(() => topRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 20);
+
   const go = (target) => {
     if (target > step) {
       for (let index = step; index < target; index += 1) if (!validate(index)) return;
     }
     setStep(target);
-    window.setTimeout(() => topRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 20);
+    scrollTop();
   };
 
-  const upload = async (reference) => {
-    const queue = [
-      { file: files.passport, kind: 'passport', name: 'International passport data page' },
-      { file: files.academic, kind: 'academic', name: 'Academic documents & transcripts' },
-      { file: files.cv, kind: 'cv', name: 'Curriculum vitae' },
-    ].filter((item) => item.file);
-    const results = await Promise.allSettled(
-      queue.map((item) => applications.uploadDocument(reference, item)),
+  // ── Documents ──
+
+  const pick = async (event) => {
+    const raw = event.target.files?.[0] || null;
+    event.target.value = '';
+    if (raw && raw.size > 10 * 1024 * 1024 && !raw.type.startsWith('image/')) {
+      toast.warning('That file is larger than 10MB.');
+      return null;
+    }
+    return raw ? compressImageFile(raw) : null;
+  };
+
+  const setSlotFile = (slot, file) => {
+    setDocs((current) => {
+      if (current[slot]?.remote) setRemovedRemote((list) => [...list, current[slot].remote.id]);
+      return { ...current, [slot]: file ? { file } : null };
+    });
+    setErrors((current) => ({ ...current, [slot]: undefined }));
+  };
+
+  const addOther = () => {
+    const slot = `other-${otherCounter.current}`;
+    otherCounter.current += 1;
+    setOthers((current) => [...current, { slot, name: '', file: null, remote: null }]);
+  };
+
+  const updateOther = (slot, patch) =>
+    setOthers((current) =>
+      current.map((item) => {
+        if (item.slot !== slot) return item;
+        if (patch.file && item.remote) setRemovedRemote((list) => [...list, item.remote.id]);
+        return { ...item, ...patch, ...(patch.file ? { remote: null } : {}) };
+      }),
     );
-    const failed = results.filter((result) => result.status === 'rejected').length;
-    if (failed) {
-      toast.warning(`${failed} document${failed === 1 ? '' : 's'} did not upload. Add them again from Application.`);
+
+  const removeOther = (slot) =>
+    setOthers((current) =>
+      current.filter((item) => {
+        if (item.slot === slot && item.remote) setRemovedRemote((list) => [...list, item.remote.id]);
+        return item.slot !== slot;
+      }),
+    );
+
+  // ── Draft ──
+
+  const saveDraft = async () => {
+    await applications.saveDraft({ current_step: step + 1, data: { form } });
+    setHasDraft(true);
+    await Promise.all(removedRemote.map((id) => applications.deleteDraftFile(id).catch(() => null)));
+    setRemovedRemote([]);
+
+    const nextDocs = { ...docs };
+    for (const meta of SLOTS) {
+      const entry = docs[meta.slot];
+      if (entry?.file) {
+        const { data } = await applications.uploadDraftFile({ ...meta, file: entry.file });
+        nextDocs[meta.slot] = { remote: data };
+      }
+    }
+    const nextOthers = [];
+    for (const item of others) {
+      if (item.file) {
+        const { data } = await applications.uploadDraftFile({
+          slot: item.slot,
+          kind: 'other',
+          name: item.name.trim() || 'Other document',
+          file: item.file,
+        });
+        nextOthers.push({ ...item, file: null, remote: data });
+      } else if (item.remote || item.name) {
+        nextOthers.push(item);
+      }
+    }
+    setDocs(nextDocs);
+    setOthers(nextOthers);
+  };
+
+  const onSaveDraft = async () => {
+    setSaving(true);
+    try {
+      await saveDraft();
+      toast.success('Draft saved. Continue any time from your Overview.');
+    } catch (error) {
+      toast.error(errorMessage(error, 'Could not save your draft.'));
+    } finally {
+      setSaving(false);
     }
   };
+
+  // ── Submit ──
 
   const submit = async () => {
     for (let index = 0; index < 4; index += 1) {
@@ -220,6 +319,10 @@ export default function ApplyPanel() {
     setSubmitting(true);
     setPhase('saving');
     try {
+      // With a draft, every document goes onto it first and moves to the new
+      // application in the same request that creates it.
+      if (hasDraft) await saveDraft();
+
       const { data: created } = await applications.create({
         full_name: form.fullName.trim(),
         email: user.email,
@@ -237,18 +340,26 @@ export default function ApplyPanel() {
       });
 
       setPhase('uploading');
-      const [settlement] = await Promise.all([
+      const queue = hasDraft
+        ? []
+        : [
+            ...SLOTS.filter((meta) => docs[meta.slot]?.file).map((meta) => ({
+              file: docs[meta.slot].file,
+              kind: meta.kind,
+              name: meta.name,
+            })),
+            ...others
+              .filter((item) => item.file)
+              .map((item) => ({ file: item.file, kind: 'other', name: item.name.trim() || 'Other document' })),
+          ];
+      const [settlement, results] = await Promise.all([
         payments.checkout(created.reference).then((response) => response.data).catch(() => null),
-        upload(created.reference),
+        Promise.allSettled(queue.map((item) => applications.uploadDocument(created.reference, item))),
       ]);
-      try {
-        localStorage.removeItem(DRAFT_KEY);
-      } catch {
-        /* nothing to clear */
-      }
+      const failed = results.filter((result) => result.status === 'rejected').length;
+      if (failed) toast.warning(`${failed} document${failed === 1 ? '' : 's'} did not upload. Add them again from Application.`);
 
       if (!isCustomCourse && settlement?.authorization_url) {
-        // Stay on this screen until the browser has left for Paystack.
         leaving.current = true;
         setPhase('payment');
         window.location.assign(settlement.authorization_url);
@@ -271,36 +382,74 @@ export default function ApplyPanel() {
     }
   };
 
-  const field = (name) => `gx-field ${errors[name] ? 'has-error' : ''}`.trim();
-  const errorFor = (name) => (errors[name] ? <span className="gx-error">{String(errors[name])}</span> : null);
+  // ── Pieces ──
+
+  const docName = (entry) => entry?.file?.name || entry?.remote?.original_filename || '';
+
+  const fileRow = (id, value, onPick, onClear) => (
+    <div className="nf-file">
+      <span className={`nf-file-name${value ? '' : ' is-empty'}`} title={value}>
+        {value || 'No file chosen'}
+      </span>
+      <div className="nf-file-actions">
+        {value ? (
+          <button type="button" className="nf-link-btn" onClick={onClear}>
+            Remove
+          </button>
+        ) : null}
+        <label className="agent-btn agent-btn-secondary agent-btn-sm nf-file-btn" htmlFor={id}>
+          {value ? 'Replace' : 'Choose file'}
+        </label>
+        <input id={id} type="file" accept={ACCEPT} className="sr-only" onChange={onPick} />
+      </div>
+    </div>
+  );
 
   if (submitted) {
     return (
-      <div className="gx-page">
-        <section className="gx-card gx-empty">
-          <span className="gx-icon-tile" aria-hidden="true">
-            <Icon name="checkCircle" size={24} />
+      <div className="agent-stack" ref={topRef}>
+        <div className="nf-card nf-done">
+          <span className="nf-done-mark" aria-hidden="true">
+            <Icon name="check" size={26} strokeWidth={2.4} />
           </span>
-          <h3>Application submitted</h3>
-          <p className="gx-muted">
-            Reference <strong>{submitted.reference}</strong>. We will email you as it moves forward.
-          </p>
-          {submitted.feeOutstanding && submitted.transferAccount ? (
-            <div className="gx-card" style={{ marginTop: 12, textAlign: 'left', width: '100%', maxWidth: 420 }}>
-              <h4 className="gx-card-title" style={{ fontSize: 15, marginBottom: 8 }}>Pay by bank transfer</h4>
-              <p className="gx-muted gx-small">
-                {submitted.transferAccount.bank} · {submitted.transferAccount.account_number}
-                <br />
-                {submitted.transferAccount.beneficiary}
-                <br />
-                Use {submitted.reference} as the payment reference.
-              </p>
+          <h2>Application submitted</h2>
+          <p className="nf-done-lede">We will email you as it moves forward.</p>
+          <dl className="nf-done-facts">
+            <div>
+              <dt>Application reference</dt>
+              <dd>{submitted.reference}</dd>
             </div>
+            <div>
+              <dt>Application fee</dt>
+              <dd>{submitted.feeOutstanding ? 'Due' : 'No fee'}</dd>
+            </div>
+          </dl>
+          {submitted.feeOutstanding && submitted.transferAccount ? (
+            <dl className="pay-account nf-done-account">
+              <div>
+                <dt>Bank</dt>
+                <dd>{submitted.transferAccount.bank}</dd>
+              </div>
+              <div>
+                <dt>Account number</dt>
+                <dd>{submitted.transferAccount.account_number}</dd>
+              </div>
+              <div>
+                <dt>Account name</dt>
+                <dd>{submitted.transferAccount.beneficiary}</dd>
+              </div>
+              <div>
+                <dt>Payment reference</dt>
+                <dd>{submitted.reference}</dd>
+              </div>
+            </dl>
           ) : null}
-          <button type="button" className="gx-btn gx-btn-primary" style={{ marginTop: 12 }} onClick={() => navigate('/portal')}>
-            Go to overview
-          </button>
-        </section>
+          <div className="nf-done-actions">
+            <button type="button" className="agent-btn agent-btn-primary" onClick={() => navigate('/portal')}>
+              Go to overview
+            </button>
+          </div>
+        </div>
       </div>
     );
   }
@@ -327,107 +476,109 @@ export default function ApplyPanel() {
     );
   }
 
+  const footer = (primary) => (
+    <div className="nf-footer">
+      <div className="nf-footer-start">
+        {step === 0 ? (
+          <Link to="/portal/courses" className="agent-btn agent-btn-secondary">
+            Courses
+          </Link>
+        ) : (
+          <button type="button" className="agent-btn agent-btn-secondary" onClick={() => go(step - 1)} disabled={submitting}>
+            Back
+          </button>
+        )}
+      </div>
+      <div className="nf-footer-end">
+        <button type="button" className="agent-btn agent-btn-secondary" onClick={onSaveDraft} disabled={saving || submitting}>
+          {saving ? <span className="spinner-sm" aria-hidden="true" /> : null}
+          {saving ? 'Saving' : 'Save draft'}
+        </button>
+        {primary}
+      </div>
+    </div>
+  );
+
+  const continueBtn = (
+    <button type="button" className="agent-btn agent-btn-primary" onClick={() => go(step + 1)}>
+      {step === 3 ? 'Review' : 'Continue'}
+    </button>
+  );
+
   return (
-    <div className="gx-page" ref={topRef}>
-      <section className="gx-card">
-        <ol className="gx-progress" aria-label="Application steps">
-          {STEPS.map((label, index) => (
-            <li
-              key={label}
-              className={index < step ? 'is-done' : index === step ? 'is-current' : ''}
-              aria-current={index === step ? 'step' : undefined}
-            >
-              <span>
-                {index + 1}. {label}
-              </span>
-            </li>
-          ))}
-        </ol>
+    <div className="agent-stack" ref={topRef}>
+      <div className="nf-card">
+        <div className="nf-head">
+          <span className="nf-step-count">
+            Step {step + 1} of {STEPS.length}
+          </span>
+          <h2 className="nf-title">{STEPS[step]}</h2>
+          {hasDraft ? <span className="nf-draft-tag">Draft</span> : null}
+          <div className="nf-progress" aria-hidden="true">
+            {STEPS.map((label, index) => (
+              <span key={label} className={`nf-progress-seg${index <= step ? ' is-on' : ''}`} />
+            ))}
+          </div>
+        </div>
 
         {step === 0 ? (
-          <div className="gx-form">
-            <div className="gx-card-head" style={{ marginBottom: 0 }}>
-              <h2 className="gx-card-title">Your details</h2>
-            </div>
-            <div className="gx-form-row">
-              <div className={field('fullName')}>
-                <label htmlFor="ap-name">Full legal name</label>
-                <input id="ap-name" className="gx-input" autoComplete="name" value={form.fullName} onChange={(event) => update({ fullName: event.target.value })} />
-                <span className="gx-hint">Exactly as your passport prints it.</span>
-                {errorFor('fullName')}
-              </div>
-              <div className="gx-field">
-                <label htmlFor="ap-email">Email address</label>
-                <input id="ap-email" className="gx-input" value={user?.email || ''} readOnly />
-              </div>
-            </div>
-            <div className="gx-form-row">
-              <div className={field('phone')}>
-                <label htmlFor="ap-phone">Phone number</label>
-                <input id="ap-phone" type="tel" className="gx-input" autoComplete="tel" value={form.phone} onChange={(event) => update({ phone: event.target.value })} />
-                {errorFor('phone')}
-              </div>
-              <div className={field('originCountry')}>
-                <span className="gx-label" id="ap-origin-label">Country of origin</span>
+          <>
+            <div className="nf-grid">
+              <StepField icon="user" label="Full legal name" required htmlFor="ap-name" error={errors.fullName} hint="Exactly as your passport prints it.">
+                <input id="ap-name" className="agent-form-control" autoComplete="name" value={form.fullName} onChange={(event) => update({ fullName: event.target.value })} />
+              </StepField>
+              <StepField icon="mail" label="Email address" htmlFor="ap-email">
+                <input id="ap-email" className="agent-form-control" value={user?.email || ''} readOnly />
+              </StepField>
+              <StepField icon="chat" label="Phone number" required htmlFor="ap-phone" error={errors.phone}>
+                <input id="ap-phone" type="tel" inputMode="tel" className="agent-form-control" autoComplete="tel" value={form.phone} onChange={(event) => update({ phone: event.target.value })} />
+              </StepField>
+              <StepField icon="pin" label="Country of origin" required labelId="ap-origin-label" error={errors.originCountry}>
                 <SearchableSelect options={originNames} value={form.originCountry} onChange={(value) => update({ originCountry: value })} labelledBy="ap-origin-label" />
-                {errorFor('originCountry')}
-              </div>
+              </StepField>
             </div>
-            <div className={field('destinationCountry')}>
-              <span className="gx-label" id="ap-dest-label">Where you want to study</span>
+            <StepField icon="globe" label="Where you want to study" required labelId="ap-dest-label" error={errors.destinationCountry}>
               <SearchableSelect
                 options={destinations.map((item) => item.name)}
                 value={form.destinationCountry}
                 onChange={(value) => update({ destinationCountry: value, institution: '', programs: [], level: null, is_custom_course: false, custom_course: '' })}
                 labelledBy="ap-dest-label"
               />
-              {errorFor('destinationCountry')}
-            </div>
-          </div>
+            </StepField>
+            {footer(continueBtn)}
+          </>
         ) : null}
 
         {step === 1 ? (
-          <div className="gx-form">
-            <div className="gx-card-head" style={{ marginBottom: 0 }}>
-              <h2 className="gx-card-title">Education</h2>
-            </div>
-            <div className={field('previousSchools')}>
-              <label htmlFor="ap-schools">Schools attended</label>
-              <input id="ap-schools" className="gx-input" value={form.previousSchools} onChange={(event) => update({ previousSchools: event.target.value })} />
-              {errorFor('previousSchools')}
-            </div>
-            <div className="gx-form-row">
-              <div className={field('qualification')}>
-                <label htmlFor="ap-qual">Highest qualification</label>
-                <select id="ap-qual" className="gx-input" value={form.qualification} onChange={(event) => update({ qualification: event.target.value })}>
-                  <option value="" />
+          <>
+            <StepField icon="building" label="Schools attended" required htmlFor="ap-schools" error={errors.previousSchools}>
+              <input id="ap-schools" className="agent-form-control" value={form.previousSchools} onChange={(event) => update({ previousSchools: event.target.value })} />
+            </StepField>
+            <div className="nf-grid nf-grid-3">
+              <StepField icon="cap" label="Highest qualification" required htmlFor="ap-qual" error={errors.qualification}>
+                <select id="ap-qual" className="agent-form-select" value={form.qualification} onChange={(event) => update({ qualification: event.target.value })}>
+                  <option value="">Choose</option>
                   {QUALIFICATIONS.map((item) => (
-                    <option key={item} value={item}>{item}</option>
+                    <option key={item} value={item}>
+                      {item}
+                    </option>
                   ))}
                 </select>
-                {errorFor('qualification')}
-              </div>
-              <div className={field('yearGraduated')}>
-                <label htmlFor="ap-year">Year of graduation</label>
-                <input id="ap-year" type="number" inputMode="numeric" className="gx-input" value={form.yearGraduated} onChange={(event) => update({ yearGraduated: event.target.value })} />
-                {errorFor('yearGraduated')}
-              </div>
+              </StepField>
+              <StepField icon="calendar" label="Year of graduation" required htmlFor="ap-year" error={errors.yearGraduated}>
+                <input id="ap-year" type="number" inputMode="numeric" className="agent-form-control" value={form.yearGraduated} onChange={(event) => update({ yearGraduated: event.target.value })} />
+              </StepField>
+              <StepField icon="medal" label="Grade or GPA" required htmlFor="ap-grade" error={errors.gradeGpa}>
+                <input id="ap-grade" className="agent-form-control" value={form.gradeGpa} onChange={(event) => update({ gradeGpa: event.target.value })} />
+              </StepField>
             </div>
-            <div className={field('gradeGpa')}>
-              <label htmlFor="ap-grade">Grade or GPA</label>
-              <input id="ap-grade" className="gx-input" value={form.gradeGpa} onChange={(event) => update({ gradeGpa: event.target.value })} />
-              {errorFor('gradeGpa')}
-            </div>
-          </div>
+            {footer(continueBtn)}
+          </>
         ) : null}
 
         {step === 2 ? (
-          <div className="gx-form">
-            <div className="gx-card-head" style={{ marginBottom: 0 }}>
-              <h2 className="gx-card-title">Course</h2>
-              <Link to="/portal/courses" className="gx-btn gx-btn-ghost gx-btn-sm">Browse all courses</Link>
-            </div>
-            <div className="schools-container">
+          <>
+            <div className="nf-picker">
               <ProgramPicker
                 institutions={institutions}
                 loading={institutionsLoading}
@@ -443,18 +594,16 @@ export default function ApplyPanel() {
                 onNotify={(message, type) => toast.toast(message, type)}
               />
             </div>
-            {errorFor('course')}
-          </div>
+            {errors.course ? <p className="nf-error">{errors.course}</p> : null}
+            {footer(continueBtn)}
+          </>
         ) : null}
 
         {step === 3 ? (
-          <div className="gx-form">
-            <div className="gx-card-head" style={{ marginBottom: 0 }}>
-              <h2 className="gx-card-title">Documents</h2>
-              <span className="gx-muted gx-small">Clear, full-page scans. Photos are compressed for you.</span>
-            </div>
+          <>
+            <p className="nf-lede">Clear, full-page scans. PDF or photo, up to 10MB each. Photos are compressed for you.</p>
             {destinations.find((item) => item.name === form.destinationCountry)?.is_european ? (
-              <p className="gx-muted gx-small">
+              <p className="nf-muted">
                 European universities prefer a{' '}
                 <a className="gx-link" href="https://europa.eu/europass/en/create-europass-cv" target="_blank" rel="noreferrer">
                   Europass CV
@@ -462,95 +611,154 @@ export default function ApplyPanel() {
                 .
               </p>
             ) : null}
-            <div className="dropzone-container">
-              <Dropzone icon="passport" title="Passport data page" hint="PDF or photo · up to 10MB" accept=".pdf,.jpg,.jpeg,.png,.webp,.heic,.heif" maxMb={10} file={files.passport} onSelect={(file) => setFiles((current) => ({ ...current, passport: file }))} onReject={(message) => toast.warning(message)} />
-              <Dropzone icon="document" title="Academic documents" hint="Transcripts and certificates · PDF or photo · up to 10MB" accept=".pdf,.jpg,.jpeg,.png,.webp,.heic,.heif" maxMb={10} file={files.academic} onSelect={(file) => setFiles((current) => ({ ...current, academic: file }))} onReject={(message) => toast.warning(message)} />
-              <Dropzone icon="resume" title="CV" hint="PDF · up to 10MB" accept=".pdf" maxMb={10} file={files.cv} onSelect={(file) => setFiles((current) => ({ ...current, cv: file }))} onReject={(message) => toast.warning(message)} />
+            <div className="nf-docs">
+              {SLOTS.map((meta) => (
+                <div className={`nf-doc${errors[meta.slot] ? ' has-error' : ''}`} key={meta.slot}>
+                  <span className="nf-label">
+                    <Icon name={meta.icon} size={16} className="nf-label-icon" />
+                    <span>{meta.label}</span>
+                    <span className="nf-req" aria-hidden="true">*</span>
+                  </span>
+                  {fileRow(
+                    `ap-doc-${meta.slot}`,
+                    docName(docs[meta.slot]),
+                    async (event) => {
+                      const file = await pick(event);
+                      if (file) setSlotFile(meta.slot, file);
+                    },
+                    () => setSlotFile(meta.slot, null),
+                  )}
+                  {errors[meta.slot] ? <span className="nf-error">{errors[meta.slot]}</span> : null}
+                </div>
+              ))}
             </div>
-          </div>
+
+            <div className="nf-others">
+              <div className="nf-others-head">
+                <span className="nf-label">
+                  <Icon name="paperclip" size={16} className="nf-label-icon" />
+                  <span>Other documents</span>
+                </span>
+                <button type="button" className="agent-btn agent-btn-secondary agent-btn-sm" onClick={addOther}>
+                  Add a document
+                </button>
+              </div>
+              {others.length === 0 ? (
+                <p className="nf-muted">Optional: English test result, reference letter, birth certificate and so on.</p>
+              ) : (
+                others.map((item, index) => (
+                  <div className="nf-doc nf-doc-other" key={item.slot}>
+                    <label className="sr-only" htmlFor={`ap-other-${item.slot}`}>
+                      Name of document {index + 1}
+                    </label>
+                    <input
+                      id={`ap-other-${item.slot}`}
+                      className="agent-form-control"
+                      placeholder="Document name"
+                      maxLength={160}
+                      value={item.name}
+                      onChange={(event) => updateOther(item.slot, { name: event.target.value })}
+                    />
+                    {fileRow(
+                      `ap-other-file-${item.slot}`,
+                      docName(item),
+                      async (event) => {
+                        const file = await pick(event);
+                        if (file) updateOther(item.slot, { file });
+                      },
+                      () => removeOther(item.slot),
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+            {footer(continueBtn)}
+          </>
         ) : null}
 
         {step === 4 ? (
-          <div className="gx-form">
-            <div className="gx-card-head" style={{ marginBottom: 0 }}>
-              <h2 className="gx-card-title">Review</h2>
-            </div>
-            <ul className="gx-list">
-              <li className="gx-list-row">
-                <span className="gx-muted">Applicant</span>
-                <span className="gx-list-title">{form.fullName}</span>
-              </li>
-              <li className="gx-list-row">
-                <span className="gx-muted">University</span>
-                <span className="gx-list-title">{isCustomCourse ? 'To be matched by our team' : institution?.name}</span>
-              </li>
-              <li className="gx-list-row">
-                <span className="gx-muted">Course</span>
-                <span className="gx-list-title" style={{ textAlign: 'right' }}>
-                  {isCustomCourse ? form.custom_course : form.programs.map((program) => program.name).join(', ')}
-                </span>
-              </li>
+          <>
+            <dl className="nf-review">
+              <div>
+                <dt>Applicant</dt>
+                <dd>{form.fullName}</dd>
+              </div>
+              <div>
+                <dt>From and to</dt>
+                <dd>
+                  {form.originCountry} to {form.destinationCountry}
+                </dd>
+              </div>
+              <div>
+                <dt>Education</dt>
+                <dd>
+                  {form.qualification}, {form.yearGraduated} · {form.gradeGpa}
+                  <small>{form.previousSchools}</small>
+                </dd>
+              </div>
+              <div>
+                <dt>University</dt>
+                <dd>
+                  {isCustomCourse ? 'To be matched by our team' : institution?.name}
+                  <small>{isCustomCourse ? form.custom_course : form.programs.map((program) => program.name).join(', ')}</small>
+                </dd>
+              </div>
               {!isCustomCourse && form.programs[0]?.tuition ? (
-                <li className="gx-list-row">
-                  <span className="gx-muted">Tuition</span>
-                  <span className="gx-list-title">{formatTuition(form.programs[0].tuition, institution?.currency)}</span>
-                </li>
+                <div>
+                  <dt>Tuition</dt>
+                  <dd>{formatTuition(form.programs[0].tuition, institution?.currency)}</dd>
+                </div>
               ) : null}
-              <li className="gx-list-row">
-                <span className="gx-muted">Application fee</span>
-                <span className="gx-list-title">
+              <div className={!isCustomCourse && form.programs[0]?.tuition ? '' : 'nf-review-wide'}>
+                <dt>Documents</dt>
+                <dd>
+                  {[
+                    ...SLOTS.filter((meta) => hasDoc(meta.slot)).map((meta) => meta.label),
+                    ...others.filter((item) => item.file || item.remote).map((item) => item.name || 'Other document'),
+                  ].join(', ') || 'None'}
+                </dd>
+              </div>
+            </dl>
+
+            <div className="nf-fee">
+              <div className="nf-fee-row nf-fee-total">
+                <span>Application fee</span>
+                <span>
                   {feeFree
                     ? 'No fee'
                     : quoteState === 'ready' && quote
                       ? formatMoney(quote.amount + (quote.processing_fee || 0), quote.currency)
                       : quoteState === 'failed'
                         ? (
-                          <button type="button" className="gx-link" onClick={loadQuote}>
+                          <button type="button" className="nf-link-btn" onClick={loadQuote}>
                             Could not load. Try again
                           </button>
                         )
                         : 'Calculating'}
                 </span>
-              </li>
-            </ul>
-            {!feeFree && quoteState === 'ready' && quote?.processing_fee ? (
-              <p className="gx-muted gx-small">
-                Includes {formatMoney(quote.processing_fee, quote.currency)} card processing. You pay on the next screen.
-              </p>
-            ) : null}
-          </div>
-        ) : null}
+              </div>
+              {!feeFree && quoteState === 'ready' && quote?.processing_fee ? (
+                <div className="nf-fee-row">
+                  <span>Includes card processing</span>
+                  <span>{formatMoney(quote.processing_fee, quote.currency)}</span>
+                </div>
+              ) : null}
+            </div>
 
-        <div className="gx-form-actions" style={{ justifyContent: 'space-between', marginTop: 24 }}>
-          {step === 0 ? (
-            <Link to="/portal/courses" className="gx-btn gx-btn-secondary">
-              <Icon name="arrowLeft" size={16} strokeWidth={2} />
-              Courses
-            </Link>
-          ) : (
-            <button type="button" className="gx-btn gx-btn-secondary" onClick={() => go(step - 1)} disabled={submitting}>
-              <Icon name="arrowLeft" size={16} strokeWidth={2} />
-              Back
-            </button>
-          )}
-          {step < 4 ? (
-            <button type="button" className="gx-btn gx-btn-primary" onClick={() => go(step + 1)}>
-              Continue
-              <Icon name="arrowRight" size={16} strokeWidth={2} />
-            </button>
-          ) : (
-            <button
-              type="button"
-              className="gx-btn gx-btn-primary gx-btn-lg"
-              onClick={submit}
-              disabled={submitting || (!feeFree && quoteState !== 'ready')}
-            >
-              {submitting ? <span className="spinner-sm" aria-hidden="true" /> : null}
-              {submitting ? 'Submitting' : feeFree ? 'Submit application' : 'Submit and pay'}
-            </button>
-          )}
-        </div>
-      </section>
+            {footer(
+              <button
+                type="button"
+                className="agent-btn agent-btn-primary"
+                onClick={submit}
+                disabled={submitting || (!feeFree && quoteState !== 'ready')}
+              >
+                {submitting ? <span className="spinner-sm" aria-hidden="true" /> : null}
+                {submitting ? 'Submitting' : feeFree ? 'Submit application' : 'Submit and pay'}
+              </button>,
+            )}
+          </>
+        ) : null}
+      </div>
     </div>
   );
 }

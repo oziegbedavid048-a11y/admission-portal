@@ -45,11 +45,15 @@ def settle(payment, gateway_name=None, gateway_reference=None):
     if "gateway_reference" in fields:
         locked.save(update_fields=["gateway_reference"])
 
+    # An agent's student: the commission email tells the agent the payment is
+    # confirmed, so this feed line is not emailed as well.
     services.notify(
         locked.application,
         f"Payment of {locked.display_total} confirmed. "
         "Your receipt is ready to download.",
+        send_email=locked.application.submitted_by_agent_id is None,
     )
+    services.sync_payment_checkpoint(locked.application)
 
     # The applicant was given a password when they applied, and it is held back
     # until the fee is settled. Send it now.

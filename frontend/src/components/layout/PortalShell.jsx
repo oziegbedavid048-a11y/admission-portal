@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, NavLink, matchPath, useLocation, useNavigate } from 'react-router-dom';
+import { Link, NavLink, matchPath, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import Icon from '../../lib/icons';
 import UserAvatar from '../ui/UserAvatar';
@@ -28,7 +28,6 @@ export default function PortalShell({
 }) {
   const [open, setOpen] = useState(false);
   const location = useLocation();
-  const navigate = useNavigate();
   const { user } = useAuth();
 
   const agent = prefix === 'agent';
@@ -119,10 +118,6 @@ export default function PortalShell({
 
           <div className="sidebar-foot">
             {footerSlot}
-            <button type="button" className="sidebar-foot-link" onClick={() => navigate('/')}>
-              <Icon name="home" size={20} />
-              <span>Main site</span>
-            </button>
             <button type="button" className="sidebar-foot-link" onClick={onSignOut}>
               <Icon name="signOut" size={20} />
               <span>Sign out</span>

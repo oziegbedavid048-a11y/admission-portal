@@ -21,8 +21,17 @@ PAYSTACK_FEE_FLAT_NGN = Decimal("100")
 PAYSTACK_FEE_FLAT_WAIVED_UNDER_NGN = Decimal("2500")
 PAYSTACK_FEE_CAP_NGN = Decimal("2000")
 
-# Commission an agent earns per student, per milestone.
-AGENT_COMMISSION_PER_MILESTONE = Decimal("30000")
+# Commission an agent earns per student, per milestone:
+#   * registration: when the student's application fee is confirmed,
+#   * visa: when the visa desk confirms the visa support is done.
+AGENT_REGISTRATION_COMMISSION_NGN = Decimal("30000")
+AGENT_VISA_COMMISSION_NGN = Decimal("50000")
+AGENT_COMMISSION_BY_KIND = {
+    "registration": AGENT_REGISTRATION_COMMISSION_NGN,
+    "visa": AGENT_VISA_COMMISSION_NGN,
+}
+# Kept for the model field default; the registration amount.
+AGENT_COMMISSION_PER_MILESTONE = AGENT_REGISTRATION_COMMISSION_NGN
 
 # A sales manager earns this once per student, the moment one of their agents
 # registers that student. It sits on top of the agent's own commission rather

@@ -9,6 +9,7 @@ from rest_framework.views import APIView
 from .models import (
     Application,
     ApplicationDraft,
+    ApplicationDraftFile,
     CorrectionRequest,
     Document,
     Letter,
@@ -16,6 +17,7 @@ from .models import (
     Stage,
 )
 from .serializers import (
+    ApplicationDraftFileSerializer,
     ApplicationContactSerializer,
     ApplicationCreateSerializer,
     ApplicationDraftSerializer,
@@ -78,7 +80,25 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             serializer = self.get_serializer(data=request.data)
             serializer.is_valid(raise_exception=True)
             application = serializer.save()
-            ApplicationDraft.objects.filter(user=request.user).delete()
+            # Documents saved with the draft become the application's documents.
+            draft = ApplicationDraft.objects.filter(user=request.user).first()
+            if draft is not None:
+                from django.core.files.base import ContentFile
+
+                for item in draft.files.all():
+                    item.file.open("rb")
+                    try:
+                        content = item.file.read()
+                    finally:
+                        item.file.close()
+                    Document.objects.create(
+                        application=application,
+                        kind=item.kind,
+                        name=item.name,
+                        original_filename=item.original_filename,
+                        file=ContentFile(content, name=item.original_filename or "document"),
+                    )
+                draft.delete()
             return Response(
                 ApplicationSerializer(application, context=self.get_serializer_context()).data,
                 status=status.HTTP_201_CREATED,
@@ -255,4 +275,41 @@ class DraftView(APIView):
 
     def delete(self, request):
         ApplicationDraft.objects.filter(user=request.user).delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class DraftFileView(APIView):
+    """Add or replace one document on the applicant's draft, or remove one."""
+
+    parser_classes = (MultiPartParser, FormParser)
+
+    def post(self, request):
+        from django.conf import settings
+
+        from .uploads import validate_upload
+
+        upload = request.FILES.get("file")
+        slot = (request.data.get("slot") or "").strip()[:24]
+        name = (request.data.get("name") or "").strip()[:160]
+        kind = (request.data.get("kind") or "other").strip()[:16]
+        if upload is None or not slot or not name:
+            return Response(
+                {"detail": "A file, its slot and its name are all needed."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        validate_upload(upload, settings.MAX_UPLOAD_SIZE_MB)
+        draft, _ = ApplicationDraft.objects.get_or_create(user=request.user)
+        item = draft.files.filter(slot=slot).first() or ApplicationDraftFile(draft=draft, slot=slot)
+        item.kind = kind if kind in {"passport", "academic", "cv", "other"} else "other"
+        item.name = name
+        item.file = upload
+        item.original_filename = upload.name
+        item.save()
+        draft.save(update_fields=["saved_at"])
+        return Response(ApplicationDraftFileSerializer(item).data, status=status.HTTP_201_CREATED)
+
+    def delete(self, request, file_id=None):
+        deleted, _ = ApplicationDraftFile.objects.filter(pk=file_id, draft__user=request.user).delete()
+        if not deleted:
+            return Response({"detail": "No such file on your draft."}, status=status.HTTP_404_NOT_FOUND)
         return Response(status=status.HTTP_204_NO_CONTENT)

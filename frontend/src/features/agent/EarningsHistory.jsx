@@ -36,7 +36,8 @@ export default function EarningsHistory({ commissions = [], wallet }) {
           <p className="eh-empty-title">No commission yet</p>
           <p className="eh-empty-note">
             You earn {formatNaira(30000)} when a student you registered has their
-            application fee settled, and the same again when their visa is verified.
+            application fee settled, and {formatNaira(50000)} more when their visa
+            support is confirmed.
           </p>
           <Link to="/agent/students/new" className="agent-btn agent-btn-primary agent-btn-sm">
             <Icon name="userPlus" size={15} strokeWidth={2.2} />

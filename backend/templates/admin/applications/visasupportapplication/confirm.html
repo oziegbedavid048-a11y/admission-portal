@@ -1,0 +1,33 @@
+{% extends "admin/base_site.html" %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">Home</a>
+  &rsaquo; <a href="{{ back_url }}">Visa Support Queue</a>
+  &rsaquo; {{ application.reference }}
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="gs-card gs-narrow">
+  <h2>Confirm visa support is done</h2>
+  <p class="gs-muted">{{ application.full_name }} · {{ application.reference }}{% if application.institution %} · {{ application.institution.name }}{% endif %}</p>
+
+  <div class="gs-callout">
+    {% if agent %}
+      Registered by <strong>{{ agent.user.full_name|default:agent.user.email }}</strong>.
+      {% if pays %}Confirming adds <strong>₦50,000</strong> to their wallet and emails them.{% else %}Their visa commission was already paid.{% endif %}
+    {% else %}
+      The applicant applied directly. Confirming closes the file and tells them.
+    {% endif %}
+  </div>
+
+  <form method="post">
+    {% csrf_token %}
+    <div class="gs-actions">
+      <button type="submit" class="gs-button gs-button--primary">Yes, visa support is done</button>
+      <a class="gs-button" href="{{ back_url }}">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

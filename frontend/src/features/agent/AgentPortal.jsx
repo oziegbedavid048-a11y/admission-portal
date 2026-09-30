@@ -5,6 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import SupportPage from '../support/SupportPage';
 import AgentCourses from './AgentCourses';
+import AgentLetters from './AgentLetters';
 import AgentLoans from './AgentLoans';
 import AgentOverview from './AgentOverview';
 import AgentProfile from './AgentProfile';
@@ -18,11 +19,11 @@ const NAV = [
   { to: '/agent', end: true, label: 'Overview', icon: 'dashboard' },
   { to: '/agent/students', label: 'Students', icon: 'users' },
   { to: '/agent/students/new', label: 'Register a student', icon: 'userPlus', hidden: true },
+  { to: '/agent/letters', label: 'Letters', icon: 'fileText' },
   { to: '/agent/courses', label: 'Courses', icon: 'cap' },
   { to: '/agent/wallet', label: 'Wallet', icon: 'wallet' },
-  { to: '/agent/loans', label: 'Ad funding', icon: 'adsLoan' },
+  { to: '/agent/loans', label: 'Ads funding', icon: 'adsFunding' },
   { to: '/agent/support', label: 'Support', icon: 'headset', divider: true },
-  { to: '/agent/profile', label: 'Profile', icon: 'user' },
 ];
 
 function PortalRoutes() {
@@ -52,6 +53,7 @@ function PortalRoutes() {
         <Route path="students" element={<AgentStudents />} />
         <Route path="students/new" element={<AgentNewStudent />} />
         <Route path="payment/:reference" element={<AgentPaymentReturn />} />
+        <Route path="letters" element={<AgentLetters />} />
         <Route path="wallet" element={<AgentWallet />} />
         <Route path="courses" element={<AgentCourses />} />
         <Route path="loans" element={<AgentLoans />} />

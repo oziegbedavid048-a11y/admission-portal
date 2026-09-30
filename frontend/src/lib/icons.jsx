@@ -49,6 +49,16 @@ export const PATHS = {
       <path d="M22 10v6" />
     </>
   ),
+  // Ads funding: a screen with a rising line, money put into advertising.
+  adsFunding: (
+    <>
+      <rect x="3" y="4" width="18" height="12" rx="2" />
+      <path d="M8 20h8" />
+      <path d="M12 16v4" />
+      <path d="M7 12.5l3-3 2.5 2.5L17 7.5" />
+      <path d="M14.5 7.5H17V10" />
+    </>
+  ),
   adsLoan: (
     <>
       <path d="M3 11v3a1 1 0 0 0 1 1h2l4 3V6L6 9H4a1 1 0 0 0-1 1v1Z" />

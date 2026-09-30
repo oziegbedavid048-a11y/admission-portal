@@ -6,8 +6,9 @@ import StatusRing, { useSegmentTones } from '../../components/charts/StatusRing'
 /**
  * What the admissions desk has and has not yet cleared on this file.
  *
- * Four checkpoints, each an equal quarter of the ring, because a checkpoint is
- * either cleared or it is not: no quarter is bigger than another. Drawing is
+ * Two checkpoints, the application fee and the uploaded documents, each an
+ * equal half of the ring. Personal and academic details are not verified;
+ * mistakes there are fixed with a correction request. Drawing is
  * handled by the shared StatusRing, so the colours are the brand tokens and
  * match the agent portal's ring rather than being a second palette.
  */
@@ -18,18 +19,6 @@ const CHECKPOINTS = [
     label: 'Application fee',
     shortLabel: 'Fee Clearance',
     description: 'Application fee settlement and payment confirmation.',
-  },
-  {
-    key: 'personal',
-    label: 'Personal details',
-    shortLabel: 'Personal Profile',
-    description: 'Full name, origin country, contact, and address verification.',
-  },
-  {
-    key: 'academic',
-    label: 'Academic details',
-    shortLabel: 'Academic & Choice',
-    description: 'Qualifications, GPA, chosen institution, and major choice.',
   },
   {
     key: 'documents',
@@ -63,8 +52,6 @@ export default function ApplicantPieChart({ application = {}, documents = [], ha
           ['paid', 'waived'].includes(application?.payment?.status) ||
           checkpoint('payment'),
       ),
-      personal: Boolean(application?.personal_details_verified || checkpoint('personal')),
-      academic: Boolean(application?.academic_details_verified || checkpoint('academic')),
       documents: Boolean(
         application?.documents_verified || allDocsVerified || checkpoint('documents'),
       ),

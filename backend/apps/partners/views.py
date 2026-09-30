@@ -10,7 +10,7 @@ from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
 from apps.applications import services
-from apps.applications.constants import AGENT_COMMISSION_PER_MILESTONE
+from apps.applications.constants import AGENT_REGISTRATION_COMMISSION_NGN, AGENT_VISA_COMMISSION_NGN
 from apps.applications.models import Application
 
 from .models import Commission, Loan, StudentDraft, StudentDraftFile, Withdrawal
@@ -216,6 +216,41 @@ class AgentStudentViewSet(AgentScopedMixin, viewsets.ModelViewSet):
         return response
 
 
+class AgentLettersView(AgentScopedMixin, APIView):
+    """Every letter issued to any of this agent's students, newest first."""
+
+    def get(self, request):
+        from apps.applications.models import Letter
+
+        letters = (
+            Letter.objects.filter(application__submitted_by_agent=self.agent, is_published=True)
+            .exclude(file="")
+            .select_related("application", "application__institution", "application__destination_country")
+            .order_by("-issued_at", "-created_at")
+        )
+        return Response(
+            [
+                {
+                    "id": letter.id,
+                    "title": letter.title,
+                    "kind": letter.get_kind_display(),
+                    # Relative, so the portal fetches it through its own origin.
+                    "url": letter.file.url,
+                    "issued_at": letter.issued_at,
+                    "reference": letter.application.reference,
+                    "student": letter.application.full_name,
+                    "university": letter.application.institution.name if letter.application.institution else "",
+                    "destination": letter.application.destination_country.name
+                    if letter.application.destination_country
+                    else "",
+                    "sent_to_visa_support": letter.application.transferred_to_visa_support,
+                    "visa_status": letter.application.visa_status,
+                }
+                for letter in letters
+            ]
+        )
+
+
 class StudentDraftViewSet(AgentScopedMixin, viewsets.ModelViewSet):
     """Registrations an agent saved to finish later.
 
@@ -310,7 +345,7 @@ class AgentOverviewView(AgentScopedMixin, APIView):
         wallet = agent.wallet
         outstanding = max(
             Decimal("0.00"),
-            len(applications) * AGENT_COMMISSION_PER_MILESTONE * 2
+            len(applications) * (AGENT_REGISTRATION_COMMISSION_NGN + AGENT_VISA_COMMISSION_NGN)
             - wallet.registration_commission_total
             - wallet.visa_commission_total,
         )
@@ -363,7 +398,7 @@ class AgentOverviewView(AgentScopedMixin, APIView):
             events.append(
                 {
                     "at": loan.requested_at,
-                    "text": f"Ad funding of ₦{loan.requested_amount:,.0f} "
+                    "text": f"Ads funding of ₦{loan.requested_amount:,.0f} "
                     f"requested for {loan.purpose}.",
                 }
             )

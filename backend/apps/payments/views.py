@@ -260,6 +260,7 @@ class CheckoutView(APIView):
 
             if quote["waived"]:
                 payment.mark_waived()
+                services.sync_payment_checkpoint(application)
                 reason = (
                     "Application fee waived for custom course review."
                     if getattr(application, "is_custom_course", False)

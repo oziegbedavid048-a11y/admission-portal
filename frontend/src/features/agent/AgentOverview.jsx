@@ -9,7 +9,7 @@ import { partners } from '../../api/endpoints';
 import { useToast } from '../../context/ToastContext';
 import useLiveRefresh from '../../hooks/useLiveRefresh';
 import CurrencyConverter from './CurrencyConverter';
-import { useAgent } from './AgentContext';
+import { useAgent, useOnWalletChange } from './AgentContext';
 import StudentsTable from './StudentsTable';
 import WeatherBanner from '../../components/ui/WeatherBanner';
 
@@ -28,8 +28,8 @@ const ACTIONS = [
   },
   {
     to: '/agent/loans',
-    icon: 'adsLoan',
-    title: 'Request Ads Loan',
+    icon: 'adsFunding',
+    title: 'Request ads funding',
     sub: '0% interest capital to recruit more students',
   },
 ];
@@ -63,6 +63,7 @@ export default function AgentOverview() {
   // Commissions and statuses change when the admissions desk approves something,
   // so the overview refetches quietly rather than waiting for a reload.
   useLiveRefresh(() => load(true));
+  useOnWalletChange(() => load(true));
 
   if (loading) return <Loading label="Loading your overview" />;
   if (!data) return null;

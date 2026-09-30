@@ -415,7 +415,17 @@ def send_letter_issued_email(letter):
             if celebrating
             else f"A new letter has been issued for <strong>{application.full_name}</strong>."
         )
-        recipients, link = [agent.user.email], ("Open the student's file", _url("/agent/students"))
+        recipients, link = [agent.user.email], ("Open Letters", _url("/agent/letters"))
+        steps = [
+            ("Preview and download", "The letter is on your Letters page in the partner portal."),
+        ]
+        if celebrating:
+            steps.append((
+                "Send to visa support",
+                "Press Send to visa support on the letter. Once our visa desk confirms the visa "
+                "support is done, ₦50,000 is added to your wallet.",
+            ))
+        steps.append(("Questions", "Our team answers from the Support page in the portal."))
     else:
         first = _first_name(application.full_name, "there")
         subject = f"Congratulations, {first}: {headline}" if celebrating else f"{letter.title} is ready"
@@ -441,17 +451,17 @@ def send_letter_issued_email(letter):
     )
 
 
-# ── Ad funding ───────────────────────────────────────────────────────
+# ── Ads funding ───────────────────────────────────────────────────────
 
 
 def send_loan_approved_email(loan):
     user = loan.agent.user
     _send(
-        subject=f"Ad funding approved: {_naira(loan.approved_amount)}",
+        subject=f"Ads funding approved: {_naira(loan.approved_amount)}",
         recipients=[user.email],
         greeting=f"Hello {_first_name(user.full_name, 'there')},",
         paragraphs=[
-            "Your ad funding request has been approved and sent to your registered "
+            "Your ads funding request has been approved and sent to your registered "
             "bank account.",
             "Repayment is taken automatically at 10% of each commission withdrawal "
             "until the balance clears. There is no interest.",
@@ -468,11 +478,11 @@ def send_loan_approved_email(loan):
 def send_loan_declined_email(loan):
     user = loan.agent.user
     _send(
-        subject="Ad funding request declined",
+        subject="Ads funding request declined",
         recipients=[user.email],
         greeting=f"Hello {_first_name(user.full_name, 'there')},",
         paragraphs=[
-            "We could not approve this ad funding request. This is usually because "
+            "We could not approve this ads funding request. This is usually because "
             "the campaign link could not be reviewed, or an earlier balance is still "
             "outstanding.",
             "Reply to this email if you would like us to look at it again.",
@@ -497,7 +507,7 @@ def send_agent_payout_sent_email(withdrawal):
         ("Requested", _naira(withdrawal.amount_requested)),
     ]
     if withdrawal.loan_deduction:
-        facts.append(("Ad funding repaid", _naira(withdrawal.loan_deduction)))
+        facts.append(("Ads funding repaid", _naira(withdrawal.loan_deduction)))
     facts += [
         ("Sent to you", _naira(withdrawal.net_amount)),
         ("Account", f"{agent.bank_name} {agent.account_number}"),
@@ -698,7 +708,7 @@ AGENT_WELCOME = [
     ("Browse courses", "Search every partner university by country, with tuition, duration and start dates."),
     ("Track progress", "Follow each student from submission to admission and visa. Updates come to you, not the student."),
     ("Earn commission", "You are paid when a student's fee is settled, and again when their visa is confirmed."),
-    ("Ad funding", "Request interest-free funding for advertising, repaid from your earnings."),
+    ("Ads funding", "Request interest-free funding for advertising, repaid from your earnings."),
     ("Withdraw earnings", "Send your balance to your bank account whenever you like."),
 ]
 
@@ -934,4 +944,156 @@ def send_transfer_rejected_email(payment):
         items_intro="What to do next:",
         items=steps,
         action=link,
+    )
+
+
+
+# ── Agent: registrations, documents, commission ─────────────────────
+
+
+def send_agent_student_registered_email(application):
+    """Confirms to the agent that a student was registered, with what comes next."""
+    agent = application.submitted_by_agent
+    if agent is None or not agent.user.email:
+        return None
+
+    from django.utils.html import escape
+
+    institution = application.institution
+    courses = ", ".join(program.name for program in application.programs.all())
+    fee_due = not application.is_custom_course and institution is not None and not institution.is_fee_free
+    documents = list(application.documents.all())
+
+    facts = [
+        ("Student", application.full_name),
+        ("Reference", application.reference),
+        ("From", application.origin_country.name if application.origin_country else ""),
+        ("To", application.destination_country.name if application.destination_country else ""),
+    ]
+    if application.is_custom_course:
+        facts.append(("Course requested", application.custom_course_name or "To be confirmed"))
+    else:
+        facts.append(("University", institution.name if institution else "To be confirmed"))
+        if courses:
+            facts.append(("Course", courses))
+    facts.append(("Documents", f"{len(documents)} uploaded" if documents else "None yet"))
+
+    steps = []
+    if fee_due:
+        steps.append((
+            "Pay the application fee",
+            "Pay from the student's file in Students. Your first ₦30,000 is added to your wallet "
+            "as soon as the payment is confirmed.",
+        ))
+    steps += [
+        ("Document review", "Our admissions desk checks every document. You are emailed if one needs replacing, "
+                            "and again once they are all verified."),
+        ("Admission", "The file goes to the university. Every letter issued appears on your Letters page."),
+        ("Visa support", "Send the letter to visa support. ₦50,000 is added once our visa desk confirms it is done."),
+    ]
+
+    return _send(
+        subject=f"Student registered: {application.full_name} ({application.reference})",
+        recipients=[agent.user.email],
+        greeting=f"Hello {_first_name(agent.user.full_name, 'there')},",
+        paragraphs=[
+            f"You have registered <strong>{escape(application.full_name)}</strong>. "
+            "The application is saved and linked to your partner account.",
+        ],
+        facts=facts,
+        items_intro="What happens next:",
+        items=steps,
+        action=("Open your students", _url("/agent/students")),
+    )
+
+
+def send_documents_verified_email(application):
+    """Every document on the file is verified. One email for the whole set."""
+    from django.utils.html import escape
+
+    agent = application.submitted_by_agent
+    to_agent = bool(agent and agent.user and agent.user.email)
+    if not to_agent and not application.email:
+        return None
+
+    documents = list(application.documents.all())
+    facts = []
+    if to_agent:
+        facts.append(("Student", application.full_name))
+    facts += [
+        ("Reference", application.reference),
+        ("University", application.institution.name if application.institution else "To be confirmed"),
+        ("Documents verified", str(len(documents))),
+    ]
+    items = [(doc.name, "Verified") for doc in documents]
+
+    if to_agent:
+        greeting = f"Hello {_first_name(agent.user.full_name, 'there')},"
+        opening = (
+            f"Every document you uploaded for <strong>{escape(application.full_name)}</strong> "
+            "has been checked and verified by our admissions desk."
+        )
+        recipients, link = [agent.user.email], ("Open the student's file", _url("/agent/students"))
+        subject = f"All documents verified: {application.full_name} ({application.reference})"
+    else:
+        greeting = f"Hello {_first_name(application.full_name, 'there')},"
+        opening = "Every document you uploaded has been checked and verified by our admissions desk."
+        recipients, link = [application.email], ("View your application", _url("/portal/details"))
+        subject = f"All your documents are verified ({application.reference})"
+
+    return _send(
+        subject=subject,
+        recipients=recipients,
+        greeting=greeting,
+        paragraphs=[opening, "The file now moves on to the university for an admission decision."],
+        facts=facts,
+        items_intro="Verified documents:",
+        items=items,
+        action=link,
+    )
+
+
+COMMISSION_REASON = {
+    "registration": "the application fee for {name} was confirmed",
+    "visa": "visa support for {name} was confirmed as done",
+}
+
+
+def send_commission_credited_email(agent, application, kind, amount):
+    """Money landed in the agent's wallet: how much, why, and the new balance."""
+    if not agent.user.email:
+        return None
+
+    from django.utils import timezone
+    from django.utils.html import escape
+
+    wallet = getattr(agent, "wallet", None)
+    if wallet is not None:
+        wallet.refresh_from_db()
+    reason = COMMISSION_REASON.get(kind, "a milestone on {name} was reached").format(
+        name=f"<strong>{escape(application.full_name)}</strong>"
+    )
+
+    facts = [
+        ("Amount", _naira(amount)),
+        ("For", "Registration and fee paid" if kind == "registration" else "Visa support completed"),
+        ("Student", application.full_name),
+        ("Reference", application.reference),
+        ("Credited", timezone.localtime().strftime("%d %B %Y, %H:%M")),
+    ]
+    if wallet is not None:
+        facts.append(("Available balance", _naira(wallet.available_balance)))
+
+    items = None
+    if kind == "registration":
+        items = [("Still to come", "₦50,000 more is added once visa support for this student is confirmed.")]
+
+    return _send(
+        subject=f"{_naira(amount)} added to your wallet",
+        recipients=[agent.user.email],
+        greeting=f"Hello {_first_name(agent.user.full_name, 'there')},",
+        paragraphs=[f"{_naira(amount)} has been added to your Gabstep wallet because {reason}."],
+        facts=facts,
+        items=items,
+        action=("Open your wallet", _url("/agent/wallet")),
     )

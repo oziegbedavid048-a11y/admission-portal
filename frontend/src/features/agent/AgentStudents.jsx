@@ -8,6 +8,7 @@ import useLiveRefresh from '../../hooks/useLiveRefresh';
 import { formatDate } from '../../lib/format';
 import StudentDossierModal from './StudentDossierModal';
 import StudentsTable from './StudentsTable';
+import { useOnWalletChange } from './AgentContext';
 
 const FILTERS = [
   { value: 'all', label: 'All statuses' },
@@ -61,6 +62,7 @@ export default function AgentStudents() {
 
   // Decisions are made by the desk, so the table keeps itself current.
   useLiveRefresh(() => load(true));
+  useOnWalletChange(() => load(true));
 
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();

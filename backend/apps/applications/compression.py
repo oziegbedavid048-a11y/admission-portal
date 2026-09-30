@@ -234,7 +234,7 @@ def connect():
     from apps.partners.models import StudentDraftFile
     from apps.payments.models import Payment
 
-    from .models import CorrectionRequest, Document, Letter
+    from .models import ApplicationDraftFile, CorrectionRequest, Document, Letter
 
     targets = [
         (Document, [("file", "document")]),
@@ -245,6 +245,7 @@ def connect():
         (Institution, [("cover_image", "document")]),
         (Payment, [("receipt", "document")]),
         (StudentDraftFile, [("file", "document")]),
+        (ApplicationDraftFile, [("file", "document")]),
     ]
     for model, fields in targets:
         pre_save.connect(

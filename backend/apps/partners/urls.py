@@ -4,6 +4,7 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     AgentOverviewView,
     AgentProfileView,
+    AgentLettersView,
     AgentStudentViewSet,
     CommissionListView,
     LoanViewSet,
@@ -25,5 +26,6 @@ urlpatterns = [
     path("wallet/", WalletView.as_view(), name="agent-wallet"),
     path("wallet/savings/", SavingsView.as_view(), name="agent-savings"),
     path("commissions/", CommissionListView.as_view(), name="agent-commissions"),
+    path("letters/", AgentLettersView.as_view(), name="agent-letters"),
     path("", include(router.urls)),
 ]

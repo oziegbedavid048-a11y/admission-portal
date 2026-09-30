@@ -22,6 +22,10 @@ class UploadedFileHeadersMiddleware:
 
     def __call__(self, request):
         response = self.get_response(request)
+        if request.path.startswith("/api/"):
+            # Balances and statuses change when staff act in the admin; a
+            # cached answer is what made a wallet look stale until a reload.
+            response.headers.setdefault("Cache-Control", "no-store")
         if request.path.startswith(self.prefix):
             response.headers["X-Content-Type-Options"] = "nosniff"
             response.headers.setdefault("Content-Disposition", "attachment")

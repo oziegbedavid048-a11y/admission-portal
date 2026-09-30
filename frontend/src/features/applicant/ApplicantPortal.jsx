@@ -60,7 +60,6 @@ function PortalRoutes() {
       { to: '/portal/details', label: 'Application', icon: 'fileText', hidden: !application },
       { to: '/portal/letters', label: 'Letters', icon: 'mail', hidden: !application },
       { to: '/portal/support', label: 'Support', icon: 'headset', divider: true },
-      { to: '/portal/profile', label: 'Profile', icon: 'user' },
     ],
     [application],
   );

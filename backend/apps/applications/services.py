@@ -15,7 +15,7 @@ from django.db.models import Q
 from django.utils import timezone
 
 
-from .constants import AGENT_COMMISSION_PER_MILESTONE, SUPERVISOR_BONUS_NGN
+from .constants import AGENT_COMMISSION_BY_KIND, SUPERVISOR_BONUS_NGN
 from .models import Application, Notification, Stage
 
 # The stage each milestone leaves in progress once the ones before it are done.
@@ -79,11 +79,12 @@ def award_commission(application, kind):
     if agent is None:
         return 0
 
+    amount = AGENT_COMMISSION_BY_KIND[kind]
     _, created = Commission.objects.get_or_create(
         agent=agent,
         application=application,
         kind=kind,
-        defaults={"amount": AGENT_COMMISSION_PER_MILESTONE},
+        defaults={"amount": amount},
     )
     if not created:
         return 0
@@ -93,13 +94,19 @@ def award_commission(application, kind):
     from apps.partners.models import Wallet
 
     wallet, _ = Wallet.objects.get_or_create(agent=agent)
-    wallet.credit_commission(kind)
+    wallet.credit_commission(kind, amount)
 
     if kind == Commission.Kind.REGISTRATION:
         agent.total_closed_sales = (agent.total_closed_sales or 0) + 1
         agent.save(update_fields=["total_closed_sales"])
 
-    return AGENT_COMMISSION_PER_MILESTONE
+    # Every naira that lands in the wallet is emailed to the agent.
+    from apps.accounts.emails import send_commission_credited_email
+
+    transaction.on_commit(
+        lambda: send_commission_credited_email(agent, application, kind, amount)
+    )
+    return amount
 
 
 def award_supervisor_bonus(application):
@@ -134,13 +141,13 @@ def award_supervisor_bonus(application):
 
 
 # ── Verification checkpoints ─────────────────────────────────────────
-# Four separate checks, one per part of the file. Each admin action ticks exactly
-# one of them. The overall verification status is never set by hand: it follows
-# from the checks, so it cannot disagree with them.
+# Two checks: the application fee and the uploaded documents. Neither is ticked
+# by hand. The fee check follows the payment (Paystack, a confirmed transfer or
+# a waiver) and the documents check follows the document review, so the
+# overall status can never disagree with what actually happened. Personal and
+# academic details are not verified; mistakes there go through corrections.
 
 CHECKPOINTS = {
-    "personal": ("personal_details_verified", "Your personal details have"),
-    "academic": ("academic_details_verified", "Your academic details have"),
     "documents": ("documents_verified", "Your uploaded documents have"),
     "payment": ("payment_verified", "Your application fee has"),
 }
@@ -166,32 +173,17 @@ def _refresh_verification_status(application, verified_by=None):
         application.verified_at = None
 
 
-@transaction.atomic
-def verify_checkpoint(application, checkpoint, verified_by=None):
-    """Mark one of the four checks as passed. Returns False if it already was.
-
-    For "documents" every uploaded file on the application is also marked
-    Verified, because that check is the uploads: ticking it while the files still
-    read Pending would show the applicant two different answers.
-    """
-    field, label = CHECKPOINTS[checkpoint]
-    if getattr(application, field):
-        return False
-
-    setattr(application, field, True)
-    was_verified = application.verification_status == Application.VerificationStatus.VERIFIED
-    _refresh_verification_status(application, verified_by)
+def sync_payment_checkpoint(application):
+    """Tick the fee check once the fee is paid or waived. Never by hand."""
+    payment = getattr(application, "payment", None)
+    settled = bool(payment and payment.status in ("paid", "waived"))
+    if application.payment_verified == settled:
+        return
+    application.payment_verified = settled
+    _refresh_verification_status(application)
     application.save(
-        update_fields=[field, "verification_status", "verified_at", "verified_by", "updated_at"]
+        update_fields=["payment_verified", "verification_status", "verified_at", "verified_by", "updated_at"]
     )
-    if checkpoint == "documents":
-        application.documents.exclude(status="Verified").update(status="Verified")
-
-    if application.verification_status == Application.VerificationStatus.VERIFIED and not was_verified:
-        notify(application, "Your application has been fully verified by the admissions desk.")
-    else:
-        notify(application, f"{label} been verified.")
-    return True
 
 
 @transaction.atomic
@@ -208,22 +200,6 @@ def flag_action_required(application, verified_by=None):
         "The admissions desk needs something from you before your application can "
         "continue. An advisor will be in touch.",
     )
-    return True
-
-
-@transaction.atomic
-def reset_verification(application):
-    """Clear all four checks so the file is verified again from the start."""
-    fields = [field for field, _ in CHECKPOINTS.values()]
-    if not any(getattr(application, f) for f in fields) and (
-        application.verification_status == Application.VerificationStatus.UNVERIFIED
-    ):
-        return False
-    for field in fields:
-        setattr(application, field, False)
-    _refresh_verification_status(application)
-    application.save(update_fields=[*fields, "verification_status", "verified_at", "updated_at"])
-    notify(application, "Your application is back in the queue for verification.")
     return True
 
 
@@ -275,8 +251,8 @@ def mark_admitted(application):
 
 @transaction.atomic
 def start_visa_processing(application):
-    """The visa desk has started work on an admitted file."""
-    if application.status != Application.Status.ADMITTED:
+    """The visa desk has started work on a file it holds."""
+    if not in_visa_queue(application):
         return False
     if application.visa_status != Application.VisaStatus.NOT_STARTED:
         return False
@@ -289,13 +265,13 @@ def start_visa_processing(application):
 
 @transaction.atomic
 def mark_visa_verified(application):
-    """Study permit confirmed. Closes the track and credits the agent's visa commission.
+    """Visa support done. Closes the track and credits the agent's ₦50,000 visa commission.
 
-    The commission belongs to this milestone rather than a separate step: it is
-    what the agent is owed for it, and a separate button is one that could be
-    forgotten. Only admitted files qualify. Returns (changed, amount paid).
+    Sending a letter to visa support earns nothing by itself; this confirmation
+    from the desk is what pays. It covers any file in the visa queue: admitted,
+    or sent to visa support from a letter. Returns (changed, amount paid).
     """
-    if application.status != Application.Status.ADMITTED:
+    if not in_visa_queue(application):
         return False, 0
     if application.visa_status == Application.VisaStatus.COMPLETED:
         return False, 0
@@ -303,11 +279,17 @@ def mark_visa_verified(application):
     application.visa_status = Application.VisaStatus.COMPLETED
     application.save(update_fields=["visa_status", "updated_at"])
     complete_all_stages(application)
-    notify(application, "Your study permit is verified. Congratulations.")
 
     from apps.partners.models import Commission
 
     paid = award_commission(application, Commission.Kind.VISA)
+    # For an agent's student the commission email already says the visa support
+    # is done, so the feed entry is not emailed a second time.
+    notify(
+        application,
+        "Visa support is complete. Your study permit is verified. Congratulations.",
+        send_email=not paid,
+    )
     return True, paid
 
 
@@ -473,8 +455,8 @@ def award_registration_commission(application):
     if amount:
         notify(
             application,
-            f"Your education partner, {agent.user.full_name}, has settled your "
-            "application fee.",
+            f"Application fee settled by {agent.user.full_name}.",
+            send_email=False,
         )
     return amount
 
@@ -530,8 +512,14 @@ def sync_documents_checkpoint(application, reviewed_by=None):
 
 @transaction.atomic
 def verify_documents(documents, reviewed_by=None):
-    """Mark documents verified. One notice per application, naming them all."""
+    """Mark documents verified. One notice per application, naming them all.
+
+    The feed gets a line each time, but the email goes out once: when the last
+    document on the file is verified, saying the whole set is accepted.
+    """
     from collections import defaultdict
+
+    from apps.accounts.emails import send_documents_verified_email
 
     changed = defaultdict(list)
     for document in documents:
@@ -547,8 +535,11 @@ def verify_documents(documents, reviewed_by=None):
     for docs in changed.values():
         application = docs[0].application
         names = ", ".join(doc.name for doc in docs)
-        notify(application, f"Verified: {names}.")
+        was_complete = application.documents_verified
+        notify(application, f"Verified: {names}.", send_email=False)
         sync_documents_checkpoint(application, reviewed_by)
+        if application.documents_verified and not was_complete:
+            transaction.on_commit(lambda app=application: send_documents_verified_email(app))
     return sum(len(docs) for docs in changed.values())
 
 
@@ -587,3 +578,12 @@ def reject_transfer(payment, note):
     )
     transaction.on_commit(lambda: send_transfer_rejected_email(payment))
     return True
+
+
+
+def in_visa_queue(application):
+    """Whether the visa desk holds this file: admitted, or sent to visa support."""
+    return (
+        application.status == Application.Status.ADMITTED
+        or bool(application.transferred_to_visa_support)
+    )

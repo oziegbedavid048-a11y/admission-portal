@@ -1,4 +1,4 @@
-"""Partner operations: approving ad funding and releasing payouts.
+"""Partner operations: approving ads funding and releasing payouts.
 
 Both actions move real money, so both are deliberate: a loan is approved and
 disbursed in one reviewed step that credits the agent's loan balance, and a
@@ -105,7 +105,7 @@ class AgentProfileAdmin(admin.ModelAdmin):
 
 @admin.register(Loan)
 class LoanAdmin(admin.ModelAdmin):
-    """Ad funding requests waiting on a decision."""
+    """Ads funding requests waiting on a decision."""
 
     list_display = ("reference", "agent", "requested", "purpose", "campaign", "status_badge", "requested_at")
     list_filter = ("status", "purpose", "requested_at")

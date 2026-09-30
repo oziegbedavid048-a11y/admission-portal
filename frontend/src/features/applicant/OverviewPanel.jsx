@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { payments } from '../../api/endpoints';
+import { applications, payments } from '../../api/endpoints';
 import { errorMessage } from '../../api/client';
 import { useToast } from '../../context/ToastContext';
 import Icon from '../../lib/icons';
@@ -27,6 +27,22 @@ export default function OverviewPanel() {
   const hasApplication = Boolean(current);
   const application = current || {};
   const [paying, setPaying] = useState(false);
+  // A saved, unsubmitted application, offered back on the Overview.
+  const [draft, setDraft] = useState(null);
+
+  useEffect(() => {
+    if (hasApplication) return undefined;
+    let cancelled = false;
+    applications
+      .getDraft()
+      .then(({ data }) => {
+        if (!cancelled) setDraft(data);
+      })
+      .catch(() => null);
+    return () => {
+      cancelled = true;
+    };
+  }, [hasApplication]);
 
   const payment = application.payment;
   const feeDue = Boolean(payment) && ['pending', 'failed'].includes(payment.status);
@@ -67,7 +83,23 @@ export default function OverviewPanel() {
       {/* ── Weather Dynamic Greeting Banner ── */}
       <WeatherBanner userName={firstNameOf(application.full_name || user?.full_name)} />
 
-      {hasApplication ? null : (
+      {!hasApplication && draft ? (
+        <section className="gx-card gx-welcome">
+          <div>
+            <h2>Continue your application</h2>
+            <p className="gx-muted">
+              {draft.data?.form?.fullName ? `${draft.data.form.fullName} · ` : ''}
+              Step {draft.current_step || 1} of 5 · Saved {timeAgo(draft.saved_at)}
+            </p>
+          </div>
+          <Link to="/portal/apply" className="gx-btn gx-btn-primary gx-btn-lg">
+            Continue
+            <Icon name="arrowRight" size={17} strokeWidth={2} />
+          </Link>
+        </section>
+      ) : null}
+
+      {hasApplication || draft ? null : (
         <section className="gx-card gx-welcome">
           <div>
             <h2>Find your course</h2>

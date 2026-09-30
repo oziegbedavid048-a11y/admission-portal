@@ -239,7 +239,7 @@ class Wallet(models.Model):
         wallet.save(update_fields=["saved_balance"])
         return wallet
 
-    def credit_commission(self, kind, amount=AGENT_COMMISSION_PER_MILESTONE):
+    def credit_commission(self, kind, amount):
         if kind == Commission.Kind.REGISTRATION:
             self.registration_commission_total += amount
         else:
@@ -286,7 +286,7 @@ class Commission(models.Model):
 
 
 class Loan(models.Model):
-    """Interest-free ad funding, repaid out of later withdrawals."""
+    """Interest-free ads funding, repaid out of later withdrawals."""
 
     class Status(models.TextChoices):
         PENDING = "pending", "In review"
@@ -318,8 +318,8 @@ class Loan(models.Model):
         indexes = [
             models.Index(fields=["status"], name="loan_status_idx"),
         ]
-        verbose_name = "ad funding request"
-        verbose_name_plural = "ad funding requests"
+        verbose_name = "ads funding request"
+        verbose_name_plural = "ads funding requests"
 
     def __str__(self):
         return f"Loan {self.reference} · {self.get_status_display()}"

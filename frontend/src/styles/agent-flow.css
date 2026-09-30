@@ -461,3 +461,70 @@
   .ds-checks { grid-template-columns: 1fr; }
   .ds-row .agent-btn { width: 100%; }
 }
+
+/* ─────────────── Portal top bar ───────────────
+   The bar is plain white. Only the profile control is glass: one clear,
+   colourless pill around the round photo, with no ring inside it. These
+   rules come last and replace the earlier glass bar and tinted pill. */
+.portal-topbar,
+.agent-topbar {
+  background: var(--g-surface) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.agent-topbar-profile-btn,
+a.agent-topbar-profile-btn {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 8px !important;
+  border-radius: 999px !important;
+  border: 1px solid rgba(15, 23, 42, 0.08) !important;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.72) 0%, rgba(241, 245, 249, 0.55) 100%) !important;
+  backdrop-filter: blur(20px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    inset 0 -1px 0 rgba(15, 23, 42, 0.04),
+    0 6px 20px rgba(15, 23, 42, 0.08) !important;
+  color: var(--g-ink);
+}
+.agent-topbar-profile-btn:hover,
+a.agent-topbar-profile-btn:hover {
+  border-color: rgba(15, 23, 42, 0.14) !important;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.9) 0%, rgba(241, 245, 249, 0.75) 100%) !important;
+}
+.agent-topbar-profile-btn .agent-topbar-avatar {
+  box-shadow: none !important;
+  border: 0 !important;
+  outline: 0 !important;
+}
+.agent-topbar-profile-btn .agent-topbar-chevron { color: var(--g-ink-3); }
+
+:root[data-theme="dark"] .agent-topbar-profile-btn {
+  border-color: rgba(255, 255, 255, 0.12) !important;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.10) 0%, rgba(255, 255, 255, 0.04) 100%) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 6px 20px rgba(0, 0, 0, 0.3) !important;
+}
+
+/* ── Letters ──────────────────────────────────────────────────────── */
+.ag-table-letters { min-width: 780px; }
+.ag-open-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--g-accent);
+  border-color: var(--g-accent);
+  color: var(--g-accent-ink);
+}
+.ag-open-btn-primary:hover:not(:disabled) { background: var(--g-accent-hover); border-color: var(--g-accent-hover); }
+.ag-open-btn:disabled { background: var(--g-surface-2); border-color: var(--g-line); color: var(--g-ink-3); cursor: default; }
+a.ag-text-btn { text-decoration: none; }
+.letter-preview-img { display: block; max-width: 100%; margin: 0 auto; border-radius: var(--g-r-sm); }
+
+.nf-hint { font-size: 12.5px; color: var(--g-ink-3); }
+.nf-error { font-size: 13px; color: var(--g-neg); }
+.nf-field.has-error .agent-form-control,
+.nf-field.has-error .agent-form-select { border-color: var(--g-neg); }
+.nf-head-link { position: absolute; top: 0; right: 0; }
+@media (max-width: 600px) { .nf-head-link { position: static; display: inline-flex; margin-top: 10px; } }

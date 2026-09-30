@@ -100,6 +100,18 @@ export const applications = {
   getDraft: () => api.get('/applications/draft/'),
   saveDraft: (payload) => api.put('/applications/draft/', payload),
   clearDraft: () => api.delete('/applications/draft/'),
+  // A document kept with the applicant's draft until they submit.
+  uploadDraftFile: ({ slot, kind, name, file }) => {
+    const form = new FormData();
+    form.append('slot', slot);
+    form.append('kind', kind);
+    form.append('name', name);
+    form.append('file', file);
+    return api.post('/applications/draft/files/', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+  deleteDraftFile: (id) => api.delete(`/applications/draft/files/${id}/`),
 };
 
 export const payments = {
@@ -166,6 +178,8 @@ export const partners = {
   releaseFromSavings: (amount) =>
     api.delete('/partners/wallet/savings/', { data: { amount } }),
   commissions: () => api.get('/partners/commissions/'),
+  // Every letter issued to any of this agent's students.
+  letters: () => api.get('/partners/letters/'),
 };
 
 export const supervisors = {

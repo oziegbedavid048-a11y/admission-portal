@@ -222,8 +222,6 @@ class ApplicationAdmin(PlainSelectsMixin, admin.ModelAdmin):
         "status",
         "visa_status",
         "verification_status",
-        "personal_details_verified",
-        "academic_details_verified",
         "documents_verified",
         "payment_verified",
         "verified_at",
@@ -242,7 +240,7 @@ class ApplicationAdmin(PlainSelectsMixin, admin.ModelAdmin):
                 "fields": (
                     ("reference", "status", "visa_status"),
                     ("verification_status", "verified_at", "verified_by"),
-                    ("personal_details_verified", "academic_details_verified", "documents_verified", "payment_verified"),
+                    ("payment_verified", "documents_verified"),
                     ("transferred_to_visa_support", "payment_summary"),
                 ),
             },
@@ -254,11 +252,7 @@ class ApplicationAdmin(PlainSelectsMixin, admin.ModelAdmin):
     )
 
     actions = (
-        "action_verify_personal",
-        "action_verify_academic",
-        "action_verify_payment",
         "action_flag_action_required",
-        "action_reset_verification",
         "action_send_to_institution",
         "action_mark_admitted",
         "action_mark_rejected",
@@ -357,27 +351,6 @@ class ApplicationAdmin(PlainSelectsMixin, admin.ModelAdmin):
         if skipped:
             self.message_user(request, f"{plural(skipped, 'application')} skipped: {skipped_reason}.", messages.INFO)
 
-    def _verify(self, request, queryset, checkpoint, done):
-        self._run(
-            request,
-            queryset,
-            lambda a: services.verify_checkpoint(a, checkpoint, verified_by=request.user),
-            done,
-            "already verified",
-        )
-
-    @admin.action(description="Verify personal details")
-    def action_verify_personal(self, request, queryset):
-        self._verify(request, queryset, "personal", "had personal details verified")
-
-    @admin.action(description="Verify academic details")
-    def action_verify_academic(self, request, queryset):
-        self._verify(request, queryset, "academic", "had academic details verified")
-
-    @admin.action(description="Verify application fee")
-    def action_verify_payment(self, request, queryset):
-        self._verify(request, queryset, "payment", "had the application fee verified")
-
     @admin.action(description="Flag: needs action from the applicant")
     def action_flag_action_required(self, request, queryset):
         self._run(
@@ -385,10 +358,6 @@ class ApplicationAdmin(PlainSelectsMixin, admin.ModelAdmin):
             lambda a: services.flag_action_required(a, verified_by=request.user),
             "flagged as needing action", "already flagged", messages.WARNING,
         )
-
-    @admin.action(description="Reset verification")
-    def action_reset_verification(self, request, queryset):
-        self._run(request, queryset, services.reset_verification, "reset to not verified", "nothing to reset", messages.WARNING)
 
     @admin.action(description="Send to university")
     def action_send_to_institution(self, request, queryset):
@@ -561,7 +530,12 @@ class DocumentAdmin(admin.ModelAdmin):
 
 @admin.register(Letter)
 class LetterAdmin(PlainSelectsMixin, admin.ModelAdmin):
-    """Issue a letter: upload it, then publish it to the applicant's dashboard."""
+    """Issue a letter: choose the application, upload the file, save.
+
+    Saving a new letter publishes it straight away and emails the owner of the
+    file (the agent, for a student an agent registered). Unpublish hides one;
+    Publish shows it again.
+    """
 
     list_display = ("title", "application", "kind", "published", "issued_at")
     list_filter = ("kind", "is_published", "issued_at")
@@ -573,7 +547,7 @@ class LetterAdmin(PlainSelectsMixin, admin.ModelAdmin):
     fieldsets = (
         ("Letter", {"fields": ("application", "kind", "title", "file", "download", "note")}),
         ("Publication", {
-            "description": "Save the letter, then use Publish on the Letters list to show it to the applicant.",
+            "description": "Saving a new letter publishes it and emails the applicant, or the agent for an agent's student. Use Unpublish on the Letters list to hide one.",
             "fields": ("is_published", "issued_at", "issued_by", "created_at"),
         }),
     )
@@ -589,9 +563,17 @@ class LetterAdmin(PlainSelectsMixin, admin.ModelAdmin):
         return button_link(obj.file.url, "Open letter", new_tab=True)
 
     def save_model(self, request, obj, form, change):
+        from django.utils import timezone
+
         if obj.issued_by_id is None:
             obj.issued_by = request.user
+        announce = not change and obj.is_published
+        if announce:
+            obj.issued_at = obj.issued_at or timezone.now()
         super().save_model(request, obj, form, change)
+        if announce:
+            services.announce_letter(obj)
+            self.message_user(request, "Letter published and emailed.", messages.SUCCESS)
 
     @admin.action(description="Publish to the applicant")
     def action_publish(self, request, queryset):
@@ -667,7 +649,7 @@ class CorrectionRequestAdmin(admin.ModelAdmin):
 class VisaSupportApplicationAdmin(admin.ModelAdmin):
     """Admitted students, and anyone who sent their letter to the visa desk."""
 
-    list_display = ("reference", "full_name", "institution", "visa_label", "sent_by_applicant", "letters")
+    list_display = ("reference", "full_name", "filed_by", "institution", "sent_by_applicant", "visa_label", "confirm_link")
     list_filter = ("visa_status", "transferred_to_visa_support", "destination_country")
     search_fields = ("reference", "full_name", "email", "phone", "institution__name")
     date_hierarchy = "submitted_at"
@@ -682,7 +664,7 @@ class VisaSupportApplicationAdmin(admin.ModelAdmin):
         ("Student", {"fields": (("full_name", "email", "phone"), ("destination_country", "institution"), "course_names")}),
         ("Letters", {"fields": ("letters",)}),
     )
-    actions = ("action_start_visa_processing", "action_mark_visa_verified")
+    actions = ("action_start_visa_processing",)
 
     def has_add_permission(self, request):
         return False
@@ -692,8 +674,63 @@ class VisaSupportApplicationAdmin(admin.ModelAdmin):
             super()
             .get_queryset(request)
             .filter(Q(status=Application.Status.ADMITTED) | Q(transferred_to_visa_support=True))
-            .select_related("institution", "destination_country")
+            .select_related("institution", "destination_country", "submitted_by_agent__user")
             .prefetch_related("letters", "programs")
+        )
+
+    @admin.display(description="Filed by")
+    def filed_by(self, obj):
+        agent = obj.submitted_by_agent
+        return (agent.user.full_name or agent.user.email) if agent else muted("Applicant")
+
+    @admin.display(description="")
+    def confirm_link(self, obj):
+        if obj.visa_status == Application.VisaStatus.COMPLETED:
+            return pill("Done", "ok")
+        return button_link(
+            reverse("admin:applications_visasupportapplication_confirm", args=[obj.pk]),
+            "Confirm visa support done",
+            primary=True,
+        )
+
+    def get_urls(self):
+        return [
+            path(
+                "<int:pk>/confirm/",
+                self.admin_site.admin_view(self.confirm_view),
+                name="applications_visasupportapplication_confirm",
+            ),
+        ] + super().get_urls()
+
+    def confirm_view(self, request, pk):
+        """One job: confirm visa support is done. Asks first, because it pays the agent."""
+        application = get_object_or_404(self.get_queryset(request), pk=pk)
+        changelist = reverse("admin:applications_visasupportapplication_changelist")
+        if request.method == "POST":
+            changed, paid = services.mark_visa_verified(application)
+            if changed:
+                self.message_user(
+                    request,
+                    f"Visa support confirmed for {application.full_name}."
+                    + (f" ₦{paid:,.0f} credited to the agent, who has been emailed." if paid else ""),
+                    messages.SUCCESS,
+                )
+            else:
+                self.message_user(request, "That visa support was already confirmed.", messages.INFO)
+            return HttpResponseRedirect(changelist)
+        agent = application.submitted_by_agent
+        return render(
+            request,
+            "admin/applications/visasupportapplication/confirm.html",
+            {
+                **self.admin_site.each_context(request),
+                "title": "Confirm visa support is done",
+                "application": application,
+                "agent": agent,
+                "pays": bool(agent) and not application.commissions.filter(kind="visa").exists(),
+                "opts": self.model._meta,
+                "back_url": changelist,
+            },
         )
 
     @admin.display(description="Visa", ordering="visa_status")
@@ -723,24 +760,6 @@ class VisaSupportApplicationAdmin(admin.ModelAdmin):
             self.message_user(request, f"{plural(changed, 'application')} now in visa processing.", messages.SUCCESS)
         if skipped:
             self.message_user(request, f"{plural(skipped, 'application')} skipped: not admitted, or visa work already started.", messages.INFO)
-
-    @admin.action(description="Confirm visa approved (credits the agent's visa commission)")
-    def action_mark_visa_verified(self, request, queryset):
-        moved = paid = 0
-        for application in queryset:
-            changed, amount = services.mark_visa_verified(application)
-            moved += int(changed)
-            paid += amount
-        skipped = queryset.count() - moved
-        if moved:
-            self.message_user(
-                request,
-                f"{plural(moved, 'visa')} confirmed." + (f" ₦{paid:,.0f} commission credited to partner agents." if paid else ""),
-                messages.SUCCESS,
-            )
-        if skipped:
-            self.message_user(request, f"{plural(skipped, 'application')} skipped: not admitted, or visa already confirmed.", messages.INFO)
-
 
 
 # ── Agent applications ──────────────────────────────────────────────────

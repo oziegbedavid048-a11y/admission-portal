@@ -7,6 +7,7 @@ from apps.catalog.serializers import InstitutionListSerializer, ProgramSerialize
 from .models import (
     Application,
     ApplicationDraft,
+    ApplicationDraftFile,
     CorrectionRequest,
     Document,
     Letter,
@@ -357,8 +358,17 @@ class ApplicationCreateSerializer(serializers.Serializer):
         return application
 
 
+class ApplicationDraftFileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ApplicationDraftFile
+        fields = ("id", "slot", "kind", "name", "original_filename", "uploaded_at")
+        read_only_fields = fields
+
+
 class ApplicationDraftSerializer(serializers.ModelSerializer):
+    files = ApplicationDraftFileSerializer(many=True, read_only=True)
+
     class Meta:
         model = ApplicationDraft
-        fields = ("current_step", "data", "saved_at")
-        read_only_fields = ("saved_at",)
+        fields = ("current_step", "data", "files", "saved_at")
+        read_only_fields = ("files", "saved_at")

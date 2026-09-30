@@ -323,7 +323,7 @@ export default function AgentProfile() {
                 <div>
                   <h2 className="ap-card-title">Payout & settlement account</h2>
                   <p className="ap-card-desc">
-                    Commercial bank account where earned commissions and ads loans are wired.
+                    Commercial bank account where earned commissions and ads funding are paid.
                   </p>
                 </div>
               </div>

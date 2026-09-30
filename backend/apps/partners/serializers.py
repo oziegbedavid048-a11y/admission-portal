@@ -119,7 +119,7 @@ class LoanSerializer(serializers.ModelSerializer):
     def validate_requested_amount(self, value):
         if value < Loan.MIN_AMOUNT or value > Loan.MAX_AMOUNT:
             raise serializers.ValidationError(
-                f"Ad funding runs from {Loan.MIN_AMOUNT:,.0f} to {Loan.MAX_AMOUNT:,.0f} Naira."
+                f"Ads funding runs from {Loan.MIN_AMOUNT:,.0f} to {Loan.MAX_AMOUNT:,.0f} Naira."
             )
         return value
 
@@ -142,7 +142,7 @@ class LoanSerializer(serializers.ModelSerializer):
         outstanding = agent.wallet.loan_balance
         if outstanding > 0:
             raise serializers.ValidationError(
-                f"₦{outstanding:,.0f} of ad funding is still outstanding. It is "
+                f"₦{outstanding:,.0f} of ads funding is still outstanding. It is "
                 "repaid automatically from your withdrawals, and you can request "
                 "again once it clears."
             )
@@ -344,7 +344,6 @@ class AgentStudentSerializer(serializers.ModelSerializer):
         }
 
     def get_letters(self, obj):
-        request = self.context.get("request")
         letters = []
         for letter in obj.letters.all():
             if not letter.is_published or not letter.file:
@@ -355,7 +354,7 @@ class AgentStudentSerializer(serializers.ModelSerializer):
                     "id": letter.id,
                     "title": letter.title,
                     "kind": letter.get_kind_display(),
-                    "url": request.build_absolute_uri(url) if request else url,
+                    "url": url,
                     "issued_at": letter.issued_at,
                 }
             )
@@ -449,6 +448,10 @@ class AgentStudentCreateSerializer(ApplicationCreateSerializer):
                         file=ContentFile(content, name=item.original_filename or "document"),
                     )
                 draft.delete()
+
+        from apps.accounts.emails import send_agent_student_registered_email
+
+        transaction.on_commit(lambda: send_agent_student_registered_email(application))
 
         application.account_created = account_created
         return application

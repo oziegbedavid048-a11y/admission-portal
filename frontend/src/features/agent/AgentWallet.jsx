@@ -7,7 +7,7 @@ import { errorMessage } from '../../api/client';
 import { partners } from '../../api/endpoints';
 import { useToast } from '../../context/ToastContext';
 import useLiveRefresh from '../../hooks/useLiveRefresh';
-import { useAgent } from './AgentContext';
+import { useAgent, useOnWalletChange } from './AgentContext';
 import StatusBadge from './StatusBadge';
 
 const LOAN_REPAYMENT_RATE = 0.1;
@@ -42,7 +42,7 @@ export default function AgentWallet() {
 
   // The desk approves payouts and disburses loans from the admin, so the wallet
   // refetches on a timer and whenever the tab comes back to the front.
-  useLiveRefresh(async () => {
+  const refreshWallet = async () => {
     try {
       const [{ data: freshWallet }, { data: history }] = await Promise.all([
         partners.wallet(),
@@ -53,7 +53,9 @@ export default function AgentWallet() {
     } catch {
       // A missed tick is harmless; the next one will pick it up.
     }
-  });
+  };
+  useLiveRefresh(refreshWallet, { intervalMs: 6000 });
+  useOnWalletChange(refreshWallet);
 
   const minimum = Number(wallet?.minimum_withdrawal) || FALLBACK_MINIMUM;
   const available = Number(wallet?.available_balance) || 0;
