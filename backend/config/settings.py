@@ -500,3 +500,8 @@ TRANSFER_COUNTRY = "Nigeria"
 # built from this, so leaving it at the development default sends real
 # recipients to a localhost address that only works on this machine.
 FRONTEND_URL = env("FRONTEND_URL", "http://localhost:5173")
+
+if TESTING:
+    # The hashed manifest only exists after collectstatic, which tests do not
+    # run, so pages that link a stylesheet would fail to render.
+    STORAGES["staticfiles"] = {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"}

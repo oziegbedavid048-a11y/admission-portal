@@ -6,6 +6,7 @@ from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 
 # Importing this reorders the admin index and drops the screens we do not use.
 from config import admin as _gabstep_admin  # noqa: F401
+from config.admin_login import limited_admin_login
 from config.media import serve_media
 
 # The admin is the admissions desk, so it is named for the job rather than for
@@ -16,6 +17,8 @@ admin.site.index_title = "What needs your attention"
 admin.site.index_template = "admin/gabstep_index.html"
 
 urlpatterns = [
+    # Ahead of the admin's own URLs, so wrong passwords are counted.
+    path("admin/login/", limited_admin_login, name="admin-login-limited"),
     path("admin/", admin.site.urls),
     path("api/auth/", include("apps.accounts.urls")),
     path("api/catalog/", include("apps.catalog.urls")),
