@@ -79,6 +79,16 @@ class CorrectionRequestSerializer(serializers.ModelSerializer):
         )
         read_only_fields = ("id", "ticket", "status", "created_at")
 
+    def validate_evidence(self, value):
+        """Evidence is a document like any other: PDF or image, checked by
+        extension, declared type and first bytes. Without this an HTML or SVG
+        file could be stored and opened by the desk as a page."""
+        from django.conf import settings
+
+        from .uploads import validate_upload
+
+        return validate_upload(value, settings.MAX_UPLOAD_SIZE_MB)
+
 
 class LetterSerializer(serializers.ModelSerializer):
     """An official letter issued to the applicant, as their dashboard lists it."""

@@ -3,6 +3,7 @@
 from datetime import timedelta
 from pathlib import Path
 import os
+import sys
 
 from django.core.exceptions import ImproperlyConfigured
 from django.core.management.utils import get_random_secret_key
@@ -151,6 +152,21 @@ if DATABASE_URL:
         "CONN_MAX_AGE": int(env("CONN_MAX_AGE", "600")),
         "CONN_HEALTH_CHECKS": True,
     }
+
+# The test runner never touches a real database. A developer's .env usually
+# points DATABASE_URL at the shared Postgres, and `manage.py test` would create
+# and drop a test database on that server. Tests run on a throwaway SQLite file.
+TESTING = len(sys.argv) > 1 and sys.argv[1] == "test"
+if TESTING:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "test-db.sqlite3",
+        }
+    }
+    # The deploy check refuses a localhost FRONTEND_URL, which is what a local
+    # .env holds. Links in test emails point at a placeholder public address.
+    os.environ["FRONTEND_URL"] = "https://apply.example.com"
 
 AUTH_USER_MODEL = "accounts.User"
 

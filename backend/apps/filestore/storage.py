@@ -33,11 +33,10 @@ class DatabaseStorage(Storage):
         data = content.read()
         if isinstance(data, str):
             data = data.encode()
-        content_type = (
-            getattr(content, "content_type", None)
-            or mimetypes.guess_type(name)[0]
-            or "application/octet-stream"
-        )
+        # The type comes from the stored name, never from the uploader. A
+        # browser's multipart header is whatever the sender typed, and a stored
+        # "text/html" would be served back as a page.
+        content_type = mimetypes.guess_type(name)[0] or "application/octet-stream"
         self._model().objects.update_or_create(
             name=name,
             defaults={"content": data, "size": len(data), "content_type": content_type},
