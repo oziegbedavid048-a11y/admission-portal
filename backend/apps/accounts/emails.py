@@ -12,12 +12,14 @@ and a failure is logged rather than raised: an account is still created if the
 mail server is briefly unreachable.
 """
 
+import html
 import logging
 import threading
 
 from django.conf import settings
 from django.core.mail import EmailMultiAlternatives
 from django.utils import timezone
+from django.utils.html import escape
 
 logger = logging.getLogger(__name__)
 
@@ -118,7 +120,19 @@ def _render(greeting, paragraphs, facts=None, action=None, items=None, items_int
     `facts` is a list of (label, value) pairs rendered as plain rows. `action`
     is a (text, url) pair rendered as a link rather than a button, because a
     link is unambiguous in every client and needs no styling to work.
+
+    Everything except `paragraphs` is plain text and is escaped here: names,
+    course names and file names are typed by the people the email is about,
+    and must never turn into links or markup in a message sent as Gabstep.
+    `paragraphs` may carry deliberate markup, so callers escape any value they
+    put into one.
     """
+    greeting = escape(greeting)
+    facts = [(escape(label), escape(value)) for label, value in (facts or [])]
+    items = [(escape(title), escape(text)) for title, text in (items or [])]
+    items_intro = escape(items_intro) if items_intro else items_intro
+    if action:
+        action = (escape(action[0]), escape(action[1]))
     parts = [f'<p style="{P}">{greeting}</p>']
     parts += [f'<p style="{P}">{text}</p>' for text in paragraphs]
 
@@ -213,7 +227,7 @@ def _plain(greeting, paragraphs, facts=None, action=None, items=None, items_intr
     from django.utils.html import strip_tags
 
     lines = [greeting, ""]
-    lines += [line for text in paragraphs for line in (strip_tags(text), "")]
+    lines += [line for text in paragraphs for line in (html.unescape(strip_tags(text)), "")]
     if facts:
         lines += [f"{label}: {value}" for label, value in facts]
         lines.append("")
@@ -456,9 +470,10 @@ def send_letter_issued_email(letter):
         subject = f"{application.full_name}: {letter.title} from {school}"
         greeting = f"Hello {_first_name(agent.user.full_name, 'there')},"
         opening = (
-            f"Good news: {school} has issued a {letter.title.lower()} for <strong>{application.full_name}</strong>."
+            f"Good news: {escape(school)} has issued a {escape(letter.title.lower())} for "
+            f"<strong>{escape(application.full_name)}</strong>."
             if celebrating
-            else f"A new letter has been issued for <strong>{application.full_name}</strong>."
+            else f"A new letter has been issued for <strong>{escape(application.full_name)}</strong>."
         )
         recipients, link = [agent.user.email], ("Open Letters", _url("/agent/letters"))
         steps = [
@@ -476,11 +491,11 @@ def send_letter_issued_email(letter):
         subject = f"Congratulations, {first}: {headline}" if celebrating else f"{letter.title} is ready"
         greeting = f"Congratulations, {first}!" if celebrating else f"Hello {first},"
         opening = (
-            f"{school} has offered you a place"
-            + (f" on <strong>{courses}</strong>" if courses else "")
+            f"{escape(school)} has offered you a place"
+            + (f" on <strong>{escape(courses)}</strong>" if courses else "")
             + ". Your letter is now in your dashboard."
             if letter.kind == "offer"
-            else f"Your {letter.title.lower()} from {school} is now in your dashboard."
+            else f"Your {escape(letter.title.lower())} from {escape(school)} is now in your dashboard."
         )
         recipients, link = [application.email], ("View your letter", _url("/portal/letters"))
 
@@ -646,12 +661,12 @@ def send_support_ticket_email(ticket):
     role = user.get_role_display()
     facts = [
         ("Reference", ticket.reference),
-        ("From", f"{escape(user.full_name or user.email)} ({role})"),
-        ("Email", escape(user.email)),
+        ("From", f"{user.full_name or user.email} ({role})"),
+        ("Email", user.email),
         ("Topic", ticket.get_topic_display()),
     ]
     if user.phone:
-        facts.append(("Phone", escape(user.phone)))
+        facts.append(("Phone", user.phone))
 
     paragraphs = [escape(ticket.message).replace("\n", "<br>")]
     plain_paragraphs = [ticket.message]
@@ -669,7 +684,7 @@ def send_support_ticket_email(ticket):
     try:
         message = EmailMultiAlternatives(
             subject=subject,
-            body=_plain("New support message", plain_paragraphs, [(k, v) for k, v in facts], admin_link),
+            body=_plain("New support message", plain_paragraphs, facts, admin_link),
             from_email=settings.DEFAULT_FROM_EMAIL,
             to=recipients,
             reply_to=[user.email],

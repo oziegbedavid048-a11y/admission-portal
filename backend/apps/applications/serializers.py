@@ -325,11 +325,18 @@ class ApplicationCreateSerializer(serializers.Serializer):
             validated_data.get("custom_course_name", "").strip() if is_custom else ""
         )
 
+        applicant = validated_data.pop("applicant", user)
+        agent = validated_data.pop("agent", agent_profile)
+        # Every email about a file goes to this address. For an applicant's own
+        # file it is their account address, never one typed into the form:
+        # otherwise anyone could have Gabstep mail any inbox they liked.
+        email = validated_data["email"] if agent else applicant.email
+
         application = Application.objects.create(
-            applicant=validated_data.pop("applicant", user),
-            submitted_by_agent=validated_data.pop("agent", agent_profile),
+            applicant=applicant,
+            submitted_by_agent=agent,
             full_name=validated_data["full_name"],
-            email=validated_data["email"],
+            email=email,
             phone=validated_data["phone"],
             address=validated_data["origin_country"].name,
             origin_country=validated_data["origin_country"],
