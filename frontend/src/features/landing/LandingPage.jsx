@@ -96,14 +96,13 @@ export default function LandingPage({ onOpenLogin }) {
         <section id="about" className="lp-section" aria-labelledby="lp-about-title">
           <div className="container">
             <header className="lp-head reveal">
-              <p className="lp-eyebrow">About Gabstep</p>
+              <p className="lp-eyebrow">About Apply Gabstep</p>
               <h2 id="lp-about-title" className="lp-title">
                 Fifteen years of opening doors abroad.
               </h2>
               <p className="lp-lede">
-                Gabstep is a study abroad and career consultancy in Nigeria. We guide
-                students from choosing a course to landing a visa, from our offices in
-                Lagos, Ibadan and Ile-Ife.
+                Apply Gabstep is a global study abroad and career consultancy. We guide
+                students from choosing a course to landing a visa, all from our platform.
               </p>
             </header>
 

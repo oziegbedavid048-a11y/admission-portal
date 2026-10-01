@@ -26,9 +26,9 @@ export default function SiteFooter({ sections = [], onOpenLogin }) {
       <div className="container">
         <div className="sf-top">
           <div className="sf-brand">
-            <Link to="/" className="sf-logo" aria-label="Gabstep home">
+            <Link to="/" className="sf-logo" aria-label="Apply Gabstep home">
               <img src="/assets/logo.png" alt="" />
-              <span>Gabstep</span>
+              <span>Apply Gabstep</span>
             </Link>
             <p>Study abroad and career consultancy, from your first course to your visa.</p>
           </div>
@@ -79,7 +79,7 @@ export default function SiteFooter({ sections = [], onOpenLogin }) {
         </ul>
 
         <div className="sf-bottom">
-          <span>&copy; {year} Gabstep. All rights reserved.</span>
+          <span>&copy; {year} Apply Gabstep. All rights reserved.</span>
           <a href="https://gabstep.com" target="_blank" rel="noopener noreferrer">
             gabstep.com
           </a>
