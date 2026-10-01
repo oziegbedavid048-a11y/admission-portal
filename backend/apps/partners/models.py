@@ -16,7 +16,6 @@ from django.db.models import F
 from apps.applications.uploads import draft_upload_path
 from apps.applications.constants import (
     AGENT_COMMISSION_PER_MILESTONE,
-    LOAN_REPAYMENT_RATE,
     MIN_SUPERVISOR_WITHDRAWAL_NGN,
     MIN_WITHDRAWAL_NGN,
     SUPERVISOR_BONUS_NGN,
@@ -173,7 +172,17 @@ class Wallet(models.Model):
     """Running totals for one agent.
 
     ``available_balance`` is derived, never set by hand: it is everything earned
-    minus what is owed on a loan, already withdrawn, or moved into savings.
+    minus what is already withdrawn or moved into savings.
+
+    An Ads funding loan is not taken out of it, and nothing is taken out of a
+    withdrawal for it either. Approving a loan used to subtract the whole loan
+    from this balance, which wiped out the agent's earnings on the spot.
+
+    ``loan_balance`` is what is still owed. The agent repays it from this
+    balance with ``repay_loan`` (the Repay button), which moves the amount into
+    ``loan_repaid_total``; the desk can also clear a loan repaid some other way
+    with "Mark as repaid" in the admin. A new loan cannot be requested while
+    any is owed (see loan_block_reason).
     """
 
     agent = models.OneToOneField(
@@ -197,6 +206,10 @@ class Wallet(models.Model):
     total_withdrawn = models.DecimalField(
         max_digits=12, decimal_places=2, default=Decimal("0.00")
     )
+    # Earnings the agent has used to pay back Ads funding.
+    loan_repaid_total = models.DecimalField(
+        max_digits=12, decimal_places=2, default=Decimal("0.00")
+    )
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
@@ -206,9 +219,9 @@ class Wallet(models.Model):
     def available_balance(self):
         balance = (
             self.total_earned
-            - self.loan_balance
             - self.total_withdrawn
             - self.saved_balance
+            - self.loan_repaid_total
         )
         return max(Decimal("0.00"), balance)
 
@@ -240,6 +253,37 @@ class Wallet(models.Model):
             raise ValidationError("That is more than you have in savings.")
         wallet.saved_balance -= amount
         wallet.save(update_fields=["saved_balance"])
+        return wallet
+
+    @transaction.atomic
+    def repay_loan(self, amount):
+        """Pay back Ads funding out of the available balance.
+
+        The wallet row is locked and re-read, so two presses or a withdrawal at
+        the same moment cannot spend the same money twice. When the whole loan
+        is cleared, the loan itself is marked repaid and a new one can be asked
+        for.
+        """
+        wallet = Wallet.objects.select_for_update().get(pk=self.pk)
+        if amount <= 0:
+            raise ValidationError("Enter an amount to repay.")
+        if wallet.loan_balance <= 0:
+            raise ValidationError("You have no Ads funding to repay.")
+        if amount > wallet.loan_balance:
+            raise ValidationError(
+                f"You owe ₦{wallet.loan_balance:,.0f}. Enter that amount or less."
+            )
+        if amount > wallet.available_balance:
+            raise ValidationError("That is more than your available balance.")
+
+        wallet.loan_balance -= amount
+        wallet.loan_repaid_total += amount
+        wallet.save(update_fields=["loan_balance", "loan_repaid_total"])
+
+        if wallet.loan_balance == 0:
+            wallet.agent.loans.filter(
+                status__in=(Loan.Status.APPROVED, Loan.Status.DISBURSED)
+            ).update(status=Loan.Status.REPAID)
         return wallet
 
     def credit_commission(self, kind, amount):
@@ -343,11 +387,36 @@ class Loan(models.Model):
         return f"LN-{self.pk:05d}"
 
 
-class Withdrawal(models.Model):
-    """A payout request.
+def loan_block_reason(agent, wallet=None):
+    """Why this agent cannot request Ads funding now, or "" if they can.
 
-    While a loan is outstanding, a tenth of each withdrawal is held back and
-    applied to it, so the agent repays as they earn rather than in one lump.
+    One loan at a time: nothing new while a request is in review, while a loan
+    is approved or out, or while any of it is still owed.
+    """
+    if agent.loans.filter(status=Loan.Status.PENDING).exists():
+        return (
+            "You already have a funding request in review. The desk will come back "
+            "to you on that one before you can raise another."
+        )
+    if wallet is None:
+        wallet = Wallet.objects.filter(agent=agent).first()
+    owed = wallet.loan_balance if wallet else Decimal("0.00")
+    if owed > 0:
+        return (
+            f"₦{owed:,.0f} of Ads funding is still owed. Repay it from your balance "
+            "on this page, and you can request again once it is cleared."
+        )
+    if agent.loans.filter(status__in=(Loan.Status.APPROVED, Loan.Status.DISBURSED)).exists():
+        return "Your current Ads funding has to be repaid before you can request more."
+    return ""
+
+
+class Withdrawal(models.Model):
+    """A payout request. The agent is paid the full amount they ask for.
+
+    `loan_deduction` is kept for payouts made when a share of each withdrawal
+    went to an Ads funding loan. Nothing is deducted any more, so it is zero on
+    every new payout.
     """
 
     class Status(models.TextChoices):
@@ -409,31 +478,17 @@ class Withdrawal(models.Model):
         if amount > wallet.available_balance:
             raise ValidationError("That is more than your available balance.")
 
-        deduction = Decimal("0.00")
-        if wallet.loan_balance > 0:
-            deduction = min(
-                (amount * LOAN_REPAYMENT_RATE).quantize(Decimal("0.01")),
-                wallet.loan_balance,
-            )
-
         from .payout_account import destination_label
 
         withdrawal = cls.objects.create(
             agent=agent,
             amount_requested=amount,
-            loan_deduction=deduction,
-            net_amount=amount - deduction,
+            net_amount=amount,
             paid_to=destination_label(agent),
         )
 
-        wallet.loan_balance = max(Decimal("0.00"), wallet.loan_balance - deduction)
         wallet.total_withdrawn += amount
-        wallet.save(update_fields=["loan_balance", "total_withdrawn"])
-
-        if wallet.loan_balance == 0:
-            agent.loans.filter(status=Loan.Status.DISBURSED).update(
-                status=Loan.Status.REPAID
-            )
+        wallet.save(update_fields=["total_withdrawn"])
         return withdrawal
 
 

@@ -13,7 +13,16 @@ from apps.applications import services
 from apps.applications.models import Application, Notification
 from apps.applications.serializers import ApplicationCreateSerializer
 
-from .models import AgentProfile, Commission, Loan, StudentDraft, StudentDraftFile, Wallet, Withdrawal
+from .models import (
+    AgentProfile,
+    Commission,
+    Loan,
+    StudentDraft,
+    StudentDraftFile,
+    Wallet,
+    Withdrawal,
+    loan_block_reason,
+)
 from .payout_account import announce_bank_change, check_password_for_bank_change, snapshot
 
 
@@ -35,6 +44,7 @@ class WalletSerializer(serializers.ModelSerializer):
             "loan_balance",
             "saved_balance",
             "total_withdrawn",
+            "loan_repaid_total",
             "available_balance",
             "minimum_withdrawal",
             "can_withdraw",
@@ -136,34 +146,25 @@ class LoanSerializer(serializers.ModelSerializer):
         return value
 
     def validate(self, attrs):
-        """One request at a time, and nothing new while a balance is owed.
+        """One loan at a time, and nothing new until the last is repaid.
 
         The per-request ceiling was the only limit, so an agent could file ten
         requests of the maximum and, if each were approved, hold ten times the
-        cap. Repayment is taken from commission the agent has not earned yet, so
-        the exposure has to be one loan deep.
+        cap. The view checks this again under a lock when it saves.
         """
-        agent = self.context["agent"]
-
-        if agent.loans.filter(status=Loan.Status.PENDING).exists():
-            raise serializers.ValidationError(
-                "You already have a funding request in review. The desk will come "
-                "back to you on that one before you can raise another."
-            )
-
-        outstanding = agent.wallet.loan_balance
-        if outstanding > 0:
-            raise serializers.ValidationError(
-                f"₦{outstanding:,.0f} of ads funding is still outstanding. It is "
-                "repaid automatically from your withdrawals, and you can request "
-                "again once it clears."
-            )
+        reason = loan_block_reason(self.context["agent"])
+        if reason:
+            raise serializers.ValidationError(reason)
         return attrs
 
     def validate_purpose(self, value):
         if not value.strip():
             raise serializers.ValidationError("Choose an advertising platform.")
         return value
+
+
+class RepayLoanSerializer(serializers.Serializer):
+    amount = serializers.DecimalField(max_digits=12, decimal_places=2, min_value=Decimal("1"))
 
 
 class WithdrawalSerializer(serializers.ModelSerializer):

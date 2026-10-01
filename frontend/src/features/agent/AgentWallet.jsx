@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import Modal from '../../components/ui/Modal';
 import Loading from '../../components/ui/Loading';
 import Icon from '../../lib/icons';
@@ -10,7 +10,6 @@ import useLiveRefresh from '../../hooks/useLiveRefresh';
 import { useAgent, useOnWalletChange } from './AgentContext';
 import StatusBadge from './StatusBadge';
 
-const LOAN_REPAYMENT_RATE = 0.1;
 const FALLBACK_MINIMUM = 100000;
 
 export default function AgentWallet() {
@@ -77,14 +76,8 @@ export default function AgentWallet() {
   };
   const canWithdraw = wallet?.can_withdraw ?? available >= minimum;
 
-  // While a loan is outstanding a tenth of each withdrawal repays it, so the
-  // dialog shows the split before anything is confirmed.
-  const preview = useMemo(() => {
-    const requested = Number(amount) || 0;
-    const owed = Number(wallet?.loan_balance) || 0;
-    const deduction = owed > 0 ? Math.min(requested * LOAN_REPAYMENT_RATE, owed) : 0;
-    return { requested, deduction, net: Math.max(0, requested - deduction) };
-  }, [amount, wallet]);
+  // Nothing is deducted from a withdrawal: the agent receives what they ask for.
+  const requestedAmount = Number(amount) || 0;
 
   const belowMinimum = Number(amount) > 0 && Number(amount) < minimum;
 
@@ -110,13 +103,7 @@ export default function AgentWallet() {
       setWithdrawals((current) => [data.withdrawal, ...current]);
       setWithdrawOpen(false);
       setAmount('');
-      toast.success(
-        data.withdrawal.loan_deduction > 0
-          ? `${formatNaira(data.withdrawal.net_amount)} on its way. ${formatNaira(
-              data.withdrawal.loan_deduction,
-            )} went to your loan.`
-          : `${formatNaira(data.withdrawal.net_amount)} on its way.`,
-      );
+      toast.success(`${formatNaira(data.withdrawal.net_amount)} on its way.`);
     } catch (error) {
       toast.error(errorMessage(error, 'Could not start that withdrawal.'));
     } finally {
@@ -232,7 +219,6 @@ export default function AgentWallet() {
               <tr>
                 <th>Reference</th>
                 <th className="t-num">Requested</th>
-                <th className="t-num t-hide-sm">Loan deduction</th>
                 <th className="t-num">Paid out</th>
                 <th>Status</th>
               </tr>
@@ -240,7 +226,7 @@ export default function AgentWallet() {
             <tbody>
               {withdrawals.length === 0 ? (
                 <tr className="row-empty">
-                  <td colSpan={5}>
+                  <td colSpan={4}>
                     <div className="agent-empty-state">
                       <p>No withdrawals yet</p>
                       <small>Your payouts will show up here.</small>
@@ -255,16 +241,6 @@ export default function AgentWallet() {
                     </td>
                     <td data-label="Requested" className="t-num col-amount">
                       {formatNaira(item.amount_requested)}
-                    </td>
-                    <td
-                      data-label="Loan deduction"
-                      className={`t-num t-hide-sm ${
-                        Number(item.loan_deduction) > 0 ? 'col-neg' : 'tbl-amount-zero'
-                      }`}
-                    >
-                      {Number(item.loan_deduction) > 0
-                        ? `-${formatNaira(item.loan_deduction)}`
-                        : 'None'}
                     </td>
                     <td data-label="Paid out" className="t-num col-amount">
                       {formatNaira(item.net_amount)}
@@ -333,17 +309,9 @@ export default function AgentWallet() {
         </div>
 
         <div className="payout-calc-box">
-          <div className="payout-calc-row">
-            <span>Requested</span>
-            <strong>{formatNaira(preview.requested)}</strong>
-          </div>
-          <div className="payout-calc-row">
-            <span>Loan repayment (10%)</span>
-            <strong>-{formatNaira(preview.deduction)}</strong>
-          </div>
           <div className="payout-calc-row total">
             <span>You receive</span>
-            <strong>{formatNaira(preview.net)}</strong>
+            <strong>{formatNaira(requestedAmount)}</strong>
           </div>
         </div>
 

@@ -523,8 +523,7 @@ def send_loan_approved_email(loan):
         paragraphs=[
             "Your ads funding request has been approved and sent to your registered "
             "bank account.",
-            "Repayment is taken automatically at 10% of each commission withdrawal "
-            "until the balance clears. There is no interest.",
+            "There is no interest. Your earnings and withdrawals are not affected.",
         ],
         facts=[
             ("Reference", loan.reference),

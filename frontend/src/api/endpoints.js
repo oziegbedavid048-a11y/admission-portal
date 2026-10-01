@@ -170,6 +170,8 @@ export const partners = {
   deleteDraftFile: (id, fileId) => api.delete(`/partners/drafts/${id}/files/${fileId}/`),
   loans: () => api.get('/partners/loans/'),
   requestLoan: (payload) => api.post('/partners/loans/', payload),
+  // Pay Ads funding back out of the available balance.
+  repayLoan: (amount) => api.post('/partners/loans/repay/', { amount }),
   withdrawals: () => api.get('/partners/withdrawals/'),
   withdraw: (amount) => api.post('/partners/withdrawals/', { amount }),
   moveToSavings: (amount) => api.post('/partners/wallet/savings/', { amount }),

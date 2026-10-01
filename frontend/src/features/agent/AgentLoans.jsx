@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import Loading from '../../components/ui/Loading';
+import Modal from '../../components/ui/Modal';
 import Icon from '../../lib/icons';
 import { formatDate, formatNaira } from '../../lib/format';
 import { errorMessage } from '../../api/client';
@@ -20,14 +21,63 @@ const PLATFORMS = [
   'Offline Campus Outreach',
 ];
 
+// Statuses that mean a loan is still in play. A new request waits until none is.
+const OPEN_STATUSES = ['pending', 'approved', 'disbursed'];
+
 export default function AgentLoans() {
-  const { profile } = useAgent();
+  const { profile, wallet, setWallet } = useAgent();
   const [loans, setLoans] = useState([]);
   const [loading, setLoading] = useState(true);
   const [amount, setAmount] = useState(25000);
   const [purpose, setPurpose] = useState('');
   const [busy, setBusy] = useState(false);
+  const [repayOpen, setRepayOpen] = useState(false);
+  const [repayAmount, setRepayAmount] = useState('');
+  const [repaying, setRepaying] = useState(false);
   const toast = useToast();
+
+  const owed = Number(wallet?.loan_balance) || 0;
+  const available = Number(wallet?.available_balance) || 0;
+  const repayable = Math.min(owed, available);
+  const inReview = loans.some((loan) => loan.status === 'pending');
+  const blocked = owed > 0 || loans.some((loan) => OPEN_STATUSES.includes(loan.status));
+
+  const openRepay = () => {
+    setRepayAmount(String(repayable || ''));
+    setRepayOpen(true);
+  };
+
+  const repay = async () => {
+    const value = Number(repayAmount);
+    if (!value || value <= 0) {
+      toast.warning('Enter an amount to repay.');
+      return;
+    }
+    if (value > owed) {
+      toast.warning(`You owe ${formatNaira(owed)}. Enter that amount or less.`);
+      return;
+    }
+    if (value > available) {
+      toast.warning('That is more than your available balance.');
+      return;
+    }
+    setRepaying(true);
+    try {
+      const { data } = await partners.repayLoan(value);
+      setWallet(data.wallet);
+      setLoans(data.loans);
+      setRepayOpen(false);
+      toast.success(
+        Number(data.wallet.loan_balance) > 0
+          ? `${formatNaira(value)} repaid. ${formatNaira(data.wallet.loan_balance)} left to repay.`
+          : 'Ads funding fully repaid. You can request again.',
+      );
+    } catch (error) {
+      toast.error(errorMessage(error, 'Could not repay that amount.'));
+    } finally {
+      setRepaying(false);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -78,7 +128,55 @@ export default function AgentLoans() {
 
   return (
     <div className="agent-stack">
+      {owed > 0 ? (
+        <section className="agent-card">
+          <div className="agent-card-header">
+            <h2 className="agent-card-title">
+              <span className="agent-icon accent" aria-hidden="true">
+                <Icon name="wallet" size={18} />
+              </span>
+              Ads funding owed
+            </h2>
+          </div>
+          <div className="payout-calc-box" style={{ margin: '0 0 20px' }}>
+            <div className="payout-calc-row total">
+              <span>To repay</span>
+              <strong>{formatNaira(owed)}</strong>
+            </div>
+            <div className="payout-calc-row">
+              <span>Available balance</span>
+              <strong>{formatNaira(available)}</strong>
+            </div>
+          </div>
+          <button
+            type="button"
+            className="agent-btn agent-btn-primary"
+            onClick={openRepay}
+            disabled={repayable <= 0}
+          >
+            <Icon name="payout" size={18} />
+            Repay from balance
+          </button>
+          {repayable <= 0 ? (
+            <p className="agent-card-note" style={{ marginTop: 12 }}>
+              Your balance is empty. Earn commission to repay from it.
+            </p>
+          ) : null}
+        </section>
+      ) : null}
 
+      {blocked ? (
+        <section className="agent-card">
+          <div className="agent-empty-state">
+            <p>{inReview ? 'Request in review' : 'Repay to request again'}</p>
+            <small>
+              {inReview
+                ? 'The desk will come back to you on your current request first.'
+                : 'You can request new Ads funding once your current funding is repaid.'}
+            </small>
+          </div>
+        </section>
+      ) : (
       <section className="agent-card">
         <form onSubmit={submit}>
           <div className="loan-hero-module">
@@ -165,6 +263,7 @@ export default function AgentLoans() {
           </button>
         </form>
       </section>
+      )}
 
       <section className="agent-card">
         <div className="agent-card-header">
@@ -229,6 +328,55 @@ export default function AgentLoans() {
           </table>
         </div>
       </section>
+
+      <Modal
+        open={repayOpen}
+        onClose={() => setRepayOpen(false)}
+        variant="agent"
+        title="Repay Ads funding"
+        labelledBy="repay-title"
+        footer={
+          <>
+            <button
+              type="button"
+              className="agent-btn agent-btn-secondary"
+              onClick={() => setRepayOpen(false)}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="agent-btn agent-btn-primary"
+              onClick={repay}
+              disabled={repaying || !Number(repayAmount)}
+            >
+              {repaying ? <span className="spinner-sm" aria-hidden="true" /> : null}
+              Repay
+            </button>
+          </>
+        }
+      >
+        <div className="agent-form-group">
+          <label className="agent-form-label" htmlFor="repay-amount">
+            Amount (₦)
+          </label>
+          <input
+            id="repay-amount"
+            type="number"
+            className="agent-form-control"
+            min={1}
+            max={repayable}
+            step="1000"
+            inputMode="numeric"
+            value={repayAmount}
+            onChange={(event) => setRepayAmount(event.target.value)}
+          />
+          <span className="form-helper">
+            Owed {formatNaira(owed)} · available {formatNaira(available)}
+          </span>
+        </div>
+        <p className="agent-card-note">Taken from your available balance. There is no interest.</p>
+      </Modal>
     </div>
   );
 }

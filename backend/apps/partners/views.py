@@ -1,6 +1,7 @@
 from decimal import Decimal
 
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db import transaction
 from rest_framework import serializers as drf_serializers, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.generics import RetrieveUpdateAPIView
@@ -13,7 +14,7 @@ from apps.applications.constants import AGENT_REGISTRATION_COMMISSION_NGN, AGENT
 from apps.applications.models import Application
 from config.throttles import MoneyThrottle, UserThrottle
 
-from .models import Commission, Loan, StudentDraft, StudentDraftFile, Withdrawal
+from .models import Commission, Loan, StudentDraft, StudentDraftFile, Wallet, Withdrawal, loan_block_reason
 from .permissions import IsAgent
 from .serializers import (
     AgentProfileSerializer,
@@ -23,6 +24,7 @@ from .serializers import (
     CommissionSerializer,
     LoanSerializer,
     ReleaseFromSavingsSerializer,
+    RepayLoanSerializer,
     StudentDraftFileSerializer,
     StudentDraftSerializer,
     SaveToSavingsSerializer,
@@ -130,7 +132,32 @@ class LoanViewSet(AgentScopedMixin, viewsets.ModelViewSet):
         return {**super().get_serializer_context(), "agent": self.agent}
 
     def perform_create(self, serializer):
-        serializer.save(agent=self.agent)
+        # Re-checked with the wallet row locked: two requests sent at the same
+        # moment both pass the serializer's check, and only one may be saved.
+        with transaction.atomic():
+            wallet, _ = Wallet.objects.get_or_create(agent=self.agent)
+            wallet = Wallet.objects.select_for_update().get(pk=wallet.pk)
+            reason = loan_block_reason(self.agent, wallet)
+            if reason:
+                raise drf_serializers.ValidationError({"detail": reason})
+            serializer.save(agent=self.agent)
+
+    @action(detail=False, methods=["post"])
+    def repay(self, request):
+        """Pay back Ads funding from the available balance."""
+        serializer = RepayLoanSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        wallet, _ = Wallet.objects.get_or_create(agent=self.agent)
+        try:
+            wallet = wallet.repay_loan(serializer.validated_data["amount"])
+        except DjangoValidationError as exc:
+            raise drf_serializers.ValidationError({"amount": exc.messages})
+        return Response(
+            {
+                "wallet": WalletSerializer(wallet).data,
+                "loans": LoanSerializer(self.get_queryset(), many=True).data,
+            }
+        )
 
 
 class AgentStudentViewSet(AgentScopedMixin, viewsets.ModelViewSet):

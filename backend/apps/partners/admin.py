@@ -44,7 +44,8 @@ class WalletInline(admin.StackedInline):
     fields = (
         ("registration_commission_total", "visa_commission_total"),
         ("total_earned", "available"),
-        ("loan_balance", "saved_balance", "total_withdrawn"),
+        ("loan_balance", "loan_repaid_total"),
+        ("saved_balance", "total_withdrawn"),
         "updated_at",
     )
 
@@ -114,7 +115,7 @@ class LoanAdmin(admin.ModelAdmin):
     autocomplete_fields = ("agent",)
     date_hierarchy = "requested_at"
     readonly_fields = ("reference", "requested_at", "disbursed_at", "campaign")
-    actions = ("action_approve_and_disburse", "action_decline")
+    actions = ("action_approve_and_disburse", "action_mark_repaid", "action_decline")
 
     fieldsets = (
         (None, {"fields": ("reference", "agent", "status")}),
@@ -177,8 +178,32 @@ class LoanAdmin(admin.ModelAdmin):
 
         self.message_user(
             request,
-            f"{_plural(count, 'loan')} disbursed, {_naira(released)} released. "
-            "Repayment is taken at 10% of each withdrawal.",
+            f"{_plural(count, 'loan')} disbursed, {_naira(released)} released.",
+            messages.SUCCESS if count else messages.INFO,
+        )
+
+    @admin.action(description="Mark as repaid")
+    @transaction.atomic
+    def action_mark_repaid(self, request, queryset):
+        """Record that an agent has paid back their Ads funding.
+
+        Nothing is taken from withdrawals, so this is how a loan is cleared.
+        Each loan is locked and re-read, so it is only ever cleared once.
+        """
+        count = 0
+        for loan in queryset.select_for_update().filter(status=Loan.Status.DISBURSED):
+            loan.status = Loan.Status.REPAID
+            loan.save(update_fields=["status"])
+            wallet = Wallet.objects.select_for_update().filter(agent=loan.agent).first()
+            if wallet is not None:
+                wallet.loan_balance = max(
+                    Decimal("0.00"), wallet.loan_balance - (loan.approved_amount or Decimal("0.00"))
+                )
+                wallet.save(update_fields=["loan_balance"])
+            count += 1
+        self.message_user(
+            request,
+            f"{_plural(count, 'loan')} marked as repaid.",
             messages.SUCCESS if count else messages.INFO,
         )
 

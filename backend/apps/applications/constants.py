@@ -43,9 +43,6 @@ SUPERVISOR_BONUS_NGN = Decimal("2000")
 # for the same reason: a transfer costs the same to process whatever its size.
 MIN_SUPERVISOR_WITHDRAWAL_NGN = Decimal("100000")
 
-# Share of a withdrawal that repays an outstanding ad-funding loan.
-LOAN_REPAYMENT_RATE = Decimal("0.10")
-
 # Smallest payout an agent can request. Each transfer costs the same to
 # process whatever its size, so a floor keeps the fee proportionate and
 # stops the payout run filling with trivial amounts.
