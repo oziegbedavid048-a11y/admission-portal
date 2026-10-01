@@ -227,9 +227,11 @@ REST_FRAMEWORK = {
     # password oracle and the email-availability endpoint a free way to list who
     # holds an account. The scopes below are applied per view; `anon` and `user`
     # are the floor for everything else.
+    # How the caller is identified is in config/throttles.py.
     "DEFAULT_THROTTLE_CLASSES": (
-        "rest_framework.throttling.AnonRateThrottle",
-        "rest_framework.throttling.UserRateThrottle",
+        "config.throttles.AnonThrottle",
+        "config.throttles.UserThrottle",
+        "config.throttles.EdgeThrottle",
     ),
     "DEFAULT_THROTTLE_RATES": {
         "anon": env("THROTTLE_ANON", "60/min"),
@@ -253,6 +255,14 @@ REST_FRAMEWORK = {
         # Money leaving the platform, and a file being uploaded, are both worth
         # slowing down well below what a person could ever need.
         "money": env("THROTTLE_MONEY", "12/hour"),
+        "checkout": env("THROTTLE_CHECKOUT", "60/hour"),
+        # The payment return page asks a handful of times; each ask may be a
+        # call to Paystack.
+        "payment_status": env("THROTTLE_PAYMENT_STATUS", "30/min"),
+        # Anonymous requests per connecting address (see config/throttles.py).
+        # Everyone arriving through Vercel shares Vercel's addresses here, so
+        # this only has to stop floods, not people.
+        "edge": env("THROTTLE_EDGE", "600/min"),
         "upload": env("THROTTLE_UPLOAD", "60/hour"),
     },
 }

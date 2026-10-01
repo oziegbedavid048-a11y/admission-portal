@@ -6,12 +6,12 @@ from rest_framework.decorators import action
 from rest_framework.generics import RetrieveUpdateAPIView
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
-from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
 from apps.applications import services
 from apps.applications.constants import AGENT_REGISTRATION_COMMISSION_NGN, AGENT_VISA_COMMISSION_NGN
 from apps.applications.models import Application
+from config.throttles import MoneyThrottle, UserThrottle
 
 from .models import Commission, Loan, StudentDraft, StudentDraftFile, Withdrawal
 from .permissions import IsAgent
@@ -40,12 +40,6 @@ class AgentScopedMixin:
         return self.request.user.agent_profile
 
 
-class MoneyThrottle(ScopedRateThrottle):
-    """Anything that moves money, held well below what a person would ever do."""
-
-    scope = "money"
-
-
 class AgentProfileView(AgentScopedMixin, RetrieveUpdateAPIView):
     serializer_class = AgentProfileSerializer
     parser_classes = (JSONParser, MultiPartParser, FormParser)
@@ -67,7 +61,7 @@ class WithdrawalViewSet(AgentScopedMixin, viewsets.ModelViewSet):
     def get_queryset(self):
         return Withdrawal.objects.filter(agent=self.agent)
 
-    throttle_classes = (MoneyThrottle,)
+    throttle_classes = (UserThrottle, MoneyThrottle)
 
     def create(self, request, *args, **kwargs):
         serializer = WithdrawalRequestSerializer(
@@ -95,7 +89,7 @@ class SavingsView(AgentScopedMixin, APIView):
     withdrawable for good. DELETE releases it.
     """
 
-    throttle_classes = (MoneyThrottle,)
+    throttle_classes = (UserThrottle, MoneyThrottle)
 
     def post(self, request):
         serializer = SaveToSavingsSerializer(
@@ -130,7 +124,7 @@ class LoanViewSet(AgentScopedMixin, viewsets.ModelViewSet):
     def get_queryset(self):
         return Loan.objects.filter(agent=self.agent)
 
-    throttle_classes = (MoneyThrottle,)
+    throttle_classes = (UserThrottle, MoneyThrottle)
 
     def get_serializer_context(self):
         return {**super().get_serializer_context(), "agent": self.agent}

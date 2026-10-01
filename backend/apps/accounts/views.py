@@ -1,11 +1,12 @@
 from rest_framework import generics, permissions, status
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
-from rest_framework.throttling import AnonRateThrottle, ScopedRateThrottle
 from rest_framework.views import APIView
 from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
+
+from config.throttles import AnonThrottle, EdgeThrottle, ScopedThrottle
 
 from .cookies import clear_refresh_cookie, read_refresh_token, set_refresh_cookie
 from .models import User
@@ -39,7 +40,7 @@ def session_response(user, request=None, status_code=status.HTTP_200_OK):
     return set_refresh_cookie(Response(body, status=status_code), refresh)
 
 
-class LoginThrottle(AnonRateThrottle):
+class LoginThrottle(AnonThrottle):
     """Sign-in attempts, counted per client address.
 
     Without this the endpoint answers "is this the password?" as fast as anyone
@@ -50,15 +51,15 @@ class LoginThrottle(AnonRateThrottle):
     scope = "login"
 
 
-class RegistrationThrottle(AnonRateThrottle):
+class RegistrationThrottle(AnonThrottle):
     scope = "register"
 
 
-class EmailCheckThrottle(AnonRateThrottle):
+class EmailCheckThrottle(AnonThrottle):
     scope = "email_check"
 
 
-class SessionThrottle(AnonRateThrottle):
+class SessionThrottle(AnonThrottle):
     """Refreshing is normal and frequent, so this only stops a runaway loop."""
 
     scope = "user"
@@ -69,7 +70,7 @@ class LoginView(TokenObtainPairView):
 
     serializer_class = GabstepTokenObtainPairSerializer
     permission_classes = (permissions.AllowAny,)
-    throttle_classes = (LoginThrottle,)
+    throttle_classes = (LoginThrottle, EdgeThrottle)
 
     MAX_FAILURES = 5
     LOCKOUT_SECONDS = 15 * 60
@@ -132,7 +133,7 @@ class SessionRefreshView(APIView):
 
     authentication_classes = ()
     permission_classes = (permissions.AllowAny,)
-    throttle_classes = (SessionThrottle,)
+    throttle_classes = (SessionThrottle, EdgeThrottle)
 
     def post(self, request):
         raw = read_refresh_token(request)
@@ -170,7 +171,7 @@ class LogoutView(APIView):
 class ApplicantRegisterView(generics.CreateAPIView):
     serializer_class = ApplicantRegistrationSerializer
     permission_classes = (permissions.AllowAny,)
-    throttle_classes = (RegistrationThrottle,)
+    throttle_classes = (RegistrationThrottle, EdgeThrottle)
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -182,7 +183,7 @@ class ApplicantRegisterView(generics.CreateAPIView):
 class AgentRegisterView(generics.CreateAPIView):
     serializer_class = AgentRegistrationSerializer
     permission_classes = (permissions.AllowAny,)
-    throttle_classes = (RegistrationThrottle,)
+    throttle_classes = (RegistrationThrottle, EdgeThrottle)
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -222,7 +223,7 @@ class EmailAvailabilityView(APIView):
     """
 
     permission_classes = (permissions.AllowAny,)
-    throttle_classes = (EmailCheckThrottle,)
+    throttle_classes = (EmailCheckThrottle, EdgeThrottle)
 
     def get(self, request):
         email = (request.query_params.get("email") or "").strip().lower()
@@ -240,7 +241,7 @@ class SupportTicketView(generics.ListCreateAPIView):
 
     serializer_class = SupportTicketSerializer
     parser_classes = (JSONParser, MultiPartParser, FormParser)
-    throttle_classes = (ScopedRateThrottle,)
+    throttle_classes = (ScopedThrottle, EdgeThrottle)
     throttle_scope = "support"
 
     def get_throttles(self):
@@ -258,11 +259,11 @@ class SupportTicketView(generics.ListCreateAPIView):
         ticket.save(update_fields=["emailed"])
 
 
-class PasswordResetThrottle(AnonRateThrottle):
+class PasswordResetThrottle(AnonThrottle):
     scope = "password_reset"
 
 
-class PasswordResetConfirmThrottle(AnonRateThrottle):
+class PasswordResetConfirmThrottle(AnonThrottle):
     scope = "password_reset_confirm"
 
 
@@ -281,7 +282,7 @@ class PasswordResetRequestView(APIView):
 
     permission_classes = (permissions.AllowAny,)
     authentication_classes = ()
-    throttle_classes = (PasswordResetThrottle,)
+    throttle_classes = (PasswordResetThrottle, EdgeThrottle)
     COOLDOWN_SECONDS = 120
 
     def post(self, request):
@@ -323,7 +324,7 @@ class PasswordResetValidateView(APIView):
 
     permission_classes = (permissions.AllowAny,)
     authentication_classes = ()
-    throttle_classes = (PasswordResetConfirmThrottle,)
+    throttle_classes = (PasswordResetConfirmThrottle, EdgeThrottle)
 
     def post(self, request):
         serializer = PasswordResetConfirmSerializer(
@@ -343,7 +344,7 @@ class PasswordResetConfirmView(APIView):
 
     permission_classes = (permissions.AllowAny,)
     authentication_classes = ()
-    throttle_classes = (PasswordResetConfirmThrottle,)
+    throttle_classes = (PasswordResetConfirmThrottle, EdgeThrottle)
 
     def post(self, request):
         from .emails import send_password_changed_email
@@ -386,11 +387,11 @@ def verification_pending(user, request=None):
     )
 
 
-class VerifyEmailThrottle(AnonRateThrottle):
+class VerifyEmailThrottle(AnonThrottle):
     scope = "verify"
 
 
-class VerifyResendThrottle(AnonRateThrottle):
+class VerifyResendThrottle(AnonThrottle):
     scope = "verify_resend"
 
 
@@ -403,7 +404,7 @@ class VerifyEmailView(APIView):
 
     permission_classes = (permissions.AllowAny,)
     authentication_classes = ()
-    throttle_classes = (VerifyEmailThrottle,)
+    throttle_classes = (VerifyEmailThrottle, EdgeThrottle)
 
     def post(self, request):
         from .emails import send_welcome_email
@@ -429,7 +430,7 @@ class ResendVerificationView(APIView):
 
     permission_classes = (permissions.AllowAny,)
     authentication_classes = ()
-    throttle_classes = (VerifyResendThrottle,)
+    throttle_classes = (VerifyResendThrottle, EdgeThrottle)
     COOLDOWN_SECONDS = 60
 
     def post(self, request):

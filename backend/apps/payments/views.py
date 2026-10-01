@@ -8,7 +8,6 @@ from django.utils import timezone
 from rest_framework import permissions, status
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.response import Response
-from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
 from apps.applications.constants import APPLICATION_FEE_NGN
@@ -17,6 +16,7 @@ from apps.applications.models import Application
 from apps.applications.serializers import ApplicationSerializer
 from apps.applications.uploads import validate_upload
 from apps.applications.views import visible_applications
+from config.throttles import CheckoutThrottle, EdgeThrottle, PaymentStatusThrottle, UserThrottle
 
 from . import gateway
 from .fees import processing_fee_ngn
@@ -25,10 +25,6 @@ from .settlement import settle
 from .serializers import CheckoutSerializer, PaymentSerializer
 
 logger = logging.getLogger(__name__)
-
-
-class PaymentThrottle(ScopedRateThrottle):
-    scope = "money"
 
 
 def client_ip(request):
@@ -215,7 +211,7 @@ class CheckoutView(APIView):
     agent's commission; nothing in this view does.
     """
 
-    throttle_classes = (PaymentThrottle,)
+    throttle_classes = (UserThrottle, CheckoutThrottle)
 
     @transaction.atomic
     def post(self, request):
@@ -351,7 +347,7 @@ class TransferReceiptView(APIView):
     staff confirm the money arrived, and only then is any commission paid.
     """
 
-    throttle_classes = (PaymentThrottle,)
+    throttle_classes = (UserThrottle, CheckoutThrottle)
     parser_classes = (MultiPartParser, FormParser)
 
     @transaction.atomic
@@ -491,7 +487,7 @@ class PaymentStatusView(APIView):
     """
 
     permission_classes = (permissions.AllowAny,)
-    throttle_classes = (PaymentThrottle,)
+    throttle_classes = (PaymentStatusThrottle, EdgeThrottle)
 
     def get(self, request, reference):
         """Report a payment, and settle it if Paystack says the money is in.
