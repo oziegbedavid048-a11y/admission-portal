@@ -56,6 +56,21 @@ def _looks_like(extension, head):
     return any(head.startswith(signature) for signature in MAGIC.get(extension, []))
 
 
+# How many files one person can keep in one place. Generous for real use (a
+# file needs three documents, plus replacements and extras) and a ceiling on
+# how much anyone can push into the database.
+MAX_DOCUMENTS_PER_APPLICATION = 30
+MAX_FILES_PER_DRAFT = 10
+
+
+def check_room(existing_count, limit, what="files"):
+    """Refuse a new upload once a place already holds `limit` files."""
+    if existing_count >= limit:
+        raise serializers.ValidationError(
+            f"This already has {limit} {what}. Remove one before adding another."
+        )
+
+
 def validate_upload(uploaded, max_mb):
     """Raise if this file is not a document. Returns the file unchanged."""
     if uploaded is None:

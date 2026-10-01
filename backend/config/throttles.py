@@ -110,6 +110,19 @@ class MoneyThrottle(UserThrottle):
         return super().allow_request(request, view)
 
 
+class UploadThrottle(UserThrottle):
+    """Files sent to be stored. Every one lands in the database, so a script
+    sending thousands could fill it. Set well above an agent uploading the
+    documents for a class of students in an hour."""
+
+    scope = "upload"
+
+    def allow_request(self, request, view):
+        if request.method in SAFE_METHODS:
+            return True
+        return super().allow_request(request, view)
+
+
 class CheckoutThrottle(UserThrottle):
     """Starting a payment or sending a transfer receipt. Looser than "money":
     an agent paying for a class of students does this many times in an hour."""

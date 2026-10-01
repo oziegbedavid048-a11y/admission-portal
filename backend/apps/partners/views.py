@@ -12,7 +12,7 @@ from rest_framework.views import APIView
 from apps.applications import services
 from apps.applications.constants import AGENT_REGISTRATION_COMMISSION_NGN, AGENT_VISA_COMMISSION_NGN
 from apps.applications.models import Application
-from config.throttles import MoneyThrottle, UserThrottle
+from config.throttles import MoneyThrottle, UploadThrottle, UserThrottle
 
 from .models import Commission, Loan, StudentDraft, StudentDraftFile, Wallet, Withdrawal, loan_block_reason
 from .permissions import IsAgent
@@ -288,7 +288,12 @@ class StudentDraftViewSet(AgentScopedMixin, viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(agent=self.agent)
 
-    @action(detail=True, methods=["post"], parser_classes=(MultiPartParser, FormParser))
+    @action(
+        detail=True,
+        methods=["post"],
+        parser_classes=(MultiPartParser, FormParser),
+        throttle_classes=(UserThrottle, UploadThrottle),
+    )
     def files(self, request, pk=None):
         from django.conf import settings
 
@@ -305,7 +310,13 @@ class StudentDraftViewSet(AgentScopedMixin, viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
         validate_upload(upload, settings.MAX_UPLOAD_SIZE_MB)
-        item = draft.files.filter(slot=slot).first() or StudentDraftFile(draft=draft, slot=slot)
+        item = draft.files.filter(slot=slot).first()
+        if item is None:
+            # A new slot is a new file; replacing one in place is always allowed.
+            from apps.applications.uploads import MAX_FILES_PER_DRAFT, check_room
+
+            check_room(draft.files.count(), MAX_FILES_PER_DRAFT)
+            item = StudentDraftFile(draft=draft, slot=slot)
         item.kind = kind if kind in {"passport", "academic", "cv", "other"} else "other"
         item.name = name
         item.file = upload

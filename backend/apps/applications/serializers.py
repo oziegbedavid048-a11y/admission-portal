@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.db import transaction
 from rest_framework import serializers
 
@@ -199,6 +201,21 @@ class ApplicationContactSerializer(serializers.ModelSerializer):
         fields = ("phone", "address", "grade_gpa")
 
 
+def _country_name(value, empty_message):
+    """A country name as a person would type it: letters, spaces and a few
+    marks, nothing else, at most 60 characters."""
+    import re
+
+    name = " ".join(str(value or "").split())
+    if not name:
+        raise serializers.ValidationError(empty_message)
+    if len(name) > 60 or not re.fullmatch(r"[^\W\d_][\w .'()&-]*", name, flags=re.UNICODE) or any(
+        ch.isdigit() for ch in name
+    ):
+        raise serializers.ValidationError("Choose a country from the list.")
+    return name
+
+
 class ApplicationCreateSerializer(serializers.Serializer):
     """Everything the five-step wizard collects, submitted in one call."""
 
@@ -227,34 +244,37 @@ class ApplicationCreateSerializer(serializers.Serializer):
     notes = serializers.CharField(required=False, allow_blank=True, default="")
 
     def validate_origin_country(self, value):
-        name = str(value or "").strip()
-        if not name:
-            raise serializers.ValidationError("Choose a country of origin from the list.")
+        """A country from the list, or a new one added quietly.
+
+        A country not yet on file is added priced in Naira. It used to be added
+        as US dollars at a fixed rate, and fee quotes read the dollar rate from
+        the first USD country by name, so a made-up country such as "Aaa"
+        would have set the dollar rate for every USD-priced school.
+        """
+        name = _country_name(value, "Choose a country of origin from the list.")
         country = OriginCountry.objects.filter(name__iexact=name).first()
         if country is None:
-            code = "".join(c for c in name if c.isalnum())[:3].upper() or "ORG"
             country = OriginCountry.objects.create(
                 name=name,
-                code=code,
-                currency="USD",
-                symbol="$",
-                ngn_per_unit=Decimal("1500"),
+                currency="NGN",
+                symbol="₦",
+                ngn_per_unit=Decimal("1"),
             )
         return country
 
     def validate_destination_country(self, value):
-        name = str(value or "").strip()
-        if not name:
-            raise serializers.ValidationError("Choose a destination country.")
+        name = _country_name(value, "Choose a destination country.")
         country = DestinationCountry.objects.filter(name__iexact=name).first()
         if country is None:
             code = "".join(c for c in name if c.isalnum())[:3].upper() or "DST"
+            # Hidden until the desk reviews it, so a name typed by an applicant
+            # never appears in the public list of destinations.
             country = DestinationCountry.objects.create(
                 name=name,
                 code=code,
                 currency="USD",
                 currency_symbol="$",
-                is_active=True,
+                is_active=False,
             )
         return country
 

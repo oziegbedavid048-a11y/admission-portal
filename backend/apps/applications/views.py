@@ -6,6 +6,8 @@ from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from config.throttles import UploadThrottle, UserThrottle
+
 from .models import (
     Application,
     ApplicationDraft,
@@ -142,9 +144,17 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             ApplicationSerializer(application, context=self.get_serializer_context()).data
         )
 
-    @action(detail=True, methods=["post"], parser_classes=(MultiPartParser, FormParser))
+    @action(
+        detail=True,
+        methods=["post"],
+        parser_classes=(MultiPartParser, FormParser),
+        throttle_classes=(UserThrottle, UploadThrottle),
+    )
     def documents(self, request, reference=None):
+        from .uploads import MAX_DOCUMENTS_PER_APPLICATION, check_room
+
         application = self.get_object()
+        check_room(application.documents.count(), MAX_DOCUMENTS_PER_APPLICATION, "documents")
         serializer = DocumentSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         document = serializer.save(application=application)
@@ -160,7 +170,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             status=status.HTTP_201_CREATED,
         )
 
-    @action(detail=True, methods=["get", "post"])
+    @action(detail=True, methods=["get", "post"], throttle_classes=(UserThrottle, UploadThrottle))
     def corrections(self, request, reference=None):
         application = self.get_object()
         if request.method == "GET":
@@ -193,6 +203,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         methods=["post"],
         url_path=r"documents/(?P<document_id>[0-9]+)/replace",
         parser_classes=(MultiPartParser, FormParser),
+        throttle_classes=(UserThrottle, UploadThrottle),
     )
     def replace_document(self, request, reference=None, document_id=None):
         """Upload a new copy of one document, usually after it was rejected.
@@ -285,6 +296,8 @@ class DraftFileView(APIView):
 
     parser_classes = (MultiPartParser, FormParser)
 
+    throttle_classes = (UserThrottle, UploadThrottle)
+
     def post(self, request):
         from django.conf import settings
 
@@ -301,7 +314,13 @@ class DraftFileView(APIView):
             )
         validate_upload(upload, settings.MAX_UPLOAD_SIZE_MB)
         draft, _ = ApplicationDraft.objects.get_or_create(user=request.user)
-        item = draft.files.filter(slot=slot).first() or ApplicationDraftFile(draft=draft, slot=slot)
+        item = draft.files.filter(slot=slot).first()
+        if item is None:
+            # A new slot is a new file; replacing one in place is always allowed.
+            from .uploads import MAX_FILES_PER_DRAFT, check_room
+
+            check_room(draft.files.count(), MAX_FILES_PER_DRAFT)
+            item = ApplicationDraftFile(draft=draft, slot=slot)
         item.kind = kind if kind in {"passport", "academic", "cv", "other"} else "other"
         item.name = name
         item.file = upload

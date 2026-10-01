@@ -266,7 +266,7 @@ REST_FRAMEWORK = {
         # Everyone arriving through Vercel shares Vercel's addresses here, so
         # this only has to stop floods, not people.
         "edge": env("THROTTLE_EDGE", "600/min"),
-        "upload": env("THROTTLE_UPLOAD", "60/hour"),
+        "upload": env("THROTTLE_UPLOAD", "200/hour"),
     },
 }
 
