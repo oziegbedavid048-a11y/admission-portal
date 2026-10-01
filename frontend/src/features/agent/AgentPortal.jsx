@@ -2,6 +2,7 @@ import { Navigate, Route, Routes, useNavigate } from 'react-router-dom';
 import PortalShell from '../../components/layout/PortalShell';
 import Loading from '../../components/ui/Loading';
 import { useAuth } from '../../context/AuthContext';
+import { useLiveChatBubble } from '../../lib/liveChat';
 import { useToast } from '../../context/ToastContext';
 import SupportPage from '../support/SupportPage';
 import AgentCourses from './AgentCourses';
@@ -28,7 +29,9 @@ const NAV = [
 
 function PortalRoutes() {
   const { profile, loading } = useAgent();
-  const { signOut } = useAuth();
+  const { user, signOut } = useAuth();
+  // The live chat bubble sits on every dashboard page.
+  useLiveChatBubble({ name: user?.full_name, email: user?.email });
   const toast = useToast();
   const navigate = useNavigate();
 

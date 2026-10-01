@@ -1,24 +1,29 @@
+import { useEffect } from 'react';
+
 /**
  * Live chat, behind one small interface so the provider can change without
  * touching the pages that offer it.
  *
- * It is Tawk.to today. Set these in the frontend environment to switch it on:
+ * It is Tawk.to. The property and widget are Gabstep's own, from the Tawk.to
+ * dashboard under Administration › Chat widget. They are public (they sit in
+ * every page that shows the widget), and the environment can point at a
+ * different widget:
  *
  *   VITE_TAWK_PROPERTY_ID=<property id>
- *   VITE_TAWK_WIDGET_ID=<widget id, often "default">
+ *   VITE_TAWK_WIDGET_ID=<widget id>
  *
- * Both come from the Tawk.to dashboard under Administration › Chat widget. When
- * they are not set, `isLiveChatConfigured()` is false and the Support page says
- * live chat is not available, rather than offering a button that does nothing.
- *
- * The provider's floating bubble is kept hidden; the chat opens from the
- * Support page's own button, so the portals keep one consistent look.
+ * The chat bubble shows on the applicant and agent dashboards
+ * (`useLiveChatBubble`) and nowhere else. The Support page's own button opens
+ * the same chat with `openLiveChat`.
  */
 
-const PROPERTY_ID = (import.meta.env.VITE_TAWK_PROPERTY_ID || '').trim();
-const WIDGET_ID = (import.meta.env.VITE_TAWK_WIDGET_ID || 'default').trim();
+const PROPERTY_ID = (import.meta.env.VITE_TAWK_PROPERTY_ID || '6abe5477d9e778343f63237e').trim();
+const WIDGET_ID = (import.meta.env.VITE_TAWK_WIDGET_ID || '1k3rnjt2u').trim();
 
 let loading = null;
+// Whether a page that wants the bubble is open. Read when the widget finishes
+// loading and when the chat window is closed.
+let bubbleWanted = false;
 
 export function isLiveChatConfigured() {
   return Boolean(PROPERTY_ID);
@@ -33,12 +38,15 @@ function load(visitor) {
       window.Tawk_API.visitor = { name: visitor.name || '', email: visitor.email || '' };
     }
     window.Tawk_API.onLoad = () => {
-      window.Tawk_API.hideWidget?.();
+      if (bubbleWanted) window.Tawk_API.showWidget?.();
+      else window.Tawk_API.hideWidget?.();
       resolve(window.Tawk_API);
     };
-    // Closing the chat puts the bubble away again, rather than leaving it
-    // floating over every page.
-    window.Tawk_API.onChatMinimized = () => window.Tawk_API.hideWidget?.();
+    // Closing the chat leaves the bubble on the dashboards and puts it away
+    // everywhere else.
+    window.Tawk_API.onChatMinimized = () => {
+      if (!bubbleWanted) window.Tawk_API.hideWidget?.();
+    };
 
     const script = document.createElement('script');
     script.async = true;
@@ -60,4 +68,28 @@ export async function openLiveChat(visitor) {
   const api = await load(visitor);
   api.showWidget?.();
   api.maximize?.();
+}
+
+/**
+ * Show the chat bubble while the calling page is open, and put it away when
+ * it closes. Used by the applicant and agent dashboards.
+ */
+export function useLiveChatBubble(visitor) {
+  const name = visitor?.name || '';
+  const email = visitor?.email || '';
+
+  useEffect(() => {
+    if (!isLiveChatConfigured()) return undefined;
+    bubbleWanted = true;
+    load({ name, email })
+      .then((api) => {
+        if (bubbleWanted) api.showWidget?.();
+      })
+      .catch(() => {});
+    return () => {
+      bubbleWanted = false;
+      window.Tawk_API?.minimize?.();
+      window.Tawk_API?.hideWidget?.();
+    };
+  }, [name, email]);
 }
