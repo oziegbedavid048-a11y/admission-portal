@@ -93,7 +93,12 @@
 /* ================= Hero Section & Crossfade Blurred Carousel ================= */
 .hero-section {
   position: relative;
-  min-height: calc(100vh - var(--nav-height));
+  /* A little short of the screen, so the top of the next section shows
+     underneath and tells the visitor there is more below. svh keeps it steady
+     while a phone's address bar slides in and out. */
+  min-height: calc(100vh - var(--nav-height) - var(--hero-peek));
+  min-height: calc(100svh - var(--nav-height) - var(--hero-peek));
+  --hero-peek: clamp(110px, 16vh, 170px);
   display: flex;
   align-items: center;
   justify-content: flex-start; /* Aligned to left-hand side */

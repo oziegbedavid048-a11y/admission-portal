@@ -23,6 +23,12 @@
   background: var(--lp-bg);
 }
 
+/* The first section starts close to the hero, so its heading is what peeks
+   above the fold rather than empty white space. */
+.landing .hero-section + .lp-section {
+  padding-top: clamp(40px, 6vw, 88px);
+}
+
 .lp-section + .lp-section {
   border-top: 1px solid var(--lp-hair);
 }
@@ -578,7 +584,7 @@
 .sh-tray-menu {
   max-height: calc(100dvh - var(--nav-height));
   overflow-y: auto;
-  padding: 8px 0 32px;
+  padding: 4px 0 24px;
 }
 
 .sh-tray-sections {
@@ -587,17 +593,17 @@
 }
 
 .sh-tray-sections a {
-  padding: 12px 0;
-  font-size: 1.75rem;
-  letter-spacing: -0.025em;
+  padding: 10px 0;
+  font-size: 1.25rem;
+  letter-spacing: -0.015em;
 }
 
 .sh-tray-groups {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 24px;
-  margin-top: 20px;
-  padding-top: 24px;
+  margin-top: 12px;
+  padding-top: 20px;
   border-top: 1px solid var(--g-line);
 }
 
@@ -610,7 +616,7 @@
 
 .sh-tray-group a,
 .sh-tray-group button {
-  font-size: 1.0625rem;
+  font-size: 0.9375rem;
 }
 
 @media (max-width: 1099px) {
