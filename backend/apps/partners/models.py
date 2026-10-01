@@ -11,6 +11,7 @@ from decimal import Decimal
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models, transaction
+from django.db.models import F
 
 from apps.applications.uploads import draft_upload_path
 from apps.applications.constants import (
@@ -124,8 +125,10 @@ class SupervisorProfile(models.Model):
         return max(Decimal("0.00"), self.bonus_total - self.total_withdrawn)
 
     def credit_bonus(self, amount=SUPERVISOR_BONUS_NGN):
-        self.bonus_total += amount
-        self.save(update_fields=["bonus_total"])
+        # Added in the database, not on this copy: a copy read before a payout
+        # request would otherwise write its stale totals back over it.
+        SupervisorProfile.objects.filter(pk=self.pk).update(bonus_total=F("bonus_total") + amount)
+        self.refresh_from_db(fields=["bonus_total"])
 
 
 class SupervisorBonus(models.Model):
@@ -240,12 +243,23 @@ class Wallet(models.Model):
         return wallet
 
     def credit_commission(self, kind, amount):
-        if kind == Commission.Kind.REGISTRATION:
-            self.registration_commission_total += amount
-        else:
-            self.visa_commission_total += amount
-        self.total_earned += amount
-        self.save()
+        """Add a commission in the database itself.
+
+        This used to add to this copy of the wallet and save every column. A
+        copy read before a withdrawal then wrote its old `total_withdrawn` back
+        over the withdrawal, and the agent could take the same money twice.
+        An F() update touches only the earned totals and cannot lose another
+        write.
+        """
+        field = (
+            "registration_commission_total"
+            if kind == Commission.Kind.REGISTRATION
+            else "visa_commission_total"
+        )
+        Wallet.objects.filter(pk=self.pk).update(
+            **{field: F(field) + amount, "total_earned": F("total_earned") + amount}
+        )
+        self.refresh_from_db(fields=[field, "total_earned"])
 
 
 class Commission(models.Model):
@@ -408,7 +422,7 @@ class Withdrawal(models.Model):
 
         wallet.loan_balance = max(Decimal("0.00"), wallet.loan_balance - deduction)
         wallet.total_withdrawn += amount
-        wallet.save()
+        wallet.save(update_fields=["loan_balance", "total_withdrawn"])
 
         if wallet.loan_balance == 0:
             agent.loans.filter(status=Loan.Status.DISBURSED).update(
@@ -478,13 +492,19 @@ class SupervisorWithdrawal(models.Model):
 
     @transaction.atomic
     def mark_failed(self):
-        """Give the money back. A payout that never left has to be returned."""
-        if self.status == self.Status.FAILED:
-            return False
-        self.status = self.Status.FAILED
-        self.save(update_fields=["status"])
+        """Give the money back. A payout that never left has to be returned.
 
-        supervisor = self.supervisor
+        Only a pending payout can fail, and the row is locked and re-read first,
+        so two clicks, or a payout already marked paid, never refund twice.
+        """
+        locked = type(self).objects.select_for_update().get(pk=self.pk)
+        if locked.status != self.Status.PENDING:
+            return False
+        locked.status = self.Status.FAILED
+        locked.save(update_fields=["status"])
+        self.status = locked.status
+
+        supervisor = SupervisorProfile.objects.select_for_update().get(pk=self.supervisor_id)
         supervisor.total_withdrawn = max(
             Decimal("0.00"), supervisor.total_withdrawn - self.amount
         )

@@ -9,6 +9,7 @@ from decimal import Decimal
 
 from django.contrib import admin, messages
 from django.db import transaction
+from django.db.models import F
 from django.utils import timezone
 from django.utils.html import format_html
 
@@ -151,15 +152,22 @@ class LoanAdmin(admin.ModelAdmin):
     def action_approve_and_disburse(self, request, queryset):
         released = Decimal("0")
         count = 0
-        for loan in queryset.exclude(status__in=(Loan.Status.DISBURSED, Loan.Status.REPAID)):
+        # Locked, so two staff approving at once cannot release a loan twice.
+        loans = queryset.select_for_update().exclude(
+            status__in=(Loan.Status.DISBURSED, Loan.Status.REPAID)
+        )
+        for loan in loans:
             loan.status = Loan.Status.DISBURSED
             loan.approved_amount = loan.requested_amount
             loan.disbursed_at = timezone.now()
             loan.save()
 
-            wallet = loan.agent.wallet
-            wallet.loan_balance += loan.approved_amount
-            wallet.save()
+            # Added in the database, so a withdrawal made at the same moment is
+            # not overwritten by this copy of the wallet.
+            Wallet.objects.get_or_create(agent=loan.agent)
+            Wallet.objects.filter(agent=loan.agent).update(
+                loan_balance=F("loan_balance") + loan.approved_amount
+            )
 
             released += loan.approved_amount
             count += 1
@@ -210,6 +218,9 @@ class WithdrawalAdmin(admin.ModelAdmin):
         "loan_deduction",
         "net_amount",
         "destination",
+        # Moved only by the actions below. Editing it by hand could turn a paid
+        # payout back to pending and then refund it.
+        "status",
         "created_at",
     )
     actions = ("action_mark_paid", "action_mark_failed")
@@ -248,10 +259,16 @@ class WithdrawalAdmin(admin.ModelAdmin):
     @admin.action(description="Mark as paid out")
     def action_mark_paid(self, request, queryset):
         pending = list(queryset.filter(status=Withdrawal.Status.PENDING).select_related("agent__user"))
-        count = Withdrawal.objects.filter(pk__in=[w.pk for w in pending]).update(
-            status=Withdrawal.Status.PAID
+        # Still pending at the moment of writing: one failed by someone else in
+        # between is not turned into a payout.
+        count = Withdrawal.objects.filter(
+            pk__in=[w.pk for w in pending], status=Withdrawal.Status.PENDING
+        ).update(status=Withdrawal.Status.PAID)
+        paid = set(
+            Withdrawal.objects.filter(pk__in=[w.pk for w in pending], status=Withdrawal.Status.PAID)
+            .values_list("pk", flat=True)
         )
-        for withdrawal in pending:
+        for withdrawal in (w for w in pending if w.pk in paid):
             send_agent_payout_sent_email(withdrawal)
         self.message_user(request, f"{_plural(count, 'payout')} marked as sent.", messages.SUCCESS)
 
@@ -259,18 +276,20 @@ class WithdrawalAdmin(admin.ModelAdmin):
     @transaction.atomic
     def action_mark_failed(self, request, queryset):
         count = 0
-        for withdrawal in queryset.filter(status=Withdrawal.Status.PENDING):
+        # Locked and re-read, so a payout marked paid or failed by someone else
+        # in the meantime is not refunded a second time.
+        for withdrawal in queryset.select_for_update().filter(status=Withdrawal.Status.PENDING):
             withdrawal.status = Withdrawal.Status.FAILED
             withdrawal.save(update_fields=["status"])
 
             # A payout that never left the bank has to be given back, including
             # the slice that was applied to the agent's loan.
-            wallet = withdrawal.agent.wallet
+            wallet = Wallet.objects.select_for_update().get(agent_id=withdrawal.agent_id)
             wallet.total_withdrawn = max(
                 Decimal("0.00"), wallet.total_withdrawn - withdrawal.amount_requested
             )
             wallet.loan_balance += withdrawal.loan_deduction
-            wallet.save()
+            wallet.save(update_fields=["total_withdrawn", "loan_balance"])
             count += 1
             transaction.on_commit(
                 lambda withdrawal=withdrawal: send_agent_payout_failed_email(withdrawal)

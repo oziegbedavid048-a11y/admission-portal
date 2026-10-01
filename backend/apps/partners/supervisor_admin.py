@@ -253,7 +253,8 @@ class SupervisorWithdrawalAdmin(admin.ModelAdmin):
     )
     autocomplete_fields = ("supervisor",)
     date_hierarchy = "created_at"
-    readonly_fields = ("reference", "supervisor", "amount", "destination", "created_at", "paid_at")
+    # Status moves only through the actions, never by hand (see WithdrawalAdmin).
+    readonly_fields = ("reference", "supervisor", "amount", "destination", "status", "created_at", "paid_at")
     actions = ("action_mark_paid", "action_mark_failed")
 
     def get_queryset(self, request):
@@ -277,10 +278,15 @@ class SupervisorWithdrawalAdmin(admin.ModelAdmin):
                 "supervisor__user"
             )
         )
-        count = SupervisorWithdrawal.objects.filter(pk__in=[w.pk for w in pending]).update(
-            status=SupervisorWithdrawal.Status.PAID, paid_at=timezone.now()
+        count = SupervisorWithdrawal.objects.filter(
+            pk__in=[w.pk for w in pending], status=SupervisorWithdrawal.Status.PENDING
+        ).update(status=SupervisorWithdrawal.Status.PAID, paid_at=timezone.now())
+        paid = set(
+            SupervisorWithdrawal.objects.filter(
+                pk__in=[w.pk for w in pending], status=SupervisorWithdrawal.Status.PAID
+            ).values_list("pk", flat=True)
         )
-        for withdrawal in pending:
+        for withdrawal in (w for w in pending if w.pk in paid):
             send_manager_payout_sent_email(withdrawal)
         self.message_user(request, f"{count} payout(s) marked as sent.", messages.SUCCESS)
 
