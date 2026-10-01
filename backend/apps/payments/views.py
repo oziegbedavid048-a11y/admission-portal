@@ -223,13 +223,13 @@ class CheckoutView(APIView):
             serializer = CheckoutSerializer(data=request.data)
             serializer.is_valid(raise_exception=True)
 
+            # Only a file the caller may already see: their own, a student they
+            # filed, or any file for staff. Someone else's reference is "not
+            # found", exactly as if it did not exist, so it cannot be used to
+            # read that file or to reset its payment.
             application = visible_applications(request.user).filter(
                 reference=serializer.validated_data["application"]
             ).first()
-            if application is None:
-                application = Application.objects.filter(
-                    reference=serializer.validated_data["application"]
-                ).first()
             if application is None:
                 return Response(
                     {"detail": "No such application."}, status=status.HTTP_404_NOT_FOUND
