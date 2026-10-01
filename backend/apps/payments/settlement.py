@@ -89,11 +89,14 @@ def settle(payment, gateway_name=None, gateway_reference=None):
     # A settled fee is what earns a partner agent their first commission. This is
     # the only place that happens, so it can only happen once.
     credited = services.award_registration_commission(locked.application)
+    # The same paid fee earns the sales manager behind the agent their bonus.
+    bonus = services.award_supervisor_bonus(locked.application)
     logger.info(
-        "Payment %s settled via %s. Commission credited: %s",
+        "Payment %s settled via %s. Commission credited: %s. Manager bonus: %s",
         locked.reference,
         gateway_name or locked.gateway,
         credited,
+        bonus,
     )
     # Keep the caller's instance in step with what was written.
     payment.refresh_from_db()

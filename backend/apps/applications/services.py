@@ -112,13 +112,20 @@ def award_commission(application, kind):
 def award_supervisor_bonus(application):
     """Pay the sales manager behind this student's agent, once.
 
-    Earned at registration: a sales manager's job is recruiting and keeping
-    agents productive, so the bonus follows the agent filing a student rather
-    than anything that happens to that student later. Unique per application, so
-    it is safe to call more than once. Returns the amount credited, or zero when
-    the file has no agent, the agent has no supervisor, or it was already paid.
+    Earned when the student's application fee is paid. It used to be paid the
+    moment an agent registered a student, so registering made-up students
+    earned real money with no fee ever paid. Like the agent's registration
+    commission, it checks the payment itself rather than trusting the caller,
+    and it is unique per application, so it is safe to call more than once.
+    Returns the amount credited, or zero when the fee is not paid, the file has
+    no agent, the agent has no supervisor, or it was already paid.
     """
     from apps.partners.models import SupervisorBonus
+    from apps.payments.models import Payment
+
+    payment = getattr(application, "payment", None)
+    if payment is None or payment.status != Payment.Status.PAID:
+        return 0
 
     agent = application.submitted_by_agent
     supervisor = getattr(agent, "supervisor", None) if agent else None

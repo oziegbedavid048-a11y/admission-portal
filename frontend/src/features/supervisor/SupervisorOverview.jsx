@@ -38,7 +38,7 @@ export default function SupervisorOverview() {
     load();
   }, [load]);
 
-  // A bonus lands the moment an agent registers a student, so the page keeps
+  // A bonus lands when a student's application fee is paid, so the page keeps
   // itself current rather than waiting for a reload.
   useLiveRefresh(() => load(true));
 
@@ -164,8 +164,8 @@ export default function SupervisorOverview() {
             />
           ) : (
             <p className="chart-empty">
-              You earn {formatNaira(earnings.per_student)} each time one of your agents
-              registers a student.
+              You earn {formatNaira(earnings.per_student)} each time a student one of
+              your agents registered pays their application fee.
             </p>
           )}
         </section>

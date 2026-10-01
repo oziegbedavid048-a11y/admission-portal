@@ -46,7 +46,7 @@ export default function SupervisorEarnings() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // A bonus lands the moment an agent registers a student, and the desk marks
+  // A bonus lands when a student's application fee is paid, and the desk marks
   // payouts sent. Neither involves the Sales Manager, so the page refetches
   // rather than waiting to be reloaded.
   useLiveRefresh(() => {
@@ -228,7 +228,7 @@ export default function SupervisorEarnings() {
       <section className="agent-card">
         <div className="agent-card-header">
           <h2 className="agent-card-title">Bonus history</h2>
-          <span className="agent-card-note">{formatNaira(BONUS)} per student registered</span>
+          <span className="agent-card-note">{formatNaira(BONUS)} per paid application</span>
         </div>
 
         <div className="agent-table-wrap">
@@ -249,8 +249,8 @@ export default function SupervisorEarnings() {
                     <div className="agent-empty-state">
                       <p>No bonuses yet</p>
                       <small>
-                        You earn {formatNaira(BONUS)} each time one of your agents
-                        registers a student.
+                        You earn {formatNaira(BONUS)} each time a student one of
+                        your agents registered pays their application fee.
                       </small>
                     </div>
                   </td>

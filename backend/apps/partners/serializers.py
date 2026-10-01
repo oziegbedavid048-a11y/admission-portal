@@ -461,9 +461,8 @@ class AgentStudentCreateSerializer(ApplicationCreateSerializer):
             send_email=False,
         )
 
-        # The sales manager who recruited this agent earns their bonus here,
-        # at the moment of registration.
-        services.award_supervisor_bonus(application)
+        # The sales manager's bonus is not paid here. It waits for the
+        # student's application fee to be paid (payments/settlement.py).
 
         # A draft's documents become the application's documents, and the
         # draft is finished with.

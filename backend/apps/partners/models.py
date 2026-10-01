@@ -131,9 +131,9 @@ class SupervisorProfile(models.Model):
 
 
 class SupervisorBonus(models.Model):
-    """One sales-manager bonus, tied to the registration that earned it.
+    """One sales-manager bonus, tied to the paid application that earned it.
 
-    Unique per application, so a retried registration never pays twice.
+    Unique per application, so a retried settlement never pays twice.
     """
 
     supervisor = models.ForeignKey(
