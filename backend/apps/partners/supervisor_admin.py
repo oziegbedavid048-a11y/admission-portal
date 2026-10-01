@@ -266,6 +266,9 @@ class SupervisorWithdrawalAdmin(admin.ModelAdmin):
 
     @admin.display(description="Destination")
     def destination(self, obj):
+        # The account on file when the payout was requested, not today's.
+        if obj.paid_to:
+            return obj.paid_to
         manager = obj.supervisor
         if not manager.bank_name:
             return "No payout account on file"

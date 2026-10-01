@@ -368,6 +368,9 @@ class Withdrawal(models.Model):
     status = models.CharField(
         max_length=12, choices=Status.choices, default=Status.PENDING
     )
+    # The bank account on file when the payout was requested. A later change
+    # to the profile does not move a payout already asked for.
+    paid_to = models.CharField(max_length=200, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -413,11 +416,14 @@ class Withdrawal(models.Model):
                 wallet.loan_balance,
             )
 
+        from .payout_account import destination_label
+
         withdrawal = cls.objects.create(
             agent=agent,
             amount_requested=amount,
             loan_deduction=deduction,
             net_amount=amount - deduction,
+            paid_to=destination_label(agent),
         )
 
         wallet.loan_balance = max(Decimal("0.00"), wallet.loan_balance - deduction)
@@ -454,6 +460,8 @@ class SupervisorWithdrawal(models.Model):
     status = models.CharField(
         max_length=12, choices=Status.choices, default=Status.PENDING
     )
+    # See Withdrawal.paid_to.
+    paid_to = models.CharField(max_length=200, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     paid_at = models.DateTimeField(null=True, blank=True)
 
@@ -484,7 +492,11 @@ class SupervisorWithdrawal(models.Model):
         if amount > locked.available_balance:
             raise ValidationError("That is more than your available balance.")
 
-        withdrawal = cls.objects.create(supervisor=locked, amount=amount)
+        from .payout_account import destination_label
+
+        withdrawal = cls.objects.create(
+            supervisor=locked, amount=amount, paid_to=destination_label(locked)
+        )
         locked.total_withdrawn += amount
         locked.save(update_fields=["total_withdrawn"])
         supervisor.total_withdrawn = locked.total_withdrawn

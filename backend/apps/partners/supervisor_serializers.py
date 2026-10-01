@@ -18,6 +18,7 @@ from .models import (
     SupervisorProfile,
     SupervisorWithdrawal,
 )
+from .payout_account import announce_bank_change, check_password_for_bank_change, snapshot
 
 
 class SupervisorProfileSerializer(serializers.ModelSerializer):
@@ -34,6 +35,10 @@ class SupervisorProfileSerializer(serializers.ModelSerializer):
     # keeping a second copy of the number that can drift.
     minimum_withdrawal = serializers.SerializerMethodField()
     can_withdraw = serializers.SerializerMethodField()
+    # Needed only when the bank details change. See payout_account.py.
+    current_password = serializers.CharField(
+        write_only=True, required=False, allow_blank=True, trim_whitespace=False
+    )
 
     class Meta:
         model = SupervisorProfile
@@ -49,6 +54,7 @@ class SupervisorProfileSerializer(serializers.ModelSerializer):
             "bank_name",
             "account_number",
             "account_name",
+            "current_password",
             "bonus_total",
             "total_withdrawn",
             "available_balance",
@@ -85,13 +91,19 @@ class SupervisorProfileSerializer(serializers.ModelSerializer):
             and bool(obj.account_number)
         )
 
+    def validate(self, attrs):
+        return check_password_for_bank_change(self, self.instance, attrs)
+
     def update(self, instance, validated_data):
+        before = snapshot(instance)
         user_data = validated_data.pop("user", {})
         for field, value in user_data.items():
             setattr(instance.user, field, value)
         if user_data:
             instance.user.save()
-        return super().update(instance, validated_data)
+        updated = super().update(instance, validated_data)
+        announce_bank_change(updated, before)
+        return updated
 
 
 class SupervisedAgentSerializer(serializers.ModelSerializer):

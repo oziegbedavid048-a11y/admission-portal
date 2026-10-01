@@ -23,6 +23,8 @@ export default function AgentProfile() {
     account_name: '',
   });
   const [passwords, setPasswords] = useState({ current: '', next: '', confirm: '' });
+  // Changing where payouts go is confirmed with the account password.
+  const [payoutPassword, setPayoutPassword] = useState('');
   const [busy, setBusy] = useState(null);
   const [preview, setPreview] = useState(null);
   const [avatarVersion, setAvatarVersion] = useState(0);
@@ -47,8 +49,10 @@ export default function AgentProfile() {
       setProfile(data);
       await refreshUser();
       toast.success(message);
+      return true;
     } catch (error) {
       toast.error(errorMessage(error, 'Could not save those details.'));
+      return false;
     } finally {
       setBusy(null);
     }
@@ -67,7 +71,7 @@ export default function AgentProfile() {
     );
   };
 
-  const savePayout = (event) => {
+  const savePayout = async (event) => {
     event.preventDefault();
     if (!form.bank_name.trim() || !form.account_name.trim()) {
       toast.warning('Fill in every payout field.');
@@ -77,15 +81,21 @@ export default function AgentProfile() {
       toast.warning('Account number should be 10 digits.');
       return;
     }
-    save(
+    if (!payoutPassword) {
+      toast.warning('Enter your password to change your payout account.');
+      return;
+    }
+    const saved = await save(
       'payout',
       {
         bank_name: form.bank_name,
         account_number: form.account_number,
         account_name: form.account_name,
+        current_password: payoutPassword,
       },
       'Payout account updated.',
     );
+    if (saved) setPayoutPassword('');
   };
 
   const savePassword = async (event) => {
@@ -386,6 +396,27 @@ export default function AgentProfile() {
                   />
                 </div>
                 <span className="ap-field-hint">Must exactly match the name registered with your bank.</span>
+              </div>
+
+              <div className="ap-form-field" style={{ gridColumn: '1 / -1' }}>
+                <label className="ap-label" htmlFor="ap-payout-pass">
+                  <span>Your Password *</span>
+                </label>
+                <div className="ap-input-wrap">
+                  <span className="ap-input-icon">
+                    <Icon name="lock" size={17} />
+                  </span>
+                  <input
+                    id="ap-payout-pass"
+                    type="password"
+                    className="ap-input"
+                    autoComplete="current-password"
+                    value={payoutPassword}
+                    onChange={(e) => setPayoutPassword(e.target.value)}
+                    required
+                  />
+                </div>
+                <span className="ap-field-hint">Needed to change where your earnings are paid.</span>
               </div>
             </div>
 

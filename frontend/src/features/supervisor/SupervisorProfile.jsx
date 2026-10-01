@@ -23,6 +23,8 @@ export default function SupervisorProfile() {
     account_name: '',
   });
   const [passwords, setPasswords] = useState({ current: '', next: '', confirm: '' });
+  // Changing where payouts go is confirmed with the account password.
+  const [payoutPassword, setPayoutPassword] = useState('');
   const [busy, setBusy] = useState(null);
 
   useEffect(() => {
@@ -45,8 +47,10 @@ export default function SupervisorProfile() {
       setProfile(data);
       await refreshUser();
       toast.success(message);
+      return true;
     } catch (error) {
       toast.error(errorMessage(error, 'Could not save those details.'));
+      return false;
     } finally {
       setBusy(null);
     }
@@ -65,21 +69,27 @@ export default function SupervisorProfile() {
     );
   };
 
-  const savePayout = (event) => {
+  const savePayout = async (event) => {
     event.preventDefault();
     if (form.account_number && !/^\d{10}$/.test(form.account_number)) {
       toast.warning('Account number should be 10 digits.');
       return;
     }
-    save(
+    if (!payoutPassword) {
+      toast.warning('Enter your password to change your payout account.');
+      return;
+    }
+    const saved = await save(
       'payout',
       {
         bank_name: form.bank_name,
         account_number: form.account_number,
         account_name: form.account_name,
+        current_password: payoutPassword,
       },
       'Payout account updated.',
     );
+    if (saved) setPayoutPassword('');
   };
 
   const savePassword = async (event) => {
@@ -215,6 +225,20 @@ export default function SupervisorProfile() {
               maxLength: 10,
             })}
             {input('account_name', 'Account name')}
+            <div className="agent-form-group">
+              <label className="agent-form-label" htmlFor="sv-payout-password">
+                Your password
+              </label>
+              <input
+                id="sv-payout-password"
+                type="password"
+                className="agent-form-control"
+                autoComplete="current-password"
+                value={payoutPassword}
+                onChange={(event) => setPayoutPassword(event.target.value)}
+                required
+              />
+            </div>
           </div>
           <button
             type="submit"

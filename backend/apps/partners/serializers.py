@@ -14,6 +14,7 @@ from apps.applications.models import Application, Notification
 from apps.applications.serializers import ApplicationCreateSerializer
 
 from .models import AgentProfile, Commission, Loan, StudentDraft, StudentDraftFile, Wallet, Withdrawal
+from .payout_account import announce_bank_change, check_password_for_bank_change, snapshot
 
 
 class WalletSerializer(serializers.ModelSerializer):
@@ -59,6 +60,10 @@ class AgentProfileSerializer(serializers.ModelSerializer):
     initials = serializers.CharField(source="user.initials", read_only=True)
     partner_code = serializers.CharField(read_only=True)
     wallet = WalletSerializer(read_only=True)
+    # Needed only when the bank details change. See payout_account.py.
+    current_password = serializers.CharField(
+        write_only=True, required=False, allow_blank=True, trim_whitespace=False
+    )
 
     class Meta:
         model = AgentProfile
@@ -75,6 +80,7 @@ class AgentProfileSerializer(serializers.ModelSerializer):
             "bank_name",
             "account_number",
             "account_name",
+            "current_password",
             "total_closed_sales",
             "wallet",
             "created_at",
@@ -86,13 +92,19 @@ class AgentProfileSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Account number should be 10 digits.")
         return value
 
+    def validate(self, attrs):
+        return check_password_for_bank_change(self, self.instance, attrs)
+
     def update(self, instance, validated_data):
+        before = snapshot(instance)
         user_data = validated_data.pop("user", {})
         for field, value in user_data.items():
             setattr(instance.user, field, value)
         if user_data:
             instance.user.save()
-        return super().update(instance, validated_data)
+        updated = super().update(instance, validated_data)
+        announce_bank_change(updated, before)
+        return updated
 
 
 class LoanSerializer(serializers.ModelSerializer):

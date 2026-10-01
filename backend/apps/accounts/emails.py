@@ -718,6 +718,26 @@ def send_password_reset_email(user, link, minutes):
     )
 
 
+def send_payout_account_changed_email(user, profile):
+    """Tell the owner their payout account changed, in case it was not them."""
+    last_four = (profile.account_number or "")[-4:]
+    return _send(
+        subject="Your Gabstep payout account was changed",
+        recipients=[user.email],
+        greeting=f"Hello {_first_name(user.full_name)},",
+        paragraphs=[
+            "The bank account your Gabstep earnings are paid into was just changed.",
+            "If this was not you, change your password straight away and contact "
+            "support@gabstep.com before any payout is sent.",
+        ],
+        facts=[
+            ("Bank", profile.bank_name or "Not set"),
+            ("Account", f"ending {last_four}" if last_four else "Not set"),
+            ("Name", profile.account_name or "Not set"),
+        ],
+    )
+
+
 def send_password_changed_email(user):
     """Confirmation after a reset, so an unexpected change does not go unnoticed."""
     return _send(
