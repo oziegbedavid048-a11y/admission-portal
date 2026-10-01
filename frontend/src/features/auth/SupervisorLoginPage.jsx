@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import PasswordInput from '../../components/ui/PasswordInput';
 import Icon from '../../lib/icons';
 import { errorMessage } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
@@ -7,7 +8,7 @@ import { useToast } from '../../context/ToastContext';
 
 /**
  * Sales Managers do not sign themselves up. The admissions desk creates the
- * account and hands over the credentials, so this screen only signs in.
+ * account and the sign-in details are emailed, so this screen only signs in.
  */
 export default function SupervisorLoginPage() {
   const [email, setEmail] = useState('');
@@ -17,6 +18,10 @@ export default function SupervisorLoginPage() {
   const { signIn, user } = useAuth();
   const toast = useToast();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    document.title = 'Sales manager sign in · Gabstep';
+  }, []);
 
   useEffect(() => {
     if (user?.role === 'supervisor') navigate('/sales-manager', { replace: true });
@@ -50,7 +55,7 @@ export default function SupervisorLoginPage() {
   return (
     <section className="agent-section">
       <div className="agent-auth-view">
-        <div className="agent-auth-card">
+        <div className="agent-auth-card sv-auth-card">
           <div className="agent-auth-logo">
             <img src="/assets/logo.png" alt="" />
             <div className="auth-brand">
@@ -59,15 +64,13 @@ export default function SupervisorLoginPage() {
             </div>
           </div>
 
-          <h2>Sales Manager sign in</h2>
-          <p className="auth-sub">
-            Use the email and password the admissions desk set up for you.
-          </p>
+          <h2>Sign in</h2>
+          <p className="auth-sub">Welcome back.</p>
 
-          <form onSubmit={submit}>
+          <form onSubmit={submit} noValidate>
             <div className="agent-form-group">
               <label className="agent-form-label" htmlFor="sv-login-email">
-                Email address *
+                Email address
               </label>
               <input
                 type="email"
@@ -81,11 +84,15 @@ export default function SupervisorLoginPage() {
             </div>
 
             <div className="agent-form-group">
-              <label className="agent-form-label" htmlFor="sv-login-pass">
-                Password *
-              </label>
-              <input
-                type="password"
+              <div className="sv-label-row">
+                <label className="agent-form-label" htmlFor="sv-login-pass">
+                  Password
+                </label>
+                <Link to="/forgot-password" className="gx-link">
+                  Forgot password?
+                </Link>
+              </div>
+              <PasswordInput
                 id="sv-login-pass"
                 className="agent-form-control"
                 autoComplete="current-password"
@@ -93,12 +100,6 @@ export default function SupervisorLoginPage() {
                 onChange={(event) => { setPassword(event.target.value); setFormError(''); }}
                 required
               />
-            </div>
-
-            <div className="gx-forgot-row">
-              <Link to="/forgot-password" className="gx-link">
-                Forgot password?
-              </Link>
             </div>
 
             {formError ? (
@@ -117,35 +118,6 @@ export default function SupervisorLoginPage() {
               {busy ? 'Signing in' : 'Sign in'}
             </button>
           </form>
-
-          <div className="auth-switch-link">
-            Are you an agent?{' '}
-            <Link className="link-btn" to="/agent/login">
-              Sign in here
-            </Link>
-          </div>
-
-          <p className="auth-footnote">
-            Sales Manager accounts are set up by the admissions desk. If you do not
-            have one yet, ask them to create it and send you your agent code.
-          </p>
-
-          <div style={{ textAlign: 'center', marginTop: 12 }}>
-            <Link
-              to="/"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-                fontSize: '0.8125rem',
-                color: 'var(--slate-500)',
-                textDecoration: 'none',
-              }}
-            >
-              <Icon name="arrowLeft" size={15} strokeWidth={2} />
-              Back to the student site
-            </Link>
-          </div>
         </div>
       </div>
     </section>

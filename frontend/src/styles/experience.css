@@ -414,7 +414,8 @@ input.sr-only:focus-visible + .gx-attach,
 .gx-link:focus-visible { outline: none; box-shadow: var(--shadow-focus); border-radius: 4px; }
 
 .gx-password-wrap { position: relative; }
-.gx-password-wrap .gx-input { padding-right: 76px; }
+.gx-password-wrap .gx-input,
+.gx-password-wrap input { padding-right: 76px; }
 .gx-password-toggle {
   position: absolute;
   right: 6px;
@@ -1766,3 +1767,13 @@ html { scroll-behavior: smooth; }
 .btn:disabled,
 .g-btn:disabled,
 .agent-btn:disabled { opacity: 0.8; }
+
+/* Sales manager sign-in: the label and its "Forgot password?" share a row. */
+.sv-label-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.sv-label-row .gx-link { font-size: 14px; }
+.sv-auth-card .agent-btn-block { margin-top: 8px; }

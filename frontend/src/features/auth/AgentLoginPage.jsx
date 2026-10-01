@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import PasswordInput from '../../components/ui/PasswordInput';
 import Icon from '../../lib/icons';
 import { errorMessage } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
@@ -95,8 +96,7 @@ export default function AgentLoginPage() {
               <label className="agent-form-label" htmlFor="ag-login-pass">
                 Password *
               </label>
-              <input
-                type="password"
+              <PasswordInput
                 id="ag-login-pass"
                 className="agent-form-control"
                 autoComplete="current-password"
@@ -134,13 +134,6 @@ export default function AgentLoginPage() {
             New partner?{' '}
             <Link className="link-btn" to="/agent/register">
               Register your agency
-            </Link>
-          </div>
-
-          <div className="auth-switch-link">
-            Are you a Sales Manager?{' '}
-            <Link className="link-btn" to="/sales-manager/login">
-              Sign in here
             </Link>
           </div>
 
