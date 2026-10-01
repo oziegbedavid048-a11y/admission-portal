@@ -55,3 +55,53 @@ class ManagerBonusTests(TestCase):
         self.pay(status=Payment.Status.WAIVED)
         self.assertEqual(services.award_supervisor_bonus(self.application), 0)
         self.assertEqual(self.bonus_total(), Decimal("0"))
+
+
+class NoBonusCasesTests(TestCase):
+    """Only a paid fee on a student filed by an agent who signed up with the
+    manager's code earns the override bonus."""
+
+    def paid_application(self, applicant, agent=None):
+        application = make_application(applicant, submitted_by_agent=agent)
+        payment = Payment.objects.create(
+            application=application,
+            amount=Decimal("200000"),
+            processing_fee=Decimal("0"),
+            amount_ngn=Decimal("200000"),
+            processing_fee_ngn=Decimal("0"),
+        )
+        settle(payment, gateway_name="Paystack")
+        return application
+
+    def test_a_student_who_applied_alone_earns_no_bonus(self):
+        manager = SupervisorProfile.objects.create(
+            user=make_user("manager@example.com", role=User.Role.SUPERVISOR)
+        )
+        self.paid_application(make_user("student@example.com"))
+        self.assertEqual(SupervisorProfile.objects.get(pk=manager.pk).bonus_total, Decimal("0"))
+        self.assertFalse(SupervisorBonus.objects.exists())
+
+    def test_an_agent_without_a_manager_code_earns_no_one_a_bonus(self):
+        agent = AgentProfile.objects.create(user=make_user("agent@example.com", role=User.Role.AGENT))
+        self.paid_application(make_user("student@example.com"), agent=agent)
+        self.assertFalse(SupervisorBonus.objects.exists())
+
+    def test_the_bonus_goes_to_the_manager_whose_code_the_agent_used(self):
+        mine = SupervisorProfile.objects.create(user=make_user("mine@example.com", role=User.Role.SUPERVISOR))
+        other = SupervisorProfile.objects.create(user=make_user("other@example.com", role=User.Role.SUPERVISOR))
+        agent = AgentProfile.objects.create(
+            user=make_user("agent@example.com", role=User.Role.AGENT), supervisor=mine
+        )
+        self.paid_application(make_user("student@example.com"), agent=agent)
+        self.assertEqual(SupervisorProfile.objects.get(pk=mine.pk).bonus_total, SUPERVISOR_BONUS_NGN)
+        self.assertEqual(SupervisorProfile.objects.get(pk=other.pk).bonus_total, Decimal("0"))
+
+    def test_an_inactive_manager_earns_nothing(self):
+        manager = SupervisorProfile.objects.create(
+            user=make_user("manager@example.com", role=User.Role.SUPERVISOR), is_active=False
+        )
+        agent = AgentProfile.objects.create(
+            user=make_user("agent@example.com", role=User.Role.AGENT), supervisor=manager
+        )
+        self.paid_application(make_user("student@example.com"), agent=agent)
+        self.assertEqual(SupervisorProfile.objects.get(pk=manager.pk).bonus_total, Decimal("0"))
