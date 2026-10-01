@@ -57,7 +57,6 @@ export default function SupervisorEarnings() {
   const minimum = Number(profile?.minimum_withdrawal) || FALLBACK_MINIMUM;
   const available = Number(profile?.available_balance) || 0;
   const canWithdraw = profile?.can_withdraw ?? available >= minimum;
-  const shortfall = Math.max(0, minimum - available);
   const hasPayoutAccount = Boolean(profile?.bank_name && profile?.account_number);
   const belowMinimum = Number(amount) > 0 && Number(amount) < minimum;
 
@@ -155,12 +154,6 @@ export default function SupervisorEarnings() {
             Add your bank details on your profile before withdrawing. That is where
             the money is sent.
           </p>
-        ) : !canWithdraw ? (
-          <p className="balance-hint">
-            Withdrawals start at {formatNaira(minimum)}. You are {formatNaira(shortfall)}{' '}
-            short, which is {Math.ceil(shortfall / BONUS)} more registration
-            {Math.ceil(shortfall / BONUS) === 1 ? '' : 's'}.
-          </p>
         ) : pending > 0 ? (
           <p className="balance-hint">
             You have {pending} payout{pending === 1 ? '' : 's'} being processed. That
@@ -192,10 +185,6 @@ export default function SupervisorEarnings() {
                   <td colSpan={5}>
                     <div className="agent-empty-state">
                       <p>No withdrawals yet</p>
-                      <small>
-                        Once your balance reaches {formatNaira(minimum)} you can request
-                        a payout here.
-                      </small>
                     </div>
                   </td>
                 </tr>
@@ -248,10 +237,6 @@ export default function SupervisorEarnings() {
                   <td colSpan={5}>
                     <div className="agent-empty-state">
                       <p>No bonuses yet</p>
-                      <small>
-                        You earn {formatNaira(BONUS)} each time a student one of
-                        your agents registered pays their application fee.
-                      </small>
                     </div>
                   </td>
                 </tr>

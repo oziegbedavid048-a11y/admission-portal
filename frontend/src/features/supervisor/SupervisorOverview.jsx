@@ -163,10 +163,7 @@ export default function SupervisorOverview() {
               rows={bonusRows}
             />
           ) : (
-            <p className="chart-empty">
-              You earn {formatNaira(earnings.per_student)} each time a student one of
-              your agents registered pays their application fee.
-            </p>
+            <p className="chart-empty">No bonuses yet</p>
           )}
         </section>
       </div>
