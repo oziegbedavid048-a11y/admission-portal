@@ -1,7 +1,7 @@
 """Transactional email.
 
 The design is deliberately plain: a line of sender text, the message, a link,
-and one line of footer. No banner, no coloured panels, no marketing furniture.
+and a three-line footer. No banner, no coloured panels, no marketing furniture.
 These are records of something that happened to someone's money or their
 application, and they are read on a phone in ten seconds, so they are built to
 be skimmed rather than admired. Plain HTML also survives Outlook and Gmail
@@ -17,6 +17,7 @@ import threading
 
 from django.conf import settings
 from django.core.mail import EmailMultiAlternatives
+from django.utils import timezone
 
 logger = logging.getLogger(__name__)
 
@@ -108,7 +109,6 @@ def _naira(amount):
 BODY = "margin:0;padding:24px;background:#ffffff;color:#111827;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;"
 WRAP = "max-width:560px;margin:0 auto;"
 P = "margin:0 0 16px;color:#111827;"
-MUTED = "margin:0;color:#6b7280;font-size:13px;"
 LINK = "color:#065f46;"
 
 
@@ -158,10 +158,55 @@ def _render(greeting, paragraphs, facts=None, action=None, items=None, items_int
         f'<meta name="viewport" content="width=device-width,initial-scale=1"></head>'
         f'<body style="{BODY}"><div style="{WRAP}">'
         f"{body}"
-        f'<p style="{MUTED}">Gabstep &middot; '
-        f'<a href="mailto:support@gabstep.com" style="{LINK}">support@gabstep.com</a></p>'
+        f"{_footer_html()}"
         f"</div></body></html>"
     )
+
+
+# ── Footer ───────────────────────────────────────────────────────────
+#
+# Three short lines under a hairline: who sent it, where to go, and why the
+# reader got it. Nothing to unsubscribe from: every message here is about the
+# reader's own account or file.
+
+FOOTER_RULE = "margin:32px 0 16px;border:0;border-top:1px solid #e5e7eb;"
+FOOTER_LINE = "margin:0 0 4px;color:#6b7280;font-size:12px;line-height:1.5;"
+FOOTER_LINK = "color:#065f46;text-decoration:none;"
+
+
+def _site():
+    """The site address and the bare host to print for it."""
+    url = _url("/")
+    host = url.split("://", 1)[-1].rstrip("/")
+    return url, host
+
+
+def _footer_html():
+    url, host = _site()
+    support = getattr(settings, "SUPPORT_EMAIL", "support@gabstep.com")
+    year = timezone.now().year
+    return (
+        f'<hr style="{FOOTER_RULE}">'
+        f'<p style="{FOOTER_LINE}"><strong style="color:#111827;">Gabstep</strong> '
+        f"&middot; Study abroad applications</p>"
+        f'<p style="{FOOTER_LINE}">'
+        f'<a href="{url}" style="{FOOTER_LINK}" target="_blank" rel="noopener">{host}</a>'
+        f' &middot; <a href="mailto:{support}" style="{FOOTER_LINK}">{support}</a></p>'
+        f'<p style="{FOOTER_LINE}">You received this email about your Gabstep account. '
+        f"&copy; {year} Gabstep</p>"
+    )
+
+
+def _footer_plain():
+    url, _host = _site()
+    support = getattr(settings, "SUPPORT_EMAIL", "support@gabstep.com")
+    year = timezone.now().year
+    return "\n".join([
+        "--",
+        "Gabstep · Study abroad applications",
+        f"{url} · {support}",
+        f"You received this email about your Gabstep account. © {year} Gabstep",
+    ])
 
 
 def _plain(greeting, paragraphs, facts=None, action=None, items=None, items_intro=None):
@@ -179,7 +224,7 @@ def _plain(greeting, paragraphs, facts=None, action=None, items=None, items_intr
         lines.append("")
     if action:
         lines += [f"{action[0]}: {action[1]}", ""]
-    lines.append("Gabstep, support@gabstep.com")
+    lines.append(_footer_plain())
     return "\n".join(lines)
 
 
