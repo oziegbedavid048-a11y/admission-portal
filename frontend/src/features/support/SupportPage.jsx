@@ -1,12 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { support } from '../../api/endpoints';
 import { errorMessage, fieldErrors } from '../../api/client';
-import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import Icon from '../../lib/icons';
 import { compressImageFile } from '../../lib/compress';
 import { formatDate } from '../../lib/format';
-import { isLiveChatConfigured, openLiveChat } from '../../lib/liveChat';
 import useLiveRefresh from '../../hooks/useLiveRefresh';
 
 /**
@@ -30,15 +28,12 @@ const TOPICS = [
 const BLANK = { topic: 'application', subject: '', message: '', attachment: null };
 
 export default function SupportPage() {
-  const { user } = useAuth();
   const toast = useToast();
   const [form, setForm] = useState(BLANK);
   const [errors, setErrors] = useState({});
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(null);
   const [history, setHistory] = useState([]);
-  const [chatBusy, setChatBusy] = useState(false);
-  const chatReady = isLiveChatConfigured();
 
   const loadHistory = useCallback(() => {
     support
@@ -102,33 +97,8 @@ export default function SupportPage() {
     }
   };
 
-  const startChat = async () => {
-    setChatBusy(true);
-    try {
-      await openLiveChat({ name: user?.full_name, email: user?.email });
-    } catch (error) {
-      toast.error(error.message || 'Live chat could not be opened.');
-    } finally {
-      setChatBusy(false);
-    }
-  };
-
   return (
     <div className="gx-page">
-      {chatReady ? (
-        <section className="gx-card gx-support-chat" aria-labelledby="chat-title">
-          <span className="gx-icon-tile" aria-hidden="true">
-            <Icon name="chat" size={22} />
-          </span>
-          <h2 id="chat-title" className="gx-card-title">Live chat</h2>
-          <p className="gx-muted">Talk to our team now.</p>
-          <button type="button" className="gx-btn gx-btn-primary" onClick={startChat} disabled={chatBusy}>
-            {chatBusy ? <span className="spinner-sm" aria-hidden="true" /> : <Icon name="chat" size={17} />}
-            {chatBusy ? 'Opening' : 'Start live chat'}
-          </button>
-        </section>
-      ) : null}
-
       <section className="gx-card" aria-labelledby="message-title">
         <div className="gx-card-head">
           <h2 id="message-title" className="gx-card-title">Send a message</h2>

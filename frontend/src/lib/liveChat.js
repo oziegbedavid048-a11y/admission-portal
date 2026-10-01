@@ -12,13 +12,33 @@ import { useEffect } from 'react';
  *   VITE_TAWK_PROPERTY_ID=<property id>
  *   VITE_TAWK_WIDGET_ID=<widget id>
  *
- * The chat bubble shows on the applicant and agent dashboards
- * (`useLiveChatBubble`) and nowhere else. The Support page's own button opens
- * the same chat with `openLiveChat`.
+ * The chat bubble shows at the bottom left of the applicant and agent
+ * dashboards (`useLiveChatBubble`) and nowhere else.
  */
 
-const PROPERTY_ID = (import.meta.env.VITE_TAWK_PROPERTY_ID || '6abe5477d9e778343f63237e').trim();
-const WIDGET_ID = (import.meta.env.VITE_TAWK_WIDGET_ID || '1k3rnjt2u').trim();
+const DEFAULT_PROPERTY_ID = '6abe5477d9e778343f63237e';
+const DEFAULT_WIDGET_ID = '1k3rnjt2u';
+
+// A value from the environment is used only if it has the right shape. A
+// property ID mistyped in the hosting settings (one character short) once
+// stopped the chat loading for everyone; a malformed one now falls back to
+// Gabstep's own widget instead.
+function pick(value, pattern, fallback) {
+  const clean = (value || '').trim();
+  return pattern.test(clean) ? clean : fallback;
+}
+
+const PROPERTY_ID = pick(import.meta.env.VITE_TAWK_PROPERTY_ID, /^[a-f0-9]{24}$/i, DEFAULT_PROPERTY_ID);
+const WIDGET_ID = pick(import.meta.env.VITE_TAWK_WIDGET_ID, /^[a-z0-9]{6,20}$/i, DEFAULT_WIDGET_ID);
+
+// Bottom left on every screen size, clear of the page's own controls.
+const POSITION = {
+  visibility: {
+    desktop: { position: 'bl', xOffset: 24, yOffset: 24 },
+    mobile: { position: 'bl', xOffset: 12, yOffset: 12 },
+    bubble: { rotate: '0deg', xOffset: 0, yOffset: 0 },
+  },
+};
 
 let loading = null;
 // Whether a page that wants the bubble is open. Read when the widget finishes
@@ -34,6 +54,7 @@ function load(visitor) {
   loading = new Promise((resolve, reject) => {
     window.Tawk_API = window.Tawk_API || {};
     window.Tawk_LoadStart = new Date();
+    window.Tawk_API.customStyle = POSITION;
     if (visitor?.name || visitor?.email) {
       window.Tawk_API.visitor = { name: visitor.name || '', email: visitor.email || '' };
     }
@@ -60,14 +81,6 @@ function load(visitor) {
     document.body.appendChild(script);
   });
   return loading;
-}
-
-/** Open the chat window. Resolves once it is open; rejects if it cannot load. */
-export async function openLiveChat(visitor) {
-  if (!isLiveChatConfigured()) throw new Error('Live chat is not set up yet.');
-  const api = await load(visitor);
-  api.showWidget?.();
-  api.maximize?.();
 }
 
 /**
