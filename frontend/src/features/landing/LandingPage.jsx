@@ -13,7 +13,6 @@ const STATS = [
   { value: '15', label: 'Years of experience' },
   { value: '500+', label: 'Visas approved' },
   { value: '120+', label: 'Partner universities' },
-  { value: '3', label: 'Offices in Nigeria' },
 ];
 
 const SERVICES = [

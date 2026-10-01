@@ -117,12 +117,12 @@
   text-align: center;
 }
 
-/* About: four figures in a row, then the services. */
+/* About: three figures in a row, then the services. */
 .lp-stats {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 24px;
-  max-width: 980px;
+  max-width: 820px;
   margin: 0 auto clamp(64px, 9vw, 112px);
   text-align: center;
 }
@@ -130,6 +130,8 @@
 .lp-stats > div {
   display: flex;
   flex-direction: column-reverse;
+  /* Figures line up along the top even when a label wraps to two lines. */
+  justify-content: flex-end;
 }
 
 .lp-stats dd {
@@ -293,8 +295,13 @@
 
 @media (max-width: 640px) {
   .lp-stats {
-    grid-template-columns: repeat(2, 1fr);
-    row-gap: 40px;
+    gap: 12px;
+  }
+  .lp-stats dd {
+    font-size: clamp(2rem, 9vw, 2.5rem);
+  }
+  .lp-stats dt {
+    font-size: 0.8125rem;
   }
   .lp-services,
   .lp-steps {
@@ -685,15 +692,26 @@
 }
 
 .sf-brand p {
-  margin: 0;
+  margin: 0 0 16px;
   color: var(--sf-ink-2);
   line-height: 1.6;
 }
 
+.sf-email {
+  color: var(--sf-ink);
+  font-weight: 500;
+  text-decoration: none;
+  transition: color 150ms ease;
+}
+
+.sf-email:hover {
+  color: var(--g-chart-1);
+}
+
 .sf-links {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 32px clamp(32px, 5vw, 64px);
+  display: grid;
+  grid-template-columns: repeat(3, minmax(120px, auto));
+  gap: 32px clamp(40px, 6vw, 80px);
 }
 
 .sf-links > div {
@@ -729,29 +747,6 @@
   color: var(--sf-ink);
 }
 
-.sf-offices {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 24px;
-  margin: 0;
-  padding: 32px 0;
-  border-top: 1px solid var(--sf-line);
-  list-style: none;
-  font-size: 0.875rem;
-  line-height: 1.5;
-}
-
-.sf-offices li {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.sf-offices strong {
-  font-weight: 600;
-  color: var(--sf-ink);
-}
-
 .sf-bottom {
   display: flex;
   flex-wrap: wrap;
@@ -763,12 +758,20 @@
 }
 
 @media (max-width: 640px) {
+  .sf-top {
+    gap: 36px;
+  }
+  /* Two columns: Explore runs down the left, Applicants and Agents stack on
+     the right, so nothing is squeezed or left alone on a row. */
   .sf-links {
-    display: grid;
     grid-template-columns: 1fr 1fr;
+    gap: 28px 24px;
     width: 100%;
   }
-  .sf-offices {
-    grid-template-columns: 1fr;
+  .sf-links > div:first-child:nth-last-child(3) {
+    grid-row: span 2;
+  }
+  .sf-bottom {
+    flex-direction: column;
   }
 }
