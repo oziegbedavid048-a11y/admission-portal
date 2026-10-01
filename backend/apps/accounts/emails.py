@@ -311,9 +311,11 @@ def send_sales_manager_welcome_email(user, profile, password=None):
     """Sent when the admissions desk creates a sales manager account.
 
     They do not sign themselves up, so without this they would have no way of
-    knowing the account exists or what their agent code is.
+    knowing the account exists, how to sign in, or what their agent code is.
+    Sent on this thread and returns whether it went, so the admin can say so.
     """
-    facts = [("Email", user.email)]
+    sign_in = _url("/sales-manager/login")
+    facts = [("Sign in at", sign_in), ("Email", user.email)]
     if password:
         facts.append(("Password", password))
     facts.append(("Agent code", profile.agent_code))
@@ -327,13 +329,14 @@ def send_sales_manager_welcome_email(user, profile, password=None):
     if password:
         paragraphs.append("You can change this password from your profile at any time.")
 
-    _send(
+    return _send(
         subject="Your Gabstep sales manager account",
         recipients=[user.email],
         greeting=f"Hello {_first_name(user.full_name, 'there')},",
         paragraphs=paragraphs,
         facts=facts,
-        action=("Sign in", _url("/sales-manager/login")),
+        action=("Sign in to your dashboard", sign_in),
+        wait=True,
     )
 
 

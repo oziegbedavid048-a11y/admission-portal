@@ -87,7 +87,6 @@ class SupervisorProfileForm(forms.ModelForm):
     def save(self, commit=True):
         profile = super().save(commit=False)
         data = self.cleaned_data
-        is_new = profile.pk is None
 
         user = profile.user if profile.pk else User(role=User.Role.SUPERVISOR)
         user.email = data["email"]
@@ -102,13 +101,6 @@ class SupervisorProfileForm(forms.ModelForm):
         profile.user = user
         if commit:
             profile.save()
-            if is_new:
-                # A sales manager never signs themselves up, so this is the only
-                # way they learn the account exists and what their code is. The
-                # code is only on the profile once it has been saved.
-                send_sales_manager_welcome_email(
-                    user, profile, password=data.get("password")
-                )
         return profile
 
 
@@ -149,6 +141,35 @@ class SupervisorProfileAdmin(admin.ModelAdmin):
     """
 
     form = SupervisorProfileForm
+
+    def save_model(self, request, obj, form, change):
+        """Save, and email a new sales manager their sign-in details.
+
+        The admin saves a form in two steps (the form without committing, then
+        the object here), so the welcome email belongs here: tied to the form's
+        own commit it never ran, and new sales managers were never told how to
+        sign in. The agent code only exists once the profile is saved.
+        """
+        super().save_model(request, obj, form, change)
+        if change:
+            return
+        sent = send_sales_manager_welcome_email(
+            obj.user, obj, password=form.cleaned_data.get("password")
+        )
+        if sent:
+            self.message_user(
+                request,
+                f"Sign-in details and the sign-in link were emailed to {obj.user.email}.",
+                messages.SUCCESS,
+            )
+        else:
+            self.message_user(
+                request,
+                f"The account was created, but the email to {obj.user.email} could not be "
+                "sent. Give them their sign-in details another way.",
+                messages.WARNING,
+            )
+
     list_display = (
         "code_badge",
         "name",
