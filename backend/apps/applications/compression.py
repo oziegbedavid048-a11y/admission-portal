@@ -30,11 +30,26 @@ lose an upload.
 
 import io
 import logging
+import warnings
 from pathlib import Path
 
 from django.core.files.uploadedfile import InMemoryUploadedFile
+from PIL import Image as _Image
 
 logger = logging.getLogger(__name__)
+
+# A picture is decoded in full before it is shrunk, so its pixel count, not its
+# file size, decides the memory it takes: a small PNG of 13,000 x 13,000 pixels
+# unpacks to over 500 MB and would take the server down. 64 megapixels is
+# above any phone camera's normal output (a 48 MP photo is 49 million) and
+# below anything that hurts. Pillow only warns between the limit and twice it,
+# so the warning is made an error; uploads.py refuses such files up front.
+MAX_IMAGE_PIXELS = 64_000_000
+_Image.MAX_IMAGE_PIXELS = MAX_IMAGE_PIXELS
+warnings.simplefilter("error", _Image.DecompressionBombWarning)
+
+# A PDF longer than this is stored as sent rather than rewritten page by page.
+MAX_PDF_PAGES = 150
 
 try:  # iPhone photos. Optional: without it a HEIC upload is stored as sent.
     from pillow_heif import register_heif_opener
@@ -76,9 +91,15 @@ def _compress_image(data, extension, profile):
     from PIL import Image, ImageOps
 
     settings = PROFILES[profile]
-    with Image.open(io.BytesIO(data)) as opened:
-        image = ImageOps.exif_transpose(opened)
-        image.load()
+    # Read from memory, so there is no file handle to close, and turned the
+    # right way up in place rather than as a second full-size copy.
+    image = Image.open(io.BytesIO(data))
+    if image.format == "JPEG":
+        # Let the decoder scale down while it reads, so a large photo is never
+        # held at full size in memory.
+        image.draft("RGB", (settings["max_side"], settings["max_side"]))
+    ImageOps.exif_transpose(image, in_place=True)
+    image.load()
     if max(image.size) > settings["max_side"]:
         image.thumbnail((settings["max_side"], settings["max_side"]), Image.Resampling.LANCZOS)
 
@@ -102,7 +123,7 @@ def _compress_pdf(data):
     from pypdf import PdfReader, PdfWriter
 
     reader = PdfReader(io.BytesIO(data))
-    if reader.is_encrypted:
+    if reader.is_encrypted or len(reader.pages) > MAX_PDF_PAGES:
         return None
     writer = PdfWriter(clone_from=reader)
 

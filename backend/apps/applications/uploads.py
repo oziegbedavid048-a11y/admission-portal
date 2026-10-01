@@ -92,7 +92,35 @@ def validate_upload(uploaded, max_mb):
             f"Upload a {HUMAN_LIST}."
         )
 
+    if extension != ".pdf":
+        _check_pixels(uploaded)
+
     return uploaded
+
+
+def _check_pixels(uploaded):
+    """Refuse a picture too large, in pixels, to open safely.
+
+    Only the header is read, so this costs nothing. The limit itself is set in
+    compression.py, which every upload passes through next.
+    """
+    from PIL import Image
+
+    from .compression import MAX_IMAGE_PIXELS
+
+    try:
+        with Image.open(uploaded) as image:
+            width, height = image.size
+    except (Image.DecompressionBombError, Image.DecompressionBombWarning):
+        width = height = None
+    except Exception:  # noqa: BLE001 - an unreadable header is judged elsewhere
+        uploaded.seek(0)
+        return
+    uploaded.seek(0)
+    if width is None or width * height > MAX_IMAGE_PIXELS:
+        raise serializers.ValidationError(
+            "That picture is too large. Upload a photo or scan under 60 megapixels."
+        )
 
 
 # ── Where an upload is stored ──────────────────────────────────────────
