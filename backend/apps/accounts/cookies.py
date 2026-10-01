@@ -63,10 +63,10 @@ def clear_refresh_cookie(response):
 
 
 def read_refresh_token(request):
-    """The refresh token for this request.
+    """The refresh token for this request: the httpOnly cookie, and only that.
 
-    The cookie is the real source. A token in the body is still accepted so a
-    session open in a tab from before this change keeps working until its refresh
-    expires, rather than logging everyone out on deploy.
+    A token in the request body used to be accepted too, for tabs opened before
+    the cookie existed. Those sessions have long expired, and a token sent in a
+    body can end up in logs and proxies where a cookie does not.
     """
-    return request.COOKIES.get(COOKIE_NAME) or (request.data or {}).get("refresh") or ""
+    return request.COOKIES.get(COOKIE_NAME) or ""

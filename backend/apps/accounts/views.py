@@ -1,3 +1,4 @@
+from django.core.cache import cache
 from rest_framework import generics, permissions, status
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
@@ -142,8 +143,16 @@ class SessionRefreshView(APIView):
                 {"detail": "No session."}, status=status.HTTP_401_UNAUTHORIZED
             )
 
+        rotated_just_now = False
         try:
-            token = RefreshToken(raw)
+            try:
+                # Checks the signature, expiry and that it has not been revoked.
+                token = RefreshToken(raw)
+            except TokenError:
+                token = _recently_rotated(raw)
+                if token is None:
+                    raise
+                rotated_just_now = True
             user = User.objects.get(pk=token["user_id"], is_active=True)
             # A session from before a password change is over.
             if not token_matches(token, user):
@@ -155,17 +164,85 @@ class SessionRefreshView(APIView):
                 Response({"detail": "Session expired."}, status=status.HTTP_401_UNAUTHORIZED)
             )
 
+        if not rotated_just_now:
+            # Swapped for a new one, so this one is retired, after a short grace
+            # for another tab asking at the same moment.
+            cache.set(_rotation_key(token), True, ROTATION_GRACE_SECONDS)
+            _revoke(token)
         return session_response(user, request=request)
 
 
 class LogoutView(APIView):
-    """End the session and take the cookie back."""
+    """End the session: revoke the refresh token, then take the cookie back.
+
+    Deleting the cookie alone left the token itself valid for its full week, so
+    a copy taken from the browser kept working after the person signed out.
+    """
 
     authentication_classes = ()
     permission_classes = (permissions.AllowAny,)
 
     def post(self, request):
+        token = _signed_refresh(read_refresh_token(request))
+        if token is not None:
+            _forget_rotation(token)
+            _revoke(token)
         return clear_refresh_cookie(Response(status=status.HTTP_204_NO_CONTENT))
+
+
+# ── Revoking refresh tokens ──────────────────────────────────────────
+#
+# Each refresh swaps the cookie's token for a new one and revokes the old, and
+# signing out revokes the current one, so a stolen copy stops working.
+#
+# Two tabs of the same site share one cookie, and both can ask for a refresh at
+# the same moment with the same token. The second would then present a token
+# the first had just revoked, be refused, and the 401 would clear the cookie
+# the first had just been given, signing the person out everywhere. So a token
+# revoked by a refresh (not by signing out) is still honoured for a short grace
+# period after it was swapped.
+
+ROTATION_GRACE_SECONDS = 60
+
+
+def _rotation_key(token):
+    return f"jwt-rotated:{token['jti']}"
+
+
+def _signed_refresh(raw):
+    """A refresh token whose signature and expiry check out, or None.
+    Whether it has been revoked is not looked at here."""
+    if not raw:
+        return None
+    try:
+        token = RefreshToken(raw, verify=False)
+        token.token_backend.decode(raw, verify=True)  # signature and expiry
+        if token.get("token_type") != "refresh" or "jti" not in token:
+            return None
+        return token
+    except (TokenError, InvalidToken, KeyError):
+        return None
+    except Exception:  # noqa: BLE001 - a malformed token is simply not a session
+        return None
+
+
+def _revoke(token):
+    try:
+        token.blacklist()
+    except Exception:  # noqa: BLE001 - revoking is best effort; the cookie still goes
+        pass
+
+
+def _forget_rotation(token):
+    cache.delete(_rotation_key(token))
+
+
+def _recently_rotated(raw):
+    """The token, if it was revoked by a refresh within the grace period."""
+    token = _signed_refresh(raw)
+    if token is not None and cache.get(_rotation_key(token)):
+        return token
+    return None
 
 
 class ApplicantRegisterView(generics.CreateAPIView):
