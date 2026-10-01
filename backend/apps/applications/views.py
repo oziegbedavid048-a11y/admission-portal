@@ -109,8 +109,10 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             if isinstance(exc, ValidationError):
                 raise
             logging.getLogger(__name__).error("Failed creating application: %s\n%s", exc, traceback.format_exc())
+            # The details are in the log. The reply says only that it failed:
+            # an exception's text can carry database and server internals.
             return Response(
-                {"detail": f"Application submission error: {str(exc)}"},
+                {"detail": "Your application could not be submitted. Please try again."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 

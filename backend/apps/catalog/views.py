@@ -199,11 +199,18 @@ def exchange_rates(request):
     """Live exchange rates for the converter.
 
     ``base`` picks the currency everything is quoted against and defaults to the
-    Naira. ``refresh=true`` skips the cache, which is what the converter's
-    refresh button sends.
+    Naira. It must be a three-letter code. ``refresh=true`` skips the cache, and
+    only staff may ask for that: open to everyone, it let anyone force a slow
+    call to the rate provider on every request.
     """
-    base = request.query_params.get("base", "NGN")
-    force = request.query_params.get("refresh") == "true"
+    import re
+
+    base = (request.query_params.get("base") or "NGN").strip().upper()
+    if not re.fullmatch(r"[A-Z]{3}", base):
+        return Response({"detail": "Use a three-letter currency code."}, status=400)
+    force = request.query_params.get("refresh") == "true" and bool(
+        request.user and request.user.is_staff
+    )
     return Response(get_rates(base, force=force))
 
 

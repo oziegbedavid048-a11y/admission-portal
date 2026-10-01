@@ -95,6 +95,8 @@ export function AuthProvider({ children }) {
   const verifyEmail = useCallback(
     async (token) => {
       const { data } = await auth.verifyEmail(token);
+      // A link opened before is no longer a way in: it only confirms.
+      if (!data?.access) return { role: data?.role, already: true };
       return adopt(data);
     },
     [adopt],

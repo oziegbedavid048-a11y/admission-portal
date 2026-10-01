@@ -39,7 +39,7 @@ export default function VerifyEmailPage() {
     verifyEmail(token)
       .then((user) => {
         setRole(user?.role || 'applicant');
-        setState('done');
+        setState(user?.already ? 'already' : 'done');
       })
       .catch(() => setState('invalid'));
   }, [token, verifyEmail]);
@@ -63,6 +63,30 @@ export default function VerifyEmailPage() {
               <div className="gx-auth-actions">
                 <button type="button" className="gx-btn gx-btn-primary" onClick={() => navigate(home, { replace: true })}>
                   {role === 'agent' ? 'Open partner portal' : 'Go to my dashboard'}
+                  <Icon name="arrowRight" size={16} strokeWidth={2} />
+                </button>
+              </div>
+            </div>
+          ) : null}
+
+          {state === 'already' ? (
+            <div className="gx-auth-done" role="status">
+              <span className="gx-icon-tile" aria-hidden="true">
+                <Icon name="checkCircle" size={22} />
+              </span>
+              <h1>Email already confirmed</h1>
+              <p className="gx-muted">Sign in to continue.</p>
+              <div className="gx-auth-actions">
+                <button
+                  type="button"
+                  className="gx-btn gx-btn-primary"
+                  onClick={() =>
+                    role === 'agent'
+                      ? navigate('/agent/login', { replace: true })
+                      : navigate('/', { replace: true, state: { signIn: true } })
+                  }
+                >
+                  Sign in
                   <Icon name="arrowRight" size={16} strokeWidth={2} />
                 </button>
               </div>

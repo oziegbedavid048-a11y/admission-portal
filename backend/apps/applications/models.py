@@ -423,7 +423,14 @@ class CorrectionRequest(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.ticket:
-            self.ticket = f"TK-{secrets.randbelow(9000) + 1000}"
+            # Was one of only 9,000 numbers, so tickets collided and could be
+            # used up. Eight characters from 32 give about a trillion.
+            alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+            for _ in range(5):
+                candidate = "TK-" + "".join(secrets.choice(alphabet) for _ in range(8))
+                if not type(self).objects.filter(ticket=candidate).exists():
+                    break
+            self.ticket = candidate
         super().save(*args, **kwargs)
 
 

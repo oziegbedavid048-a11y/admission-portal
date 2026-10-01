@@ -97,7 +97,7 @@ def get_rates(base="NGN", force=False):
         cache.set(key, fallback, 60)
         return fallback
 
-    return {
+    empty = {
         "base": base,
         "rates": {},
         "updated_at": None,
@@ -105,3 +105,7 @@ def get_rates(base="NGN", force=False):
         "provider": None,
         "live": False,
     }
+    # Remembered briefly as well, so a currency nobody has rates for does not
+    # send every request back out to the provider.
+    cache.set(key, empty, 60)
+    return empty

@@ -223,10 +223,6 @@ class ApplicationCreateSerializer(serializers.Serializer):
     custom_course_name = serializers.CharField(
         required=False, allow_blank=True, default=""
     )
-    initial_password = serializers.CharField(
-        max_length=128, required=False, allow_blank=True, default=""
-    )
-
     gateway = serializers.CharField(max_length=40, required=False, default="Paystack")
     notes = serializers.CharField(required=False, allow_blank=True, default="")
 
@@ -348,7 +344,6 @@ class ApplicationCreateSerializer(serializers.Serializer):
             institution=validated_data.get("institution"),
             is_custom_course=is_custom,
             custom_course_name=custom_name,
-            initial_password=validated_data.get("initial_password", ""),
             welcome_email_sent=bool(is_custom),
             notes=validated_data.get("notes", ""),
             status=Application.Status.SUBMITTED,

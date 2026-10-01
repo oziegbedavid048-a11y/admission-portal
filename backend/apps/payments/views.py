@@ -16,7 +16,7 @@ from apps.applications.models import Application
 from apps.applications.serializers import ApplicationSerializer
 from apps.applications.uploads import validate_upload
 from apps.applications.views import visible_applications
-from config.throttles import CheckoutThrottle, EdgeThrottle, PaymentStatusThrottle, UserThrottle
+from config.throttles import CheckoutThrottle, EdgeThrottle, PaymentStatusThrottle, UserThrottle, edge_ip
 
 from . import gateway
 from .fees import processing_fee_ngn
@@ -28,16 +28,13 @@ logger = logging.getLogger(__name__)
 
 
 def client_ip(request):
-    """The caller's address, taking the first hop of a forwarding chain.
+    """The address that connected, for the optional webhook allowlist.
 
-    Only used for the optional webhook allowlist. The header is client-controlled
-    where nothing strips it, which is exactly why it is not what authenticates a
-    webhook: the signature is.
+    The first X-Forwarded-For entry used to be taken, which the sender writes
+    itself. The edge address cannot be set that way (see config/throttles.py).
+    The signature is still what authenticates a webhook.
     """
-    forwarded = request.META.get("HTTP_X_FORWARDED_FOR", "")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
-    return request.META.get("REMOTE_ADDR", "")
+    return edge_ip(request)
 
 
 def find_payment(gateway_reference):
@@ -334,8 +331,9 @@ class CheckoutView(APIView):
             if isinstance(exc, ValidationError):
                 raise
             logging.getLogger(__name__).error("Checkout error: %s\n%s", exc, traceback.format_exc())
+            # Logged above; the reply carries no internals.
             return Response(
-                {"detail": f"Checkout error: {str(exc)}"},
+                {"detail": "The payment could not be started. Please try again."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 

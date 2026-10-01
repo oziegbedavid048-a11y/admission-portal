@@ -291,6 +291,13 @@ SPECTACULAR_SETTINGS = {
     "DESCRIPTION": "Applicant, partner-agent and admissions endpoints.",
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
+    # The full map of the API is for the desk, not the public. Staff open it
+    # while signed in to the admin, so the admin session is accepted here.
+    "SERVE_PERMISSIONS": ["rest_framework.permissions.IsAdminUser"],
+    "SERVE_AUTHENTICATION": [
+        "rest_framework.authentication.SessionAuthentication",
+        "apps.accounts.sessions.GabstepJWTAuthentication",
+    ],
 }
 
 def _clean_origin(raw_origin):

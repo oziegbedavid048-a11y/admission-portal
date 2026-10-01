@@ -72,6 +72,10 @@ class LoginView(TokenObtainPairView):
     serializer_class = GabstepTokenObtainPairSerializer
     permission_classes = (permissions.AllowAny,)
     throttle_classes = (LoginThrottle, EdgeThrottle)
+    # JSON only. A plain HTML form on another site could otherwise sign the
+    # visitor's browser into an account of the attacker's choosing, and the
+    # visitor might then upload their documents into it.
+    parser_classes = (JSONParser,)
 
     MAX_FAILURES = 5
     LOCKOUT_SECONDS = 15 * 60
@@ -475,8 +479,10 @@ class VerifyResendThrottle(AnonThrottle):
 class VerifyEmailView(APIView):
     """Open a verification link: confirm the address, sign in, send the welcome.
 
-    Opening the same link twice is harmless: the second time it simply signs in
-    again, and the welcome email is only ever sent once.
+    Only the first use signs in. The link used to sign in every time for 48
+    hours, even after a password reset, so anyone who later got hold of it (a
+    forwarded email, browser history) could open the account. A second use
+    says the address is already confirmed and asks the person to sign in.
     """
 
     permission_classes = (permissions.AllowAny,)
@@ -493,10 +499,11 @@ class VerifyEmailView(APIView):
                 {"detail": "This link is invalid or has expired.", "code": "invalid_link"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        if not user.email_verified:
-            user.email_verified = True
-            user.save(update_fields=["email_verified"])
-            send_welcome_email(user)
+        if user.email_verified:
+            return Response({"verified": True, "already": True, "role": user.role})
+        user.email_verified = True
+        user.save(update_fields=["email_verified"])
+        send_welcome_email(user)
         response = session_response(user, request=request)
         response.data["verified"] = True
         return response
