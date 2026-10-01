@@ -380,6 +380,33 @@ class AgentStudentCreateSerializer(ApplicationCreateSerializer):
     # A saved draft whose documents should join this application.
     draft = serializers.IntegerField(required=False, write_only=True)
 
+    def validate_email(self, value):
+        """An agent may only file under an email that is new, or that belongs
+        to a student this agent registered before.
+
+        Anyone can open an agent account, and the email used to be matched to
+        any existing account with no other check, so an agent could plant a
+        file, with their notes and fee prompts, in a real applicant's
+        dashboard, or attach a file to a staff or agent account.
+        """
+        email = value.strip().lower()
+        existing = User.objects.filter(email__iexact=email).first()
+        if existing is None:
+            return email
+        agent = getattr(self.context["request"].user, "agent_profile", None)
+        registered_by_this_agent = (
+            existing.role == User.Role.APPLICANT
+            and not existing.has_usable_password()
+            and existing.applications.exists()
+            and not existing.applications.exclude(submitted_by_agent=agent).exists()
+        )
+        if not registered_by_this_agent:
+            raise serializers.ValidationError(
+                "This email already belongs to a Gabstep account. Use the student's "
+                "own email address, or ask them to apply from their account."
+            )
+        return email
+
     @transaction.atomic
     def create(self, validated_data):
         request = self.context["request"]
