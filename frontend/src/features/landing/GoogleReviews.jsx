@@ -22,6 +22,9 @@ function widgetId() {
 
 const WIDGET_ID = widgetId();
 
+/** Whether the reviews section will show, so the header can offer a link to it. */
+export const HAS_REVIEWS = Boolean(WIDGET_ID);
+
 export default function GoogleReviews() {
   const slot = useRef(null);
 
@@ -45,13 +48,13 @@ export default function GoogleReviews() {
   if (!WIDGET_ID) return null;
 
   return (
-    <section className="section section-alt" aria-labelledby="lp-reviews-title">
+    <section id="reviews" className="lp-section" aria-labelledby="lp-reviews-title">
       <div className="container">
-        <div className="section-head">
-          <span className="section-eyebrow">Reviews</span>
-          <h2 id="lp-reviews-title" className="section-title">What people say</h2>
-        </div>
-        <div ref={slot} className="lp-reviews-widget" />
+        <header className="lp-head reveal">
+          <p className="lp-eyebrow">Reviews</p>
+          <h2 id="lp-reviews-title" className="lp-title">Trusted by students and families.</h2>
+        </header>
+        <div ref={slot} className="lp-reviews-widget reveal" />
       </div>
     </section>
   );

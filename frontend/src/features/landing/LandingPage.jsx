@@ -1,64 +1,56 @@
 import { useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import SiteHeader from '../../components/layout/SiteHeader';
+import SiteFooter from '../../components/layout/SiteFooter';
 import Icon from '../../lib/icons';
 import { useAuth } from '../../context/AuthContext';
-import SiteFooter from '../../components/layout/SiteFooter';
+import useReveal from '../../hooks/useReveal';
 import HeroCarousel from './HeroCarousel';
-import GoogleReviews from './GoogleReviews';
+import GoogleReviews, { HAS_REVIEWS } from './GoogleReviews';
 
-const ABOUT = [
-  {
-    icon: 'building',
-    title: 'Partner universities',
-    text: 'Compare courses, tuition and start dates, country by country.',
-  },
-  {
-    icon: 'passport',
-    title: 'Visa support',
-    text: 'From offer and admission letters through to your visa.',
-  },
-  {
-    icon: 'badgeCheck',
-    title: 'One place to track',
-    text: 'Every stage in your dashboard, with an email at each step.',
-  },
+// Figures and services as Gabstep publishes them on gabstep.com.
+const STATS = [
+  { value: '15', label: 'Years of experience' },
+  { value: '500+', label: 'Visas approved' },
+  { value: '120+', label: 'Partner universities' },
+  { value: '3', label: 'Offices in Nigeria' },
+];
+
+const SERVICES = [
+  { icon: 'passport', title: 'Study visas', text: 'Canada, the United Kingdom and Malta.' },
+  { icon: 'cap', title: 'University placement', text: 'The right course at the right school.' },
+  { icon: 'book', title: 'Test preparation', text: 'Ready for the exams your school asks for.' },
+  { icon: 'document', title: 'SOP and LOR', text: 'Statements and references that stand out.' },
+  { icon: 'wallet', title: 'Student loans', text: 'Guidance on funding your studies.' },
+  { icon: 'chat', title: 'Career counselling', text: 'A path that fits your goals.' },
 ];
 
 const STEPS = [
   { title: 'Create an account', text: 'Sign up and confirm your email.' },
   { title: 'Pick a course', text: 'Choose a country, a university and a course.' },
   { title: 'Upload and pay', text: 'Add your documents and pay the fee in your own currency.' },
-  { title: 'Track to your visa', text: 'Follow each stage and receive your letters.' },
+  { title: 'Track to your visa', text: 'Follow every stage and receive your letters.' },
 ];
 
 const AGENT_POINTS = [
-  {
-    icon: 'userPlus',
-    title: 'Register students',
-    text: 'File applications and upload documents in one place.',
-  },
-  {
-    icon: 'wallet',
-    title: 'Earn commission',
-    text: "Paid when a student's fee is settled, and again when their visa is confirmed.",
-  },
-  {
-    icon: 'megaphone',
-    title: 'Ads funding',
-    text: 'Interest-free funding to grow your reach, repaid from your earnings.',
-  },
-  {
-    icon: 'payout',
-    title: 'Withdraw anytime',
-    text: 'Send your balance straight to your bank account.',
-  },
+  { icon: 'userPlus', title: 'Register students', text: 'File applications and documents in one place.' },
+  { icon: 'wallet', title: 'Earn commission', text: "When a student's fee is settled, and again at visa." },
+  { icon: 'megaphone', title: 'Ads funding', text: 'Interest-free funding to grow your reach.' },
+  { icon: 'payout', title: 'Withdraw anytime', text: 'Straight to your bank account.' },
+];
+
+const SECTIONS = [
+  { id: 'about', label: 'About' },
+  ...(HAS_REVIEWS ? [{ id: 'reviews', label: 'Reviews' }] : []),
+  { id: 'apply', label: 'How to apply' },
+  { id: 'agents', label: 'Agents' },
 ];
 
 export default function LandingPage({ onOpenLogin }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, isAgent, isSupervisor } = useAuth();
+  useReveal();
 
   // A guard that bounced someone here asks for the sign-in dialog.
   useEffect(() => {
@@ -69,9 +61,9 @@ export default function LandingPage({ onOpenLogin }) {
 
   return (
     <>
-      <SiteHeader />
+      <SiteHeader sections={SECTIONS} onOpenLogin={onOpenLogin} />
 
-      <main>
+      <main className="landing">
         <HeroCarousel>
           <div className="hero-copy">
             <h1 className="hero-title">Begin your global education journey</h1>
@@ -80,151 +72,137 @@ export default function LandingPage({ onOpenLogin }) {
               universities, and apply when you are ready.
             </p>
 
-            {/* Two ways in: an applicant account, or a partner agent account.
-                Returning visitors sign in from the quiet line underneath. */}
             <div className="hero-cta-group">
               {isApplicant ? (
-                <button
-                  type="button"
-                  className="btn btn-accent btn-lg"
-                  onClick={() => navigate('/portal')}
-                >
+                <button type="button" className="btn btn-accent btn-lg" onClick={() => navigate('/portal')}>
                   Go to my dashboard
                   <Icon name="arrowRight" size={18} strokeWidth={2} />
                 </button>
-              ) : (
+              ) : user ? null : (
                 <>
-                  <button
-                    type="button"
-                    className="btn btn-accent btn-lg"
-                    onClick={() => navigate('/signup')}
-                  >
-                    <Icon name="cap" size={18} strokeWidth={2} />
-                    Create applicant account
+                  <button type="button" className="btn btn-accent btn-lg" onClick={() => navigate('/signup')}>
+                    Start your application
+                    <Icon name="arrowRight" size={18} strokeWidth={2} />
                   </button>
-                  <button
-                    type="button"
-                    className="btn btn-quiet btn-lg"
-                    onClick={() => navigate('/agent/register')}
-                  >
-                    <Icon name="users" size={18} strokeWidth={2} />
-                    Create agent account
-                  </button>
+                  <a href="#about" className="btn btn-quiet btn-lg">
+                    Learn more
+                  </a>
                 </>
               )}
             </div>
-
-            {user ? null : (
-              <p className="hero-signin">
-                Already have an account?{' '}
-                <button type="button" className="hero-signin-link" onClick={() => onOpenLogin?.()}>
-                  Applicant sign in
-                </button>
-                <Link to="/agent/login" className="hero-signin-link">
-                  Agent sign in
-                </Link>
-              </p>
-            )}
           </div>
         </HeroCarousel>
 
-        <div className="marketing">
-          <section className="section" aria-labelledby="lp-about-title">
-            <div className="container">
-              <div className="section-head">
-                <span className="section-eyebrow">About Gabstep</span>
-                <h2 id="lp-about-title" className="section-title">
-                  Your route to studying abroad
-                </h2>
-                <p className="section-lede">
-                  Gabstep connects students with partner universities abroad and
-                  guides every application from course choice to visa.
-                </p>
-              </div>
-              <div className="lp-cards">
-                {ABOUT.map((item) => (
-                  <article key={item.title} className="lp-card">
-                    <span className="lp-card-icon">
-                      <Icon name={item.icon} size={22} />
-                    </span>
-                    <h3>{item.title}</h3>
-                    <p>{item.text}</p>
-                  </article>
-                ))}
-              </div>
-            </div>
-          </section>
+        <section id="about" className="lp-section" aria-labelledby="lp-about-title">
+          <div className="container">
+            <header className="lp-head reveal">
+              <p className="lp-eyebrow">About Gabstep</p>
+              <h2 id="lp-about-title" className="lp-title">
+                Fifteen years of opening doors abroad.
+              </h2>
+              <p className="lp-lede">
+                Gabstep is a study abroad and career consultancy in Nigeria. We guide
+                students from choosing a course to landing a visa, from our offices in
+                Lagos, Ibadan and Ile-Ife.
+              </p>
+            </header>
 
-          <section className="section section-alt" aria-labelledby="lp-apply-title">
-            <div className="container">
-              <div className="section-head">
-                <span className="section-eyebrow">For applicants</span>
-                <h2 id="lp-apply-title" className="section-title">Apply in four steps</h2>
-              </div>
-              <ol className="lp-steps">
-                {STEPS.map((step, index) => (
-                  <li key={step.title} className="lp-step">
-                    <span className="lp-step-num" aria-hidden="true">{index + 1}</span>
-                    <h3>{step.title}</h3>
-                    <p>{step.text}</p>
-                  </li>
-                ))}
-              </ol>
+            <dl className="lp-stats reveal">
+              {STATS.map((stat) => (
+                <div key={stat.label}>
+                  <dt>{stat.label}</dt>
+                  <dd>{stat.value}</dd>
+                </div>
+              ))}
+            </dl>
+
+            <ul className="lp-services">
+              {SERVICES.map((service) => (
+                <li key={service.title} className="lp-service reveal">
+                  <Icon name={service.icon} size={26} strokeWidth={1.6} interactive={false} />
+                  <h3>{service.title}</h3>
+                  <p>{service.text}</p>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+
+        <GoogleReviews />
+
+        <section id="apply" className="lp-section" aria-labelledby="lp-apply-title">
+          <div className="container">
+            <header className="lp-head reveal">
+              <p className="lp-eyebrow">For applicants</p>
+              <h2 id="lp-apply-title" className="lp-title">Apply in four simple steps.</h2>
+              <p className="lp-lede">Everything happens in one dashboard, from your first course to your visa.</p>
+            </header>
+
+            <ol className="lp-steps">
+              {STEPS.map((step, index) => (
+                <li key={step.title} className="lp-step reveal">
+                  <span className="lp-step-num" aria-hidden="true">{index + 1}</span>
+                  <h3>{step.title}</h3>
+                  <p>{step.text}</p>
+                </li>
+              ))}
+            </ol>
+
+            <div className="lp-cta reveal">
               {isApplicant ? (
-                <Link to="/portal" className="btn btn-primary btn-lg">
+                <Link to="/portal" className="lp-btn">
                   Go to my dashboard
-                  <Icon name="arrowRight" size={18} strokeWidth={2} />
+                  <Icon name="arrowRight" size={18} strokeWidth={2} interactive={false} />
                 </Link>
               ) : user ? null : (
-                <Link to="/signup" className="btn btn-primary btn-lg">
-                  <Icon name="cap" size={18} strokeWidth={2} />
+                <Link to="/signup" className="lp-btn">
                   Create applicant account
+                  <Icon name="arrowRight" size={18} strokeWidth={2} interactive={false} />
                 </Link>
               )}
             </div>
-          </section>
+          </div>
+        </section>
 
-          <section className="section" aria-labelledby="lp-agent-title">
-            <div className="container">
-              <div className="section-head">
-                <span className="section-eyebrow">For agents</span>
-                <h2 id="lp-agent-title" className="section-title">
-                  Earn with every student you place
-                </h2>
-                <p className="section-lede">
-                  Register students, follow their progress and get paid as they move forward.
-                </p>
-              </div>
-              <div className="lp-cards lp-cards-4">
-                {AGENT_POINTS.map((item) => (
-                  <article key={item.title} className="lp-card">
-                    <span className="lp-card-icon">
-                      <Icon name={item.icon} size={22} />
-                    </span>
-                    <h3>{item.title}</h3>
-                    <p>{item.text}</p>
-                  </article>
-                ))}
-              </div>
+        <section id="agents" className="lp-section" aria-labelledby="lp-agent-title">
+          <div className="container lp-split">
+            <header className="lp-head lp-head-left reveal">
+              <p className="lp-eyebrow">For agents</p>
+              <h2 id="lp-agent-title" className="lp-title">Earn with every student you place.</h2>
+              <p className="lp-lede">
+                Register students, follow their progress and get paid as they move forward.
+              </p>
               {isAgent ? (
-                <Link to="/agent" className="btn btn-primary btn-lg">
+                <Link to="/agent" className="lp-btn">
                   Open partner portal
-                  <Icon name="arrowRight" size={18} strokeWidth={2} />
+                  <Icon name="arrowRight" size={18} strokeWidth={2} interactive={false} />
                 </Link>
               ) : user ? null : (
-                <Link to="/agent/register" className="btn btn-primary btn-lg">
-                  <Icon name="users" size={18} strokeWidth={2} />
+                <Link to="/agent/register" className="lp-btn">
                   Become an agent
+                  <Icon name="arrowRight" size={18} strokeWidth={2} interactive={false} />
                 </Link>
               )}
-            </div>
-          </section>
+            </header>
 
-          <GoogleReviews />
-        </div>
+            <ul className="lp-points">
+              {AGENT_POINTS.map((point) => (
+                <li key={point.title} className="reveal">
+                  <span className="lp-point-icon">
+                    <Icon name={point.icon} size={22} strokeWidth={1.7} interactive={false} />
+                  </span>
+                  <div>
+                    <h3>{point.title}</h3>
+                    <p>{point.text}</p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
       </main>
 
-      <SiteFooter onOpenLogin={user ? undefined : onOpenLogin} />
+      <SiteFooter sections={SECTIONS} onOpenLogin={user ? undefined : onOpenLogin} />
     </>
   );
 }
