@@ -11,7 +11,7 @@ from rest_framework.views import APIView
 
 from apps.applications import services
 from apps.applications.constants import AGENT_REGISTRATION_COMMISSION_NGN, AGENT_VISA_COMMISSION_NGN
-from apps.applications.models import Application, Letter
+from apps.applications.models import Application
 from config.throttles import MoneyThrottle, UploadThrottle, UserThrottle
 
 from .models import (
@@ -427,20 +427,10 @@ class AgentOverviewView(AgentScopedMixin, APIView):
             )
         )
 
-        # A student counts as admitted once the desk marks the file admitted, or
-        # once an admission or offer letter for it is published from the admin,
-        # whichever comes first. Sending the letter is how the desk usually
-        # records the admission, so the count must follow it.
-        lettered = set(
-            Letter.objects.filter(
-                application__in=[a.pk for a in applications],
-                is_published=True,
-                kind__in=(Letter.Kind.ADMISSION, Letter.Kind.OFFER),
-            ).values_list("application_id", flat=True)
-        )
+        admitted_ids = services.admitted_application_ids(a.pk for a in applications)
 
         def is_admitted(application):
-            return application.status == Application.Status.ADMITTED or application.pk in lettered
+            return application.pk in admitted_ids
 
         admitted = [a for a in applications if is_admitted(a)]
 

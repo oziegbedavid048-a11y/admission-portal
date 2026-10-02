@@ -18,6 +18,26 @@ class UserManager(BaseUserManager):
 
     use_in_migrations = True
 
+    def get_by_natural_key(self, email):
+        """Find a person by the email they typed, ignoring capital letters.
+
+        Addresses are stored in lower case, but Django's own lookup (the one the
+        admin sign-in page uses) is an exact match, so "Desk@Example.com" never
+        found "desk@example.com" and the admin said "enter the correct email
+        address and password" for a login that was right. An exact match still
+        wins; failing that, one case-insensitive match is used. If two accounts
+        differ only in case, neither is guessed at.
+        """
+        email = (email or "").strip()
+        try:
+            return self.get(email=email)
+        except self.model.DoesNotExist:
+            pass
+        matches = list(self.filter(email__iexact=email)[:2])
+        if len(matches) == 1:
+            return matches[0]
+        raise self.model.DoesNotExist
+
     def _create_user(self, email, password, **extra_fields):
         if not email:
             raise ValueError("An email address is required.")

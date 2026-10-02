@@ -18,6 +18,7 @@ from .models import (
     SupervisorProfile,
     SupervisorWithdrawal,
 )
+from .serializers import AdmittedByLetterMixin
 from .payout_account import announce_bank_change, check_password_for_bank_change, snapshot
 
 
@@ -173,7 +174,7 @@ class SupervisedAgentSerializer(serializers.ModelSerializer):
         return getattr(obj, "last_submission", None)
 
 
-class SupervisedStudentSerializer(serializers.ModelSerializer):
+class SupervisedStudentSerializer(AdmittedByLetterMixin, serializers.ModelSerializer):
     """A student filed by one of this sales manager's agents."""
 
     agent = serializers.CharField(source="submitted_by_agent.user.full_name", read_only=True)

@@ -1,4 +1,6 @@
+import logging
 import os
+
 from django.apps import AppConfig
 from django.db.models.signals import post_migrate
 
@@ -18,19 +20,32 @@ def auto_ensure_admin(sender, **kwargs):
         from apps.accounts.models import User
 
         name = os.environ.get("DJANGO_ADMIN_NAME", "Admissions Desk")
-        user, _ = User.objects.get_or_create(
-            email=email,
-            defaults={"full_name": name, "role": User.Role.STAFF},
-        )
+        # An account that already has this address, in any capital letters,
+        # is the desk's: it is updated, not duplicated. A second row with a
+        # different-case address left two accounts, one of which kept the old
+        # password.
+        user = User.objects.filter(email__iexact=email).order_by("pk").first()
+        created = user is None
+        if created:
+            user = User.objects.create(email=email, full_name=name, role=User.Role.STAFF)
+        user.email = email
         user.is_staff = True
         user.is_superuser = True
         user.is_active = True
         user.role = User.Role.STAFF
-        fields = ["is_staff", "is_superuser", "is_active", "role"]
-        if not user.check_password(password):
+        fields = ["email", "is_staff", "is_superuser", "is_active", "role"]
+        password_changed = created or not user.check_password(password)
+        if password_changed:
             user.set_password(password)
             fields.append("password")
         user.save(update_fields=fields)
+        # One line in the host's log, so the address the desk signs in with can
+        # be read off instead of guessed. The password is never written.
+        logging.getLogger(__name__).warning(
+            "Admin account %s is ready (%s).",
+            email,
+            "created" if created else "password updated" if password_changed else "unchanged",
+        )
 
 
 class AccountsConfig(AppConfig):

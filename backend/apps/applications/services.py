@@ -16,7 +16,7 @@ from django.utils import timezone
 
 
 from .constants import AGENT_COMMISSION_BY_KIND, SUPERVISOR_BONUS_NGN
-from .models import Application, Notification, Stage
+from .models import Application, Letter, Notification, Stage
 
 # The stage each milestone leaves in progress once the ones before it are done.
 STAGE_FOR_MILESTONE = {
@@ -211,6 +211,54 @@ def flag_action_required(application, verified_by=None):
 
 
 # ── Pipeline milestones ──────────────────────────────────────────────
+
+
+# A student counts as admitted once the desk marks the file admitted, or as soon
+# as an admission or offer letter for it is published, whichever comes first.
+# Sending the letter is how the desk usually records the admission, so every
+# "admitted" figure (agent overview, sales-manager overview and tables) follows
+# this one rule rather than each keeping its own.
+ADMISSION_LETTER_KINDS = (Letter.Kind.ADMISSION, Letter.Kind.OFFER)
+
+
+def admitted_application_ids(application_ids):
+    """The ids, out of the ones given, that count as admitted."""
+    ids = list(application_ids)
+    lettered = set(
+        Letter.objects.filter(
+            application__in=ids,
+            is_published=True,
+            kind__in=ADMISSION_LETTER_KINDS,
+        ).values_list("application_id", flat=True)
+    )
+    marked = set(
+        Application.objects.filter(pk__in=ids, status=Application.Status.ADMITTED).values_list(
+            "pk", flat=True
+        )
+    )
+    return lettered | marked
+
+
+def reads_as_admitted(application):
+    """Whether this application counts as admitted, from letters already loaded
+    with it (prefetch "letters") so a table of students costs no extra queries."""
+    if application.status == Application.Status.ADMITTED:
+        return True
+    return any(
+        letter.is_published and letter.kind in ADMISSION_LETTER_KINDS
+        for letter in application.letters.all()
+    )
+
+
+def admitted_q(prefix=""):
+    """The same rule as a query filter. `prefix` reaches the application from
+    another model, e.g. "applications__" from an agent."""
+    return Q(**{f"{prefix}status": Application.Status.ADMITTED}) | Q(
+        **{
+            f"{prefix}letters__is_published": True,
+            f"{prefix}letters__kind__in": ADMISSION_LETTER_KINDS,
+        }
+    )
 
 
 @transaction.atomic

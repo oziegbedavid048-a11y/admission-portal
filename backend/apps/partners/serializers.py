@@ -246,7 +246,21 @@ class CommissionSerializer(serializers.ModelSerializer):
         )
 
 
-class AgentStudentSerializer(serializers.ModelSerializer):
+class AdmittedByLetterMixin:
+    """A student whose admission or offer letter has been published reads as
+    Admitted in the tables, matching the Admitted count on the overview. Only
+    a file still waiting (submitted or in review) is changed: the stored status
+    is not touched, and a rejected file stays rejected."""
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if data.get("status") in (Application.Status.SUBMITTED, Application.Status.IN_REVIEW):
+            if services.reads_as_admitted(instance):
+                data["status"] = Application.Status.ADMITTED
+        return data
+
+
+class AgentStudentSerializer(AdmittedByLetterMixin, serializers.ModelSerializer):
     """A student file as the agent's Students table shows it."""
 
     institution = serializers.CharField(source="institution.name", default="", read_only=True)

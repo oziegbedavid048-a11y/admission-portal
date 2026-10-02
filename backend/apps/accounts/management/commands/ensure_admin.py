@@ -62,11 +62,13 @@ class Command(BaseCommand):
         except ValidationError as exc:
             raise CommandError("That password was rejected: " + " ".join(exc.messages))
 
-        user, created = User.objects.get_or_create(
-            email=email,
-            defaults={"full_name": options["name"], "role": User.Role.STAFF},
-        )
-
+        # An existing account with this address, in any capital letters, is
+        # updated rather than duplicated.
+        user = User.objects.filter(email__iexact=email).order_by("pk").first()
+        created = user is None
+        if created:
+            user = User.objects.create(email=email, full_name=options["name"], role=User.Role.STAFF)
+        user.email = email
         user.is_staff = True
         user.is_superuser = True
         user.is_active = True

@@ -37,3 +37,57 @@ class AutoAdminTests(TestCase):
         with mock.patch.dict(os.environ, {**ENV, "DJANGO_ADMIN_PASSWORD": "New-pass-456"}):
             self.run_hook()
         self.assertTrue(User.objects.get(email="desk@example.com").check_password("New-pass-456"))
+
+
+class AdminSignInTests(TestCase):
+    """The admin sign-in page finds the desk however the email is typed."""
+
+    def setUp(self):
+        with mock.patch.dict(os.environ, ENV):
+            auto_ensure_admin(sender=apps.get_app_config("accounts"))
+
+    def sign_in(self, email, password="Desk-pass-123"):
+        return self.client.post("/admin/login/", {"username": email, "password": password, "next": "/admin/"})
+
+    def test_signs_in_with_the_exact_address(self):
+        self.assertEqual(self.sign_in("desk@example.com").status_code, 302)
+
+    def test_signs_in_with_capital_letters_or_stray_spaces(self):
+        self.assertEqual(self.sign_in("Desk@Example.com").status_code, 302)
+        self.client.logout()
+        self.assertEqual(self.sign_in("  DESK@EXAMPLE.COM ").status_code, 302)
+
+    def test_a_wrong_password_still_fails(self):
+        response = self.sign_in("Desk@Example.com", "wrong-password-1")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "correct email address and password")
+
+    def test_a_non_staff_account_cannot_use_the_admin(self):
+        User.objects.create_user(email="ada@example.com", password="Ada-pass-1234")
+        response = self.sign_in("ADA@example.com", "Ada-pass-1234")
+        self.assertEqual(response.status_code, 200)
+
+    def test_the_hook_updates_an_existing_mixed_case_account_instead_of_adding_one(self):
+        User.objects.all().delete()
+        old = User.objects.create(email="Desk@Example.com", is_staff=False)
+        old.set_password("Old-pass-123")
+        old.save()
+        with mock.patch.dict(os.environ, ENV):
+            auto_ensure_admin(sender=apps.get_app_config("accounts"))
+        self.assertEqual(User.objects.count(), 1)
+        user = User.objects.get()
+        self.assertEqual(user.email, "desk@example.com")
+        self.assertTrue(user.is_staff and user.is_superuser)
+        self.assertTrue(user.check_password("Desk-pass-123"))
+        self.assertEqual(self.sign_in("desk@example.com").status_code, 302)
+
+    def test_two_accounts_differing_only_in_case_are_never_guessed_between(self):
+        User.objects.all().delete()
+        first = User.objects.create(email="twin1@example.com")
+        second = User.objects.create(email="twin2@example.com")
+        # save() lower-cases addresses, so differing-case twins can only exist
+        # from older data; build them past it.
+        User.objects.filter(pk=first.pk).update(email="Twin@Example.com")
+        User.objects.filter(pk=second.pk).update(email="TWIN@example.com")
+        with self.assertRaises(User.DoesNotExist):
+            User.objects.get_by_natural_key("twin@example.com")

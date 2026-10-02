@@ -12,6 +12,7 @@ from rest_framework.permissions import BasePermission
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.applications import services
 from apps.applications.constants import SUPERVISOR_BONUS_NGN
 from apps.applications.models import Application
 from apps.payments.models import Payment
@@ -65,7 +66,7 @@ class SupervisorScopedMixin:
                 ),
                 admitted_count=Count(
                     "applications",
-                    filter=Q(applications__status=Application.Status.ADMITTED),
+                    filter=services.admitted_q("applications__"),
                     distinct=True,
                 ),
                 visa_count=Count(
@@ -88,7 +89,7 @@ class SupervisorScopedMixin:
                 "origin_country",
                 "payment",
             )
-            .prefetch_related("programs")
+            .prefetch_related("programs", "letters")
             .order_by("-submitted_at")
         )
 
@@ -141,7 +142,8 @@ class SupervisorOverviewView(SupervisorScopedMixin, APIView):
         agents = list(self.agent_queryset())
         students = list(self.student_queryset())
 
-        admitted = [s for s in students if s.status == Application.Status.ADMITTED]
+        admitted_ids = services.admitted_application_ids(s.pk for s in students)
+        admitted = [s for s in students if s.pk in admitted_ids]
         visas = [
             s for s in students if s.visa_status == Application.VisaStatus.COMPLETED
         ]
@@ -158,7 +160,7 @@ class SupervisorOverviewView(SupervisorScopedMixin, APIView):
         for s in students:
             if s.visa_status == Application.VisaStatus.COMPLETED:
                 pipeline["visa_verified"] += 1
-            elif s.status == Application.Status.ADMITTED:
+            elif s.pk in admitted_ids:
                 pipeline["admitted"] += 1
             elif s.pk not in paid_ids:
                 pipeline["awaiting_fee"] += 1

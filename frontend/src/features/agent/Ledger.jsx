@@ -3,8 +3,9 @@ import { formatDateTimeParts } from '../../lib/format';
 
 /**
  * Small pieces shared by the agent's money tables (earning history,
- * withdrawals, Ads funding requests): a date with its time under it, and a
- * status written as a word beside a coloured dot rather than a button-like pill.
+ * withdrawals, Ads funding requests, overview commissions): a date with its
+ * time under it, a status written as a word beside a coloured dot rather than
+ * a button-like pill, and Show more for long lists.
  */
 
 export function LedgerDate({ value }) {
