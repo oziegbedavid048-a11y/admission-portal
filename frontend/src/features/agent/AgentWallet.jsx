@@ -8,7 +8,7 @@ import { partners } from '../../api/endpoints';
 import { useToast } from '../../context/ToastContext';
 import useLiveRefresh from '../../hooks/useLiveRefresh';
 import { useAgent, useOnWalletChange } from './AgentContext';
-import { LedgerDate, LedgerDateLine, LedgerStatus, withdrawalStatus } from './Ledger';
+import { LedgerDate, LedgerStatus, ShowMore, useShowMore, withdrawalStatus } from './Ledger';
 
 const FALLBACK_MINIMUM = 100000;
 
@@ -59,6 +59,9 @@ export default function AgentWallet() {
   };
   useLiveRefresh(refreshWallet, { intervalMs: 6000 });
   useOnWalletChange(refreshWallet);
+
+  const historyRows = useShowMore(history);
+  const withdrawalRows = useShowMore(withdrawals);
 
   const minimum = Number(wallet?.minimum_withdrawal) || FALLBACK_MINIMUM;
   const available = Number(wallet?.available_balance) || 0;
@@ -199,25 +202,24 @@ export default function AgentWallet() {
             <table className="ledger-table">
               <thead>
                 <tr>
-                  <th scope="col" className="ledger-wide-only">Date</th>
+                  <th scope="col">Date</th>
                   <th scope="col">Details</th>
                   <th scope="col" className="t-num">Amount</th>
                 </tr>
               </thead>
               <tbody>
-                {history.map((row) => {
+                {historyRows.visible.map((row) => {
                   const incoming = row.direction === 'in';
                   const [, statusLabel] = row.status ? withdrawalStatus(row.status) : [];
                   const sub = [row.detail, row.reference, statusLabel].filter(Boolean).join(' · ');
                   return (
                     <tr key={row.id}>
-                      <td className="ledger-wide-only">
+                      <td>
                         <LedgerDate value={row.at} />
                       </td>
-                      <td className="ledger-lead">
+                      <td>
                         <span className="ledger-main">{row.title}</span>
                         {sub ? <span className="ledger-sub">{sub}</span> : null}
-                        <LedgerDateLine value={row.at} />
                       </td>
                       <td className="t-num">
                         <span className={`ledger-amount${incoming ? ' is-in' : ''}`}>
@@ -232,6 +234,7 @@ export default function AgentWallet() {
             </table>
           )}
         </div>
+        <ShowMore list={historyRows} />
       </section>
 
       <section className="agent-card">
@@ -249,35 +252,31 @@ export default function AgentWallet() {
             <table className="ledger-table">
               <thead>
                 <tr>
-                  <th scope="col" className="ledger-wide-only">Date</th>
+                  <th scope="col">Date</th>
                   <th scope="col">Reference</th>
                   <th scope="col" className="t-num">Amount</th>
-                  <th scope="col" className="ledger-wide-only">Status</th>
+                  <th scope="col">Status</th>
                 </tr>
               </thead>
               <tbody>
-                {withdrawals.map((item) => {
+                {withdrawalRows.visible.map((item) => {
                   const [tone, label] = withdrawalStatus(item.status);
                   const deducted = Number(item.net_amount) !== Number(item.amount_requested);
                   return (
                     <tr key={item.id}>
-                      <td className="ledger-wide-only">
+                      <td>
                         <LedgerDate value={item.created_at} />
                       </td>
-                      <td className="ledger-lead">
+                      <td>
                         <span className="ledger-ref">{item.reference}</span>
-                        <LedgerDateLine value={item.created_at} />
                       </td>
                       <td className="t-num">
                         <span className="ledger-amount">{formatNaira(item.amount_requested)}</span>
                         {deducted ? (
                           <span className="ledger-sub">Paid {formatNaira(item.net_amount)}</span>
                         ) : null}
-                        <span className="ledger-compact-only ledger-status-line">
-                          <LedgerStatus tone={tone}>{label}</LedgerStatus>
-                        </span>
                       </td>
-                      <td className="ledger-wide-only">
+                      <td>
                         <LedgerStatus tone={tone}>{label}</LedgerStatus>
                       </td>
                     </tr>
@@ -287,6 +286,7 @@ export default function AgentWallet() {
             </table>
           )}
         </div>
+        <ShowMore list={withdrawalRows} />
       </section>
 
       <Modal

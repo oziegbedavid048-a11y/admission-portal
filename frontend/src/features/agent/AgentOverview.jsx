@@ -94,13 +94,6 @@ export default function AgentOverview() {
         </div>
         <div className="agent-stat">
           <span className="agent-icon" aria-hidden="true">
-            <Icon name="passport" size={20} />
-          </span>
-          <span className="s-label">Visas verified</span>
-          <span className="s-value">{stats.visas_verified}</span>
-        </div>
-        <div className="agent-stat">
-          <span className="agent-icon" aria-hidden="true">
             <Icon name="trend" size={20} />
           </span>
           <span className="s-label">Earned</span>

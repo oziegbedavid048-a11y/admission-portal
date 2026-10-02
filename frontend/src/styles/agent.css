@@ -672,6 +672,12 @@
   overflow-wrap: anywhere;
 }
 
+/* Three tiles sit in one row from tablet width up; two columns would leave
+   the third alone on a row of its own. */
+@media (min-width: 520px) {
+  .agent-stats:has(> :nth-child(3):last-child) { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
 /* On a phone the tiles stay cards, just one per row, so the overview keeps
    the same visual language it has on desktop. */
 @media (max-width: 519px) {
@@ -2746,41 +2752,36 @@ textarea.agent-form-control { min-height: 96px; resize: vertical; }
 
 /* ─────────────── Money tables (earning history, withdrawals, Ads funding) ───────────────
 
-   Real tables, as the agent asked: each sits in its own frame that scrolls
-   down, with the column headings pinned to the top while the rows move under
-   them.
+   Real tables with every column on every screen. Cells never wrap, so a row
+   reads straight across; when the table is wider than its card, the frame
+   scrolls sideways and the rest of the row is a swipe away.
 
-   The table follows the width of its own frame, not the screen, so the same
-   table works in a full-width card, a half-width Overview card and on a
-   phone. Wide, every column shows. Narrow, it becomes two columns — what and
-   when on the left, the amount and its status on the right — so nothing has
-   to be scrolled sideways and the amount is never pushed out of sight. */
+   The frame scrolls sideways only. It used to scroll up and down as well,
+   and on a phone that inner box caught the swipe meant for the page, so the
+   page stopped scrolling. Long lists show ten rows and a Show more button
+   instead. */
 
 .ledger-scroll {
-  container-type: inline-size;
-  max-height: 440px;
-  overflow-x: hidden;
-  overflow-y: auto;
+  overflow-x: auto;
+  overflow-y: hidden;
   border: 1px solid var(--g-line);
   border-radius: var(--g-r-md);
   background: var(--g-surface);
-  overscroll-behavior: contain;
+  overscroll-behavior-x: contain;
   -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
 }
-.ledger-scroll.is-short { max-height: 380px; }
 .ledger-scroll:focus-visible { outline: none; box-shadow: var(--shadow-focus); }
 
 .ledger-table {
   width: 100%;
+  min-width: max-content;
   border-collapse: separate;
   border-spacing: 0;
   font-variant-numeric: tabular-nums;
 }
 
 .ledger-table th {
-  position: sticky;
-  top: 0;
-  z-index: 1;
   padding: 11px 16px;
   background: var(--g-surface-2);
   border-bottom: 1px solid var(--g-line);
@@ -2811,9 +2812,9 @@ textarea.agent-form-control { min-height: 96px; resize: vertical; }
 .ledger-main { display: block; font-weight: 600; color: var(--g-ink); line-height: 1.3; }
 .ledger-sub { display: block; margin-top: 2px; font-size: 12px; color: var(--g-ink-3); line-height: 1.35; }
 
-.ledger-ref { display: block; font-weight: 500; color: var(--g-ink-2); }
+.ledger-ref { font-weight: 500; color: var(--g-ink-2); }
 
-.ledger-amount { display: block; font-weight: 600; color: var(--g-ink); }
+.ledger-amount { font-weight: 600; color: var(--g-ink); }
 .ledger-amount.is-in { color: var(--g-accent); }
 .ledger-muted { color: var(--g-ink-3); }
 
@@ -2838,21 +2839,15 @@ textarea.agent-form-control { min-height: 96px; resize: vertical; }
 .ledger-status.is-bad { color: var(--g-neg); }
 .ledger-status.is-muted { color: var(--g-ink-3); }
 
-/* Pieces that only show in one of the two layouts. */
-.ledger-compact-only { display: none; }
-.ledger-status-line { margin-top: 4px; }
-
-.ledger-empty { padding: 32px 16px; text-align: center; }
+.ledger-empty { padding: 32px 16px; text-align: center; white-space: normal; }
 .ledger-empty p { font-size: 15px; font-weight: 500; color: var(--g-ink-2); }
 .ledger-empty small { display: block; margin-top: 4px; font-size: 14px; color: var(--g-ink-3); }
 
-@container (max-width: 560px) {
-  .ledger-table .ledger-wide-only { display: none; }
-  .ledger-table .ledger-compact-only { display: block; }
+.ledger-more { display: flex; justify-content: center; margin-top: 16px; }
+
+@media (max-width: 480px) {
   .ledger-table th { padding: 10px 14px; }
-  .ledger-table td { padding: 12px 14px; vertical-align: top; }
-  /* The left column takes the room and wraps; the amount keeps its line. */
-  .ledger-table td.ledger-lead { width: 100%; white-space: normal; overflow-wrap: anywhere; }
+  .ledger-table td { padding: 12px 14px; }
 }
 
 /* The new payment account, repeated above the password so the agent sees

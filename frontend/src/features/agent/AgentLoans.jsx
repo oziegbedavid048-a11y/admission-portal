@@ -7,7 +7,7 @@ import { errorMessage } from '../../api/client';
 import { partners } from '../../api/endpoints';
 import { useToast } from '../../context/ToastContext';
 import { useAgent } from './AgentContext';
-import { LedgerDate, LedgerDateLine, LedgerStatus, loanStatus } from './Ledger';
+import { LedgerDate, LedgerStatus, ShowMore, loanStatus, useShowMore } from './Ledger';
 
 const MIN = 10000;
 const MAX = 80000;
@@ -27,6 +27,7 @@ const OPEN_STATUSES = ['pending', 'approved', 'disbursed'];
 export default function AgentLoans() {
   const { profile, wallet, setWallet } = useAgent();
   const [loans, setLoans] = useState([]);
+  const loanRows = useShowMore(loans);
   const [loading, setLoading] = useState(true);
   const [amount, setAmount] = useState(25000);
   const [purpose, setPurpose] = useState('');
@@ -279,47 +280,37 @@ export default function AgentLoans() {
             <table className="ledger-table">
               <thead>
                 <tr>
-                  <th scope="col" className="ledger-wide-only">Date</th>
+                  <th scope="col">Date</th>
                   <th scope="col">Reference</th>
-                  <th scope="col" className="ledger-wide-only">Platform</th>
+                  <th scope="col">Platform</th>
                   <th scope="col" className="t-num">Requested</th>
-                  <th scope="col" className="t-num ledger-wide-only">Approved</th>
-                  <th scope="col" className="ledger-wide-only">Status</th>
+                  <th scope="col" className="t-num">Approved</th>
+                  <th scope="col">Status</th>
                 </tr>
               </thead>
               <tbody>
-                {loans.map((loan) => {
+                {loanRows.visible.map((loan) => {
                   const [tone, label] = loanStatus(loan.status);
                   return (
                     <tr key={loan.id}>
-                      <td className="ledger-wide-only">
+                      <td>
                         <LedgerDate value={loan.requested_at} />
                       </td>
-                      <td className="ledger-lead">
+                      <td>
                         <span className="ledger-ref">{loan.reference}</span>
-                        <span className="ledger-sub ledger-compact-only">{loan.purpose}</span>
-                        <LedgerDateLine value={loan.requested_at} />
                       </td>
-                      <td className="ledger-wide-only">{loan.purpose}</td>
+                      <td>{loan.purpose}</td>
                       <td className="t-num">
                         <span className="ledger-amount">{formatNaira(loan.requested_amount)}</span>
-                        {loan.approved_amount ? (
-                          <span className="ledger-sub ledger-compact-only">
-                            Approved {formatNaira(loan.approved_amount)}
-                          </span>
-                        ) : null}
-                        <span className="ledger-compact-only ledger-status-line">
-                          <LedgerStatus tone={tone}>{label}</LedgerStatus>
-                        </span>
                       </td>
-                      <td className="t-num ledger-wide-only">
+                      <td className="t-num">
                         {loan.approved_amount ? (
                           <span className="ledger-amount">{formatNaira(loan.approved_amount)}</span>
                         ) : (
                           <span className="ledger-muted">Not yet</span>
                         )}
                       </td>
-                      <td className="ledger-wide-only">
+                      <td>
                         <LedgerStatus tone={tone}>{label}</LedgerStatus>
                       </td>
                     </tr>
@@ -329,6 +320,7 @@ export default function AgentLoans() {
             </table>
           )}
         </div>
+        <ShowMore list={loanRows} />
       </section>
 
       <Modal

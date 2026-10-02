@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { formatNaira } from '../../lib/format';
-import { LedgerDate, LedgerDateLine, LedgerStatus } from './Ledger';
+import { LedgerDate, LedgerStatus } from './Ledger';
 
 /**
  * The agent's commissions on the Overview, one row per student milestone.
@@ -27,7 +27,7 @@ export default function EarningsHistory({ commissions = [], wallet }) {
         </div>
       </div>
 
-      <div className="ledger-scroll is-short" role="region" aria-label="Commissions" tabIndex={0}>
+      <div className="ledger-scroll" role="region" aria-label="Commissions" tabIndex={0}>
         {commissions.length === 0 ? (
           <div className="ledger-empty">
             <p>No commission yet</p>
@@ -39,30 +39,26 @@ export default function EarningsHistory({ commissions = [], wallet }) {
               <tr>
                 <th scope="col">Student</th>
                 <th scope="col" className="t-num">Amount</th>
-                <th scope="col" className="ledger-wide-only">Date</th>
-                <th scope="col" className="ledger-wide-only">Status</th>
+                <th scope="col">Date</th>
+                <th scope="col">Status</th>
               </tr>
             </thead>
             <tbody>
               {commissions.map((item) => (
                 <tr key={item.id}>
-                  <td className="ledger-lead">
+                  <td>
                     <span className="ledger-main">{item.student_name || 'Student'}</span>
                     <span className="ledger-sub">
                       {item.kind === 'visa' ? 'Visa commission' : 'Registration commission'}
                     </span>
-                    <LedgerDateLine value={item.earned_at} />
                   </td>
                   <td className="t-num">
                     <span className="ledger-amount is-in">+{formatNaira(item.amount)}</span>
-                    <span className="ledger-compact-only ledger-status-line">
-                      <LedgerStatus tone="good">Settled</LedgerStatus>
-                    </span>
                   </td>
-                  <td className="ledger-wide-only">
+                  <td>
                     <LedgerDate value={item.earned_at} />
                   </td>
-                  <td className="ledger-wide-only">
+                  <td>
                     <LedgerStatus tone="good">Settled</LedgerStatus>
                   </td>
                 </tr>

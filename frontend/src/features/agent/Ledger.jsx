@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { formatDateTimeParts } from '../../lib/format';
 
 /**
@@ -14,12 +15,6 @@ export function LedgerDate({ value }) {
       {time ? <span className="ledger-date-time">{time}</span> : null}
     </span>
   );
-}
-
-// The same moment on one line, for the compact layout: "2 Oct 2026 · 14:05".
-export function LedgerDateLine({ value }) {
-  const { date, time } = formatDateTimeParts(value);
-  return <span className="ledger-sub ledger-compact-only">{time ? `${date} · ${time}` : date}</span>;
 }
 
 // tone: good (green), wait (amber), bad (red), muted (grey).
@@ -47,4 +42,30 @@ const LOAN_STATUS = {
 
 export function loanStatus(status) {
   return LOAN_STATUS[status] || ['muted', String(status || 'Not set')];
+}
+
+/**
+ * Long lists show ten rows at first, with Show more under the table, so the
+ * page stays short without putting the table in a box of its own that
+ * scrolls up and down (that box caught the swipe and the page stopped
+ * scrolling).
+ */
+export function useShowMore(rows, step = 10) {
+  const [limit, setLimit] = useState(step);
+  return {
+    visible: rows.slice(0, limit),
+    hasMore: rows.length > limit,
+    more: () => setLimit((current) => current + step),
+  };
+}
+
+export function ShowMore({ list }) {
+  if (!list.hasMore) return null;
+  return (
+    <div className="ledger-more">
+      <button type="button" className="agent-btn agent-btn-secondary agent-btn-sm" onClick={list.more}>
+        Show more
+      </button>
+    </div>
+  );
 }

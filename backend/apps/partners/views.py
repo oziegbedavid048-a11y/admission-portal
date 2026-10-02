@@ -11,7 +11,7 @@ from rest_framework.views import APIView
 
 from apps.applications import services
 from apps.applications.constants import AGENT_REGISTRATION_COMMISSION_NGN, AGENT_VISA_COMMISSION_NGN
-from apps.applications.models import Application
+from apps.applications.models import Application, Letter
 from config.throttles import MoneyThrottle, UploadThrottle, UserThrottle
 
 from .models import (
@@ -427,10 +427,22 @@ class AgentOverviewView(AgentScopedMixin, APIView):
             )
         )
 
-        admitted = [a for a in applications if a.status == Application.Status.ADMITTED]
-        visas = [
-            a for a in applications if a.visa_status == Application.VisaStatus.COMPLETED
-        ]
+        # A student counts as admitted once the desk marks the file admitted, or
+        # once an admission or offer letter for it is published from the admin,
+        # whichever comes first. Sending the letter is how the desk usually
+        # records the admission, so the count must follow it.
+        lettered = set(
+            Letter.objects.filter(
+                application__in=[a.pk for a in applications],
+                is_published=True,
+                kind__in=(Letter.Kind.ADMISSION, Letter.Kind.OFFER),
+            ).values_list("application_id", flat=True)
+        )
+
+        def is_admitted(application):
+            return application.status == Application.Status.ADMITTED or application.pk in lettered
+
+        admitted = [a for a in applications if is_admitted(a)]
 
         # Each student sits in exactly one stage, the furthest they have reached,
         # so the pipeline adds up to the number of students and no stage can go
@@ -441,9 +453,9 @@ class AgentOverviewView(AgentScopedMixin, APIView):
         for a in applications:
             if a.visa_status == Application.VisaStatus.COMPLETED:
                 pipeline["visa_verified"] += 1
-            elif a.status == Application.Status.ADMITTED and a.visa_status == Application.VisaStatus.IN_PROGRESS:
+            elif is_admitted(a) and a.visa_status == Application.VisaStatus.IN_PROGRESS:
                 pipeline["visa_in_progress"] += 1
-            elif a.status == Application.Status.ADMITTED:
+            elif is_admitted(a):
                 pipeline["admitted"] += 1
             elif a.status in (Application.Status.SUBMITTED, Application.Status.IN_REVIEW):
                 pipeline["in_review"] += 1
@@ -466,7 +478,7 @@ class AgentOverviewView(AgentScopedMixin, APIView):
         recent_commissions = (
             Commission.objects.filter(agent=agent)
             .select_related("application")
-            .order_by("-earned_at")[:50]
+            .order_by("-earned_at")[:10]
         )
 
         return Response(
@@ -474,7 +486,6 @@ class AgentOverviewView(AgentScopedMixin, APIView):
                 "stats": {
                     "students": len(applications),
                     "admitted": len(admitted),
-                    "visas_verified": len(visas),
                     "in_review": pipeline["in_review"],
                 },
                 "wallet": WalletSerializer(wallet).data,
