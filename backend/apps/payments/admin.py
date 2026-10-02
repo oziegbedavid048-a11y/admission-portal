@@ -31,9 +31,46 @@ class PaymentAdmin(admin.ModelAdmin):
     search_fields = ("reference", "application__reference", "application__full_name")
     autocomplete_fields = ("application",)
     date_hierarchy = "created_at"
-    readonly_fields = ("reference", "created_at", "paid_at", "charged", "in_naira")
+    # Every field is read-only. A fee is settled only through "Payments to
+    # confirm", Paystack or the waive action, because those are what tick the
+    # application's fee check and pay the agent. Editing the status by hand
+    # skipped both, and the file then contradicted itself.
+    readonly_fields = (
+        "reference",
+        "application",
+        "status",
+        "gateway",
+        "currency",
+        "symbol",
+        "amount",
+        "processing_fee",
+        "charged",
+        "amount_ngn",
+        "fx_rate",
+        "in_naira",
+        "created_at",
+        "paid_at",
+    )
     # Confirming a transfer is done on "Payments to confirm", its own screen.
     actions = ("action_waive",)
+
+    # A fee record comes from the applicant's or agent's checkout, never by hand.
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        """A fee that was paid, waived or is waiting on a transfer is a record of
+        money and cannot be deleted. Deleting paid fees on 1 October left their
+        commissions and fee checks behind, so the agent's dashboard showed a paid
+        student as "Not paid" and offered to charge them again. An abandoned
+        pending or failed attempt may still be removed."""
+        if obj is not None and obj.status in (
+            Payment.Status.PAID,
+            Payment.Status.WAIVED,
+            Payment.Status.REVIEW,
+        ):
+            return False
+        return super().has_delete_permission(request, obj)
 
     fieldsets = (
         (None, {"fields": ("reference", "application", "status", "gateway")}),

@@ -53,6 +53,27 @@ def find_payment(gateway_reference):
     return Payment.objects.filter(reference=str(gateway_reference).split("-A")[0]).first()
 
 
+def fee_already_confirmed(application):
+    """True when the file shows this fee as settled even though its payment
+    record does not: the fee check is ticked, or the agent was already paid the
+    commission that only a settled fee earns. That happens when a paid record
+    was removed; charging again would take the fee twice."""
+    from apps.partners.models import Commission
+
+    payment = getattr(application, "payment", None)
+    if payment is not None and payment.status in {Payment.Status.PAID, Payment.Status.WAIVED}:
+        return False
+    return bool(
+        application.payment_verified
+        or application.commissions.filter(kind=Commission.Kind.REGISTRATION).exists()
+    )
+
+
+ALREADY_CONFIRMED = (
+    "This application fee was already confirmed. Contact support before paying again."
+)
+
+
 def quote_for(application):
     """What this applicant owes, in their own currency and in Naira.
 
@@ -236,6 +257,9 @@ class CheckoutView(APIView):
                     {"payment": PaymentSerializer(existing).data, "already_settled": True}
                 )
 
+            if fee_already_confirmed(application):
+                return Response({"detail": ALREADY_CONFIRMED}, status=status.HTTP_409_CONFLICT)
+
             if existing and existing.status == Payment.Status.REVIEW:
                 # A transfer receipt is already with the desk. Starting a card
                 # payment on top of it could take the fee twice.
@@ -375,6 +399,8 @@ class TransferReceiptView(APIView):
             return Response(
                 {"detail": "This application fee is already settled."}, status=status.HTTP_409_CONFLICT
             )
+        if fee_already_confirmed(application):
+            return Response({"detail": ALREADY_CONFIRMED}, status=status.HTTP_409_CONFLICT)
 
         quote = quote_for(application)
         if quote["waived"]:

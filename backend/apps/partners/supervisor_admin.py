@@ -278,6 +278,14 @@ class SupervisorWithdrawalAdmin(admin.ModelAdmin):
     readonly_fields = ("reference", "supervisor", "amount", "destination", "status", "created_at", "paid_at")
     actions = ("action_mark_paid", "action_mark_failed")
 
+    # As for agent payouts: raised by the sales manager, moved by the actions,
+    # never added or deleted by hand ("Mark as failed" returns the money).
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
     def get_queryset(self, request):
         return super().get_queryset(request).select_related("supervisor__user")
 

@@ -40,7 +40,20 @@ def _pill(text, tone):
 class WalletInline(admin.StackedInline):
     model = Wallet
     can_delete = False
-    readonly_fields = ("available", "updated_at")
+    # Read-only: the totals are moved by commissions, payouts and Ads funding,
+    # each of which leaves a dated record. A total typed in by hand would not
+    # match the agent's earning history.
+    readonly_fields = (
+        "registration_commission_total",
+        "visa_commission_total",
+        "total_earned",
+        "available",
+        "loan_balance",
+        "loan_repaid_total",
+        "saved_balance",
+        "total_withdrawn",
+        "updated_at",
+    )
     fields = (
         ("registration_commission_total", "visa_commission_total"),
         ("total_earned", "available"),
@@ -114,8 +127,17 @@ class LoanAdmin(admin.ModelAdmin):
     search_fields = ("agent__user__full_name", "agent__user__email", "purpose")
     autocomplete_fields = ("agent",)
     date_hierarchy = "requested_at"
-    readonly_fields = ("reference", "requested_at", "disbursed_at", "campaign")
+    # Status moves only through the actions, which also move the agent's loan
+    # balance. Set by hand it changed the status and left the balance behind.
+    readonly_fields = ("reference", "status", "requested_at", "disbursed_at", "campaign")
     actions = ("action_approve_and_disburse", "action_mark_repaid", "action_decline")
+
+    def has_delete_permission(self, request, obj=None):
+        """Funding that was paid out or repaid is a record of money and stays.
+        A request still in review, or declined, may be removed."""
+        if obj is not None and obj.status in (Loan.Status.APPROVED, Loan.Status.DISBURSED, Loan.Status.REPAID):
+            return False
+        return super().has_delete_permission(request, obj)
 
     fieldsets = (
         (None, {"fields": ("reference", "agent", "status")}),
@@ -249,6 +271,16 @@ class WithdrawalAdmin(admin.ModelAdmin):
         "created_at",
     )
     actions = ("action_mark_paid", "action_mark_failed")
+
+    # A payout is raised by the agent and moved by the actions. The balance moved
+    # when it was raised, so deleting one, even a pending one, would lose that
+    # money from the agent's history without giving it back: "Mark as failed"
+    # is what returns it.
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
     def get_queryset(self, request):
         return super().get_queryset(request).select_related("agent__user")
