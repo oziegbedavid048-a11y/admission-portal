@@ -19,6 +19,7 @@ from django.core.exceptions import ValidationError
 from django.core.management.base import BaseCommand, CommandError
 from django.utils.crypto import get_random_string
 
+from apps.accounts.apps import clean_env_secret
 from apps.accounts.models import User
 
 # Unambiguous when read aloud or copied off a terminal: no O/0, no l/1.
@@ -51,7 +52,7 @@ class Command(BaseCommand):
                 "An email address is required. Pass --email or set DJANGO_ADMIN_EMAIL."
             )
 
-        password = options["password"]
+        password, _ = clean_env_secret(options["password"])
         generated = False
         if not password:
             password = get_random_string(20, ALPHABET)

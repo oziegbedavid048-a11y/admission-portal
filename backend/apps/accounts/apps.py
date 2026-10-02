@@ -5,6 +5,22 @@ from django.apps import AppConfig
 from django.db.models.signals import post_migrate
 
 
+def clean_env_secret(value):
+    """A value pasted into a hosting dashboard, without what the paste added.
+
+    Dashboards keep a trailing space or newline from the clipboard, and some
+    people wrap the value in quotes as they would in a .env file. Neither is
+    part of the password the person means to type, yet the stored password then
+    never matched what they typed. Returns the cleaned value and whether
+    anything was removed.
+    """
+    original = value or ""
+    cleaned = original.strip()
+    if len(cleaned) >= 2 and cleaned[0] == cleaned[-1] and cleaned[0] in "\"'":
+        cleaned = cleaned[1:-1].strip()
+    return cleaned, cleaned != original
+
+
 def auto_ensure_admin(sender, **kwargs):
     """Make sure the desk's superuser from the environment exists.
 
@@ -15,7 +31,7 @@ def auto_ensure_admin(sender, **kwargs):
     environment, which still lets DJANGO_ADMIN_PASSWORD reset it.
     """
     email = (os.environ.get("DJANGO_ADMIN_EMAIL") or "").strip().lower()
-    password = os.environ.get("DJANGO_ADMIN_PASSWORD") or ""
+    password, cleaned = clean_env_secret(os.environ.get("DJANGO_ADMIN_PASSWORD"))
     if email and password and sender.name == "apps.accounts":
         from apps.accounts.models import User
 
@@ -41,11 +57,17 @@ def auto_ensure_admin(sender, **kwargs):
         user.save(update_fields=fields)
         # One line in the host's log, so the address the desk signs in with can
         # be read off instead of guessed. The password is never written.
-        logging.getLogger(__name__).warning(
+        logger = logging.getLogger(__name__)
+        logger.warning(
             "Admin account %s is ready (%s).",
             email,
             "created" if created else "password updated" if password_changed else "unchanged",
         )
+        if cleaned:
+            logger.warning(
+                "DJANGO_ADMIN_PASSWORD had spaces or quote marks around it; they were "
+                "removed. Sign in with the password itself, without them."
+            )
 
 
 class AccountsConfig(AppConfig):
