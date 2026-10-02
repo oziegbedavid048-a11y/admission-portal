@@ -34,6 +34,16 @@ export default function Modal({
 }) {
   const panelRef = useRef(null);
   const restoreFocusTo = useRef(null);
+  // The latest close handler and dismiss rule, read when a key is pressed.
+  // They are kept in refs, not in the effect's dependencies: callers pass a
+  // new function on every render, and with it as a dependency the effect tore
+  // down and set up again on each keystroke and each background refresh. That
+  // put focus back on the button behind the sheet, so a phone closed its
+  // keyboard after every letter typed into a field in the sheet.
+  const onCloseRef = useRef(onClose);
+  const dismissableRef = useRef(dismissable);
+  onCloseRef.current = onClose;
+  dismissableRef.current = dismissable;
 
   useEffect(() => {
     if (!open) return undefined;
@@ -43,8 +53,8 @@ export default function Modal({
     document.body.style.overflow = 'hidden';
 
     const onKeyDown = (event) => {
-      if (event.key === 'Escape' && dismissable) {
-        onClose?.();
+      if (event.key === 'Escape' && dismissableRef.current) {
+        onCloseRef.current?.();
         return;
       }
       if (event.key !== 'Tab' || !panelRef.current) return;
@@ -65,10 +75,15 @@ export default function Modal({
     };
 
     document.addEventListener('keydown', onKeyDown);
+    // Focus goes to the first field, so a sheet that asks for something is
+    // ready to type into; a sheet with no field focuses its first button. A
+    // field that already took focus itself (autoFocus) is left alone.
     const timer = window.setTimeout(() => {
-      const target = panelRef.current?.querySelector(
-        'input:not([type="hidden"]), select, textarea, button',
-      );
+      const panel = panelRef.current;
+      if (!panel || panel.contains(document.activeElement)) return;
+      const target =
+        panel.querySelector('input:not([type="hidden"]):not([disabled]), select, textarea') ||
+        panel.querySelector('button:not([disabled])');
       target?.focus();
     }, 40);
 
@@ -78,7 +93,7 @@ export default function Modal({
       document.body.style.overflow = overflow;
       restoreFocusTo.current?.focus?.();
     };
-  }, [open, onClose, dismissable]);
+  }, [open]);
 
   if (!open) return null;
 

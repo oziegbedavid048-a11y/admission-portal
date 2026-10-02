@@ -39,13 +39,18 @@ export default function SearchableSelect({
     return () => document.removeEventListener('mousedown', onDocumentClick);
   }, [open]);
 
+  // Runs when the list opens, and only then. It used to run again whenever the
+  // options or value changed identity, and pages that refresh in the
+  // background pass a new options list each time, so the search typed into an
+  // open list was wiped every few seconds.
   useEffect(() => {
     if (open) {
       setQuery('');
       setCursor(Math.max(0, safeOptions.indexOf(value)));
       window.setTimeout(() => searchRef.current?.focus(), 30);
     }
-  }, [open, safeOptions, value]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   useEffect(() => {
     if (!open || !listRef.current) return;

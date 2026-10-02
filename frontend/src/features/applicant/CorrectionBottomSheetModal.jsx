@@ -40,7 +40,10 @@ export default function CorrectionBottomSheetModal({
     evidence: null,
   });
 
-  // Populate form with current application details whenever modal opens
+  // Fill the form with the application's details when the sheet opens, and
+  // only then. The dashboard refreshes the application every few seconds; with
+  // the application itself as a dependency, each refresh refilled the form and
+  // wiped out what the applicant had typed.
   useEffect(() => {
     if (application && open) {
       setForm({
@@ -60,7 +63,8 @@ export default function CorrectionBottomSheetModal({
         evidence: null,
       });
     }
-  }, [application, open]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, application?.reference]);
 
   if (!open) return null;
 
