@@ -4,6 +4,7 @@ import PdfViewer from '../../components/ui/PdfViewer';
 import { downloadUrl, formatLongDate, resolveMediaUrl } from '../../lib/format';
 import Modal from '../../components/ui/Modal';
 import { useApplication } from './ApplicationContext';
+import ApplicationSwitcher from './ApplicationSwitcher';
 import CorrectionBottomSheetModal from './CorrectionBottomSheetModal';
 import DocumentReplaceButton from '../../components/ui/DocumentReplaceButton';
 
@@ -24,6 +25,7 @@ export default function DetailsPanel() {
 
   return (
     <div className="portal-stack applicant-details-container">
+      <ApplicationSwitcher />
 
       {/* ── Active Correction Notice (If open requests exist) ── */}
       {corrections.some((c) => c.status === 'open') && (

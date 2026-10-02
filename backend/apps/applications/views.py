@@ -131,10 +131,14 @@ class ApplicationViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=["get"])
     def mine(self, request):
-        """The signed-in applicant's most recent file, or 404 if they have none."""
-        application = visible_applications(request.user).filter(
-            applicant=request.user
-        ).first()
+        """One of the signed-in applicant's own files, or 404 if they have none.
+
+        ``?reference=`` picks a particular file; without it, or when the
+        reference is not theirs, the most recent one is returned.
+        """
+        own = visible_applications(request.user).filter(applicant=request.user)
+        reference = (request.query_params.get("reference") or "").strip()[:16]
+        application = (own.filter(reference=reference).first() if reference else None) or own.first()
         if application is None:
             return Response(
                 {"detail": "No application found for this account."},
@@ -143,6 +147,35 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         return Response(
             ApplicationSerializer(application, context=self.get_serializer_context()).data
         )
+
+    @action(detail=False, methods=["get"], url_path="mine/all")
+    def mine_all(self, request):
+        """Every file the signed-in applicant has, newest first, in brief."""
+        own = (
+            Application.objects.filter(applicant=request.user)
+            .select_related("institution", "payment")
+            .prefetch_related("programs")
+        )
+        rows = []
+        for application in own:
+            payment = getattr(application, "payment", None)
+            rows.append(
+                {
+                    "reference": application.reference,
+                    "institution": application.institution.name if application.institution else "",
+                    "institution_slug": application.institution.slug if application.institution else "",
+                    "courses": (
+                        [application.custom_course_name]
+                        if application.is_custom_course
+                        else [program.name for program in application.programs.all()]
+                    ),
+                    "status": application.status,
+                    "status_display": application.get_status_display(),
+                    "payment_status": payment.status if payment else "",
+                    "submitted_at": application.submitted_at,
+                }
+            )
+        return Response(rows)
 
     @action(
         detail=True,

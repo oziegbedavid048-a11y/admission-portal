@@ -279,6 +279,8 @@ class Wallet(models.Model):
         wallet.loan_balance -= amount
         wallet.loan_repaid_total += amount
         wallet.save(update_fields=["loan_balance", "loan_repaid_total"])
+        # Each repayment is its own line in the agent's earnings history.
+        LoanRepayment.objects.create(agent=wallet.agent, amount=amount)
 
         if wallet.loan_balance == 0:
             wallet.agent.loans.filter(
@@ -385,6 +387,28 @@ class Loan(models.Model):
     @property
     def reference(self):
         return f"LN-{self.pk:05d}"
+
+
+class LoanRepayment(models.Model):
+    """Ads funding paid back out of the agent's balance, one row per repayment.
+
+    The wallet keeps the running total in ``loan_repaid_total``; this is the
+    dated record behind it, so the earnings history can list each one.
+    """
+
+    agent = models.ForeignKey(
+        AgentProfile, on_delete=models.CASCADE, related_name="loan_repayments"
+    )
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("-created_at",)
+        verbose_name = "ads funding repayment"
+        verbose_name_plural = "ads funding repayments"
+
+    def __str__(self):
+        return f"{self.agent} repaid {self.amount}"
 
 
 def loan_block_reason(agent, wallet=None):

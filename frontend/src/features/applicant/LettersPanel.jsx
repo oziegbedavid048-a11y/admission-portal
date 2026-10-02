@@ -7,6 +7,7 @@ import PdfViewer from '../../components/ui/PdfViewer';
 import Icon from '../../lib/icons';
 import { downloadUrl, formatLongDate, resolveMediaUrl } from '../../lib/format';
 import { useApplication } from './ApplicationContext';
+import ApplicationSwitcher from './ApplicationSwitcher';
 
 export default function LettersPanel() {
   const { application, setApplication } = useApplication();
@@ -38,6 +39,7 @@ export default function LettersPanel() {
 
   return (
     <div className="portal-stack letters-clean-container">
+      <ApplicationSwitcher />
 
       {letters.length === 0 ? (
         <section className="card letter-empty-card">

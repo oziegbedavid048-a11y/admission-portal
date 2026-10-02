@@ -64,7 +64,9 @@ export const catalog = {
 };
 
 export const applications = {
-  mine: () => api.get('/applications/mine/'),
+  mine: (reference) => api.get('/applications/mine/', { params: reference ? { reference } : undefined }),
+  // Every application the signed-in applicant has, newest first, in brief.
+  mineAll: () => api.get('/applications/mine/all/'),
   create: (payload) => api.post('/applications/', payload),
   updateContact: (reference, payload) => api.patch(`/applications/${reference}/`, payload),
   uploadDocument: (reference, { file, kind, name }) => {
@@ -146,6 +148,8 @@ export const partners = {
   updateProfile: (payload) => api.patch('/partners/me/', payload),
   overview: () => api.get('/partners/overview/'),
   wallet: () => api.get('/partners/wallet/'),
+  // Every movement of the agent's money: commissions in, repayments and withdrawals out.
+  walletHistory: () => api.get('/partners/wallet/history/'),
   students: (params) => api.get('/partners/students/', { params }),
   createStudent: (payload) => api.post('/partners/students/', payload),
   studentStages: (reference) => api.get(`/partners/students/${reference}/stages/`),

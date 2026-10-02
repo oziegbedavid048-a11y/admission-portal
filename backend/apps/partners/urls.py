@@ -10,6 +10,7 @@ from .views import (
     LoanViewSet,
     SavingsView,
     StudentDraftViewSet,
+    WalletHistoryView,
     WalletView,
     WithdrawalViewSet,
 )
@@ -25,6 +26,7 @@ urlpatterns = [
     path("overview/", AgentOverviewView.as_view(), name="agent-overview"),
     path("wallet/", WalletView.as_view(), name="agent-wallet"),
     path("wallet/savings/", SavingsView.as_view(), name="agent-savings"),
+    path("wallet/history/", WalletHistoryView.as_view(), name="agent-wallet-history"),
     path("commissions/", CommissionListView.as_view(), name="agent-commissions"),
     path("letters/", AgentLettersView.as_view(), name="agent-letters"),
     path("", include(router.urls)),

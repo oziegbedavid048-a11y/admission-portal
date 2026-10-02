@@ -1320,6 +1320,9 @@ a.agent-topbar-profile-btn {
   border-radius: 50%;
   border: 2.5px solid rgba(255, 255, 255, 0.4);
   border-top-color: #fff;
+  /* A dark halo keeps the white ring visible on a light photo. */
+  background: rgba(0, 0, 0, 0.35);
+  box-shadow: 0 0 0 7px rgba(0, 0, 0, 0.35);
   animation: spin 720ms linear infinite;
 }
 

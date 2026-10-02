@@ -216,6 +216,25 @@ def _country_name(value, empty_message):
     return name
 
 
+MAX_COURSES_PER_APPLICATION = 2
+
+
+def open_application_at(applicant, institution):
+    """The applicant's live application at this school, if there is one.
+
+    A second school is a second application with its own fee, but the same
+    school twice is not: further courses there belong on the first file. A
+    rejected file does not count, so the applicant may try that school again.
+    """
+    if applicant is None or institution is None:
+        return None
+    return (
+        Application.objects.filter(applicant=applicant, institution=institution)
+        .exclude(status=Application.Status.REJECTED)
+        .first()
+    )
+
+
 class ApplicationCreateSerializer(serializers.Serializer):
     """Everything the five-step wizard collects, submitted in one call."""
 
@@ -301,23 +320,26 @@ class ApplicationCreateSerializer(serializers.Serializer):
         institution = attrs.get("institution")
         if not institution:
             raise serializers.ValidationError({"institution": "Choose a partner institution."})
-        program_ids = attrs.get("program_ids", [])
-        programs = list(Program.objects.filter(id__in=program_ids))
-        if not programs:
-            programs = list(Program.objects.filter(institution=institution)[:1])
-            if not programs:
-                raise serializers.ValidationError(
-                    {"program_ids": "Select at least one course."}
-                )
-        if len(programs) > 2:
+        # The courses are chosen by the applicant, never filled in for them:
+        # one application covers up to two courses at the same school, under
+        # one application fee, and the school decides which one to offer.
+        program_ids = list(dict.fromkeys(attrs.get("program_ids") or []))
+        if not program_ids:
+            raise serializers.ValidationError({"program_ids": "Select at least one course."})
+        if len(program_ids) > MAX_COURSES_PER_APPLICATION:
             raise serializers.ValidationError(
-                {"program_ids": "You can select a maximum of 2 courses per institution."}
+                {
+                    "program_ids": f"You can select a maximum of {MAX_COURSES_PER_APPLICATION} "
+                    "courses per institution."
+                }
             )
-        wrong = [p for p in programs if p.institution_id != institution.id]
-        if wrong:
-            programs = [p for p in programs if p.institution_id == institution.id]
-            if not programs:
-                programs = list(Program.objects.filter(institution=institution)[:1])
+        programs = list(Program.objects.filter(id__in=program_ids, institution=institution))
+        if len(programs) != len(program_ids):
+            raise serializers.ValidationError(
+                {"program_ids": "Choose courses offered by the selected institution."}
+            )
+        order = {pid: index for index, pid in enumerate(program_ids)}
+        programs.sort(key=lambda program: order[program.id])
         dest = attrs.get("destination_country")
         if (
             dest
@@ -343,6 +365,14 @@ class ApplicationCreateSerializer(serializers.Serializer):
 
         applicant = validated_data.pop("applicant", user)
         agent = validated_data.pop("agent", agent_profile)
+        existing = open_application_at(applicant, validated_data.get("institution"))
+        if existing is not None:
+            raise serializers.ValidationError(
+                {
+                    "institution": f"An application to {existing.institution.name} already exists "
+                    f"({existing.reference}). Choose a different school."
+                }
+            )
         # Every email about a file goes to this address. For an applicant's own
         # file it is their account address, never one typed into the form:
         # otherwise anyone could have Gabstep mail any inbox they liked.

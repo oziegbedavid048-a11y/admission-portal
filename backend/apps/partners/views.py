@@ -14,7 +14,16 @@ from apps.applications.constants import AGENT_REGISTRATION_COMMISSION_NGN, AGENT
 from apps.applications.models import Application
 from config.throttles import MoneyThrottle, UploadThrottle, UserThrottle
 
-from .models import Commission, Loan, StudentDraft, StudentDraftFile, Wallet, Withdrawal, loan_block_reason
+from .models import (
+    Commission,
+    Loan,
+    LoanRepayment,
+    StudentDraft,
+    StudentDraftFile,
+    Wallet,
+    Withdrawal,
+    loan_block_reason,
+)
 from .permissions import IsAgent
 from .serializers import (
     AgentProfileSerializer,
@@ -53,6 +62,71 @@ class AgentProfileView(AgentScopedMixin, RetrieveUpdateAPIView):
 class WalletView(AgentScopedMixin, APIView):
     def get(self, request):
         return Response(WalletSerializer(self.agent.wallet).data)
+
+
+class WalletHistoryView(AgentScopedMixin, APIView):
+    """Every movement of the agent's money, newest first.
+
+    Money in is each commission. Money out is each Ads funding repayment and
+    each withdrawal that is in review or paid. A failed withdrawal is left out:
+    its amount went back to the balance, so nothing left the wallet.
+    """
+
+    LIMIT = 500
+
+    def get(self, request):
+        agent = self.agent
+        rows = []
+        commissions = Commission.objects.filter(agent=agent).select_related("application")[: self.LIMIT]
+        for item in commissions:
+            rows.append(
+                {
+                    "id": f"c-{item.pk}",
+                    "direction": "in",
+                    "title": (
+                        "Visa commission"
+                        if item.kind == Commission.Kind.VISA
+                        else "Registration commission"
+                    ),
+                    "detail": item.application.full_name,
+                    "reference": item.application.reference,
+                    "amount": item.amount,
+                    "at": item.earned_at,
+                    "status": "",
+                }
+            )
+        for item in LoanRepayment.objects.filter(agent=agent)[: self.LIMIT]:
+            rows.append(
+                {
+                    "id": f"r-{item.pk}",
+                    "direction": "out",
+                    "title": "Ads funding repaid",
+                    "detail": "",
+                    "reference": "",
+                    "amount": item.amount,
+                    "at": item.created_at,
+                    "status": "",
+                }
+            )
+        withdrawals = Withdrawal.objects.filter(agent=agent).exclude(status=Withdrawal.Status.FAILED)
+        for item in withdrawals[: self.LIMIT]:
+            rows.append(
+                {
+                    "id": f"w-{item.pk}",
+                    "direction": "out",
+                    "title": "Withdrawal",
+                    "detail": "",
+                    "reference": item.reference,
+                    "amount": item.amount_requested,
+                    "at": item.created_at,
+                    "status": item.status,
+                }
+            )
+        rows.sort(key=lambda row: row["at"], reverse=True)
+        rows = rows[: self.LIMIT]
+        for row in rows:
+            row["amount"] = f"{row['amount']:.2f}"
+        return Response(rows)
 
 
 class WithdrawalViewSet(AgentScopedMixin, viewsets.ModelViewSet):
@@ -392,7 +466,7 @@ class AgentOverviewView(AgentScopedMixin, APIView):
         recent_commissions = (
             Commission.objects.filter(agent=agent)
             .select_related("application")
-            .order_by("-earned_at")[:6]
+            .order_by("-earned_at")[:50]
         )
 
         return Response(

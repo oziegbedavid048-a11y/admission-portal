@@ -5,7 +5,7 @@ import { errorMessage } from '../../api/client';
 import { useToast } from '../../context/ToastContext';
 import Icon from '../../lib/icons';
 import { firstNameOf, timeAgo } from '../../lib/format';
-import { useApplication } from './ApplicationContext';
+import { rememberSelectedApplication, useApplication } from './ApplicationContext';
 import { useAuth } from '../../context/AuthContext';
 
 // The five stages every application moves through, shown as upcoming before
@@ -18,6 +18,7 @@ const STAGE_NAMES = [
   'Visa guidance & enrolment',
 ];
 import ApplicantPieChart from './ApplicantPieChart';
+import ApplicationSwitcher from './ApplicationSwitcher';
 import WeatherBanner from '../../components/ui/WeatherBanner';
 
 export default function OverviewPanel() {
@@ -30,8 +31,9 @@ export default function OverviewPanel() {
   // A saved, unsubmitted application, offered back on the Overview.
   const [draft, setDraft] = useState(null);
 
+  // A saved draft is offered back whether or not another application exists:
+  // it may be the start of an application to a second school.
   useEffect(() => {
-    if (hasApplication) return undefined;
     let cancelled = false;
     applications
       .getDraft()
@@ -42,7 +44,7 @@ export default function OverviewPanel() {
     return () => {
       cancelled = true;
     };
-  }, [hasApplication]);
+  }, []);
 
   const payment = application.payment;
   const feeDue = Boolean(payment) && ['pending', 'failed'].includes(payment.status);
@@ -61,6 +63,7 @@ export default function OverviewPanel() {
     try {
       const { data } = await payments.checkout(application.reference);
       if (data?.authorization_url) {
+        rememberSelectedApplication(application.reference);
         window.location.assign(data.authorization_url);
         return;
       }
@@ -83,21 +86,23 @@ export default function OverviewPanel() {
       {/* ── Weather Dynamic Greeting Banner ── */}
       <WeatherBanner userName={firstNameOf(application.full_name || user?.full_name)} />
 
-      {!hasApplication && draft ? (
+      <ApplicationSwitcher />
+
+      {draft ? (
         <section className="gx-card gx-welcome">
           <div>
-            <h2>Continue your application</h2>
+            <h2>Finish your saved application</h2>
             <p className="gx-muted">
-              {draft.data?.form?.fullName ? `${draft.data.form.fullName} · ` : ''}
-              Step {draft.current_step || 1} of 5 · Saved {timeAgo(draft.saved_at)}
+              Saved as a draft {timeAgo(draft.saved_at)} · Step {draft.current_step || 1} of 5
             </p>
           </div>
           <Link to="/portal/apply" className="gx-btn gx-btn-primary gx-btn-lg">
-            Continue
+            Finish application
             <Icon name="arrowRight" size={17} strokeWidth={2} />
           </Link>
         </section>
       ) : null}
+
 
       {hasApplication || draft ? null : (
         <section className="gx-card gx-welcome">
@@ -117,15 +122,29 @@ export default function OverviewPanel() {
       {feeDue ? (
         <section className="gx-card gx-welcome">
           <div>
-            <h2>Pay your application fee</h2>
+            <h2>Complete your application</h2>
             <p className="gx-muted">
-              {payment.display_total} · Your file goes to the admissions desk once it is paid.
+              Pay the {payment.display_total} application fee to send it to the admissions desk.
             </p>
           </div>
-          <button type="button" className="gx-btn gx-btn-primary" onClick={pay} disabled={paying}>
-            {paying ? <span className="spinner-sm" aria-hidden="true" /> : <Icon name="card" size={17} />}
-            {paying ? 'Opening' : 'Pay now'}
+          <button type="button" className="gx-btn gx-btn-primary gx-btn-lg" onClick={pay} disabled={paying}>
+            {paying ? <span className="spinner-sm" aria-hidden="true" /> : null}
+            {paying ? 'Opening payment' : 'Complete application'}
+            {paying ? null : <Icon name="arrowRight" size={17} strokeWidth={2} />}
           </button>
+        </section>
+      ) : null}
+
+      {hasApplication && !draft ? (
+        <section className="gx-card gx-welcome">
+          <div>
+            <h2>Apply to another school</h2>
+            <p className="gx-muted">Each school is a separate application with its own fee.</p>
+          </div>
+          <Link to="/portal/courses" className="gx-btn gx-btn-secondary gx-btn-lg">
+            Browse courses
+            <Icon name="arrowRight" size={17} strokeWidth={2} />
+          </Link>
         </section>
       ) : null}
 

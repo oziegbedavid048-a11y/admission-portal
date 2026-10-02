@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import Loading from '../../components/ui/Loading';
 import SearchableSelect from '../../components/ui/SearchableSelect';
 import { catalog } from '../../api/endpoints';
@@ -47,7 +47,15 @@ function feeText(quote, school) {
   return `Application fee: ${formatMoney(quote.amount, quote.currency)}`;
 }
 
-export function CourseBrowser({ onApply, applyLabel = 'Apply', canApply = true, banner = null, feeOrigin }) {
+export function CourseBrowser({
+  onApply,
+  applyLabel = 'Apply',
+  canApply = true,
+  banner = null,
+  feeOrigin,
+  appliedSchools = [],
+  onOpenApplied,
+}) {
   const { user } = useAuth();
   const [params, setParams] = useSearchParams();
   const country = params.get('country') || '';
@@ -135,6 +143,10 @@ export function CourseBrowser({ onApply, applyLabel = 'Apply', canApply = true, 
   };
 
   const apply = (course) => onApply?.({ course, school, country });
+  // A school already applied to takes no second application: further courses
+  // there belong on the existing one.
+  const appliedHere = school ? appliedSchools.find((item) => item.slug === school.slug) : null;
+  const showApply = canApply && !appliedHere;
 
   const available = useMemo(
     () => (countries || []).filter((item) => item.institution_count !== 0),
@@ -303,6 +315,24 @@ export function CourseBrowser({ onApply, applyLabel = 'Apply', canApply = true, 
                 </div>
               ) : null}
 
+              {appliedHere ? (
+                <div className="gx-applied-note" role="status">
+                  <span>
+                    <strong>You have applied here</strong>
+                    <span className="gx-muted"> · {appliedHere.reference}</span>
+                  </span>
+                  {onOpenApplied ? (
+                    <button
+                      type="button"
+                      className="gx-btn gx-btn-secondary gx-btn-sm"
+                      onClick={() => onOpenApplied(appliedHere.reference)}
+                    >
+                      View application
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
+
               {courses.length === 0 ? (
                 <div className="gx-empty">
                   <h3>No courses match</h3>
@@ -318,7 +348,7 @@ export function CourseBrowser({ onApply, applyLabel = 'Apply', canApply = true, 
                         <th scope="col">Duration</th>
                         <th scope="col">Starts</th>
                         <th scope="col" className="t-num">Tuition / year</th>
-                        {canApply ? <th scope="col"><span className="sr-only">Action</span></th> : null}
+                        {showApply ? <th scope="col"><span className="sr-only">Action</span></th> : null}
                       </tr>
                     </thead>
                     <tbody>
@@ -334,7 +364,7 @@ export function CourseBrowser({ onApply, applyLabel = 'Apply', canApply = true, 
                           <td className="t-num gx-table-money">
                             {course.tuition ? formatTuition(course.tuition, school.currency).replace(' / year', '') : 'On request'}
                           </td>
-                          {canApply ? (
+                          {showApply ? (
                             <td className="gx-table-action">
                               <button type="button" className="gx-btn gx-btn-primary gx-btn-sm" onClick={() => apply(course)}>
                                 {applyLabel}
@@ -357,12 +387,20 @@ export function CourseBrowser({ onApply, applyLabel = 'Apply', canApply = true, 
 
 /** The applicant's Courses page: the browser, with Apply opening the application. */
 export default function CoursesPanel() {
-  const { application } = useApplication();
+  const { applicationsList, selectApplication } = useApplication();
   const navigate = useNavigate();
+  // Schools with a live application. A rejected one may be applied to again.
+  const appliedSchools = applicationsList
+    .filter((item) => item.institution_slug && item.status !== 'rejected')
+    .map((item) => ({ slug: item.institution_slug, reference: item.reference }));
 
   return (
     <CourseBrowser
-      canApply={!application}
+      appliedSchools={appliedSchools}
+      onOpenApplied={async (reference) => {
+        await selectApplication(reference);
+        navigate('/portal/details');
+      }}
       onApply={({ course, school, country }) => {
         const query = new URLSearchParams({
           destination: country,
@@ -371,21 +409,6 @@ export default function CoursesPanel() {
         });
         navigate(`/portal/apply?${query.toString()}`);
       }}
-      banner={
-        application ? (
-          <section className="gx-card gx-welcome">
-            <div>
-              <h2>Your application is in progress</h2>
-              <p className="gx-muted">
-                {application.institution?.name || 'Your chosen course'} · {application.reference}
-              </p>
-            </div>
-            <Link to="/portal/details" className="gx-btn gx-btn-secondary">
-              View application
-            </Link>
-          </section>
-        ) : null
-      }
     />
   );
 }

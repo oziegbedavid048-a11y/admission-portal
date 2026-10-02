@@ -31,10 +31,12 @@ def check_password_for_bank_change(serializer, instance, attrs):
     if instance is None or not bank_changes(instance, attrs):
         return attrs
     user = serializer.context["request"].user
-    if not password or not user.check_password(password):
+    if not password:
         raise serializers.ValidationError(
-            {"current_password": "Enter your current password to change your payout account."}
+            {"current_password": "Enter your password to change your payment account."}
         )
+    if not user.check_password(password):
+        raise serializers.ValidationError({"current_password": "That password is not correct."})
     return attrs
 
 

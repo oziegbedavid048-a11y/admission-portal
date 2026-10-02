@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import Icon from '../../lib/icons';
-import { compressImageFile } from '../../lib/compress';
+import AvatarCropModal from './AvatarCropModal';
 import { resolveMediaUrl } from '../../lib/format';
 
 /**
@@ -11,12 +11,17 @@ import { resolveMediaUrl } from '../../lib/format';
  * the URL, so even a reload could serve the previous file. This shows the chosen
  * file immediately from a local object URL, and hangs a version on the saved URL
  * afterwards so the cache cannot win.
+ *
+ * A chosen picture first opens in the crop sheet, so the person frames it in
+ * the circle before anything is uploaded. A spinner sits on the photo while
+ * the upload runs.
  */
 export default function Avatar({ src, initials, onSelect, label = 'Change photo', id }) {
   const [preview, setPreview] = useState(null);
   const [version, setVersion] = useState(0);
   const [busy, setBusy] = useState(false);
   const [imgError, setImgError] = useState(false);
+  const [pending, setPending] = useState(null);
   const inputRef = useRef(null);
   const lastSaved = useRef(src);
 
@@ -41,11 +46,15 @@ export default function Avatar({ src, initials, onSelect, label = 'Change photo'
     [preview],
   );
 
-  const choose = async (rawFile) => {
-    if (!rawFile) return;
+  const pick = (rawFile) => {
+    if (inputRef.current) inputRef.current.value = '';
+    if (rawFile) setPending(rawFile);
+  };
 
-    // Compress large camera photos in the browser before sending
-    const file = await compressImageFile(rawFile, { maxWidth: 800, maxHeight: 800, quality: 0.85 });
+  // The crop arrives as a small square JPEG, so it needs no further compression.
+  const choose = async (file) => {
+    setPending(null);
+    if (!file) return;
     const objectUrl = URL.createObjectURL(file);
     setPreview((current) => {
       if (current) URL.revokeObjectURL(current);
@@ -100,7 +109,14 @@ export default function Avatar({ src, initials, onSelect, label = 'Change photo'
         ref={inputRef}
         accept="image/*"
         className="sr-only"
-        onChange={(event) => choose(event.target.files?.[0])}
+        onChange={(event) => pick(event.target.files?.[0])}
+      />
+
+      <AvatarCropModal
+        open={Boolean(pending)}
+        file={pending}
+        onCancel={() => setPending(null)}
+        onConfirm={choose}
       />
     </div>
   );

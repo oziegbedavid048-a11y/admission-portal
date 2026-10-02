@@ -8,13 +8,17 @@ import { partners } from '../../api/endpoints';
 import { useToast } from '../../context/ToastContext';
 import useLiveRefresh from '../../hooks/useLiveRefresh';
 import { useAgent, useOnWalletChange } from './AgentContext';
-import StatusBadge from './StatusBadge';
+import { LedgerDate, LedgerDateLine, LedgerStatus, withdrawalStatus } from './Ledger';
 
 const FALLBACK_MINIMUM = 100000;
+
+// The withdrawals list may come back paginated; the table wants the rows.
+const listOf = (data) => (Array.isArray(data) ? data : data?.results || []);
 
 export default function AgentWallet() {
   const { profile, wallet, setWallet } = useAgent();
   const [withdrawals, setWithdrawals] = useState([]);
+  const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [withdrawOpen, setWithdrawOpen] = useState(false);
   const [amount, setAmount] = useState('');
@@ -23,13 +27,11 @@ export default function AgentWallet() {
 
   useEffect(() => {
     let cancelled = false;
-    partners
-      .withdrawals()
-      .then(({ data }) => {
-        if (!cancelled) setWithdrawals(data);
-      })
-      .catch(() => {
-        if (!cancelled) setWithdrawals([]);
+    Promise.allSettled([partners.withdrawals(), partners.walletHistory()])
+      .then(([payouts, moves]) => {
+        if (cancelled) return;
+        setWithdrawals(payouts.status === 'fulfilled' ? listOf(payouts.value.data) : []);
+        setHistory(moves.status === 'fulfilled' ? listOf(moves.value.data) : []);
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -43,12 +45,14 @@ export default function AgentWallet() {
   // refetches on a timer and whenever the tab comes back to the front.
   const refreshWallet = async () => {
     try {
-      const [{ data: freshWallet }, { data: history }] = await Promise.all([
+      const [{ data: freshWallet }, { data: payouts }, { data: moves }] = await Promise.all([
         partners.wallet(),
         partners.withdrawals(),
+        partners.walletHistory(),
       ]);
       setWallet(freshWallet);
-      setWithdrawals(history);
+      setWithdrawals(listOf(payouts));
+      setHistory(listOf(moves));
     } catch {
       // A missed tick is harmless; the next one will pick it up.
     }
@@ -101,6 +105,10 @@ export default function AgentWallet() {
       const { data } = await partners.withdraw(requested);
       setWallet(data.wallet);
       setWithdrawals((current) => [data.withdrawal, ...current]);
+      partners
+        .walletHistory()
+        .then(({ data: moves }) => setHistory(listOf(moves)))
+        .catch(() => {});
       setWithdrawOpen(false);
       setAmount('');
       toast.success(`${formatNaira(data.withdrawal.net_amount)} on its way.`);
@@ -178,81 +186,106 @@ export default function AgentWallet() {
 
       <section className="agent-card">
         <div className="agent-card-header">
-          <h2 className="agent-card-title">
-            <span className="agent-icon accent" aria-hidden="true">
-              <Icon name="trend" size={18} />
-            </span>
-            Earnings
-          </h2>
-          <span className="agent-card-note">{formatNaira(wallet.total_earned)} lifetime</span>
+          <h2 className="agent-card-title">Earning history</h2>
+          <span className="agent-card-note">{formatNaira(wallet.total_earned)} earned</span>
         </div>
-        <dl className="rate-list">
-          <div className="rate-row">
-            <dt>
-              Registration fees
-              <small>Paid the moment a student&rsquo;s application fee clears</small>
-            </dt>
-            <dd>{formatNaira(wallet.registration_commission_total)}</dd>
-          </div>
-          <div className="rate-row">
-            <dt>
-              Visa fees
-              <small>Paid once the admissions desk verifies the visa</small>
-            </dt>
-            <dd>{formatNaira(wallet.visa_commission_total)}</dd>
-          </div>
-        </dl>
+        <div className="ledger-scroll" role="region" aria-label="Earning history" tabIndex={0}>
+          {history.length === 0 ? (
+            <div className="ledger-empty">
+              <p>No earnings yet</p>
+              <small>Commissions, repayments and withdrawals will show here.</small>
+            </div>
+          ) : (
+            <table className="ledger-table">
+              <thead>
+                <tr>
+                  <th scope="col" className="ledger-wide-only">Date</th>
+                  <th scope="col">Details</th>
+                  <th scope="col" className="t-num">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {history.map((row) => {
+                  const incoming = row.direction === 'in';
+                  const [, statusLabel] = row.status ? withdrawalStatus(row.status) : [];
+                  const sub = [row.detail, row.reference, statusLabel].filter(Boolean).join(' · ');
+                  return (
+                    <tr key={row.id}>
+                      <td className="ledger-wide-only">
+                        <LedgerDate value={row.at} />
+                      </td>
+                      <td className="ledger-lead">
+                        <span className="ledger-main">{row.title}</span>
+                        {sub ? <span className="ledger-sub">{sub}</span> : null}
+                        <LedgerDateLine value={row.at} />
+                      </td>
+                      <td className="t-num">
+                        <span className={`ledger-amount${incoming ? ' is-in' : ''}`}>
+                          {incoming ? '+' : '\u2212'}
+                          {formatNaira(row.amount)}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
       </section>
 
       <section className="agent-card">
         <div className="agent-card-header">
-          <h2 className="agent-card-title">
-            <span className="agent-icon accent" aria-hidden="true">
-              <Icon name="payout" size={18} />
-            </span>
-            Withdrawals
-          </h2>
+          <h2 className="agent-card-title">Withdrawals</h2>
+          <span className="agent-card-note">{formatNaira(wallet.total_withdrawn)} withdrawn</span>
         </div>
-        <div className="agent-table-wrap">
-          <table className="agent-table">
-            <thead>
-              <tr>
-                <th>Reference</th>
-                <th className="t-num">Requested</th>
-                <th className="t-num">Paid out</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {withdrawals.length === 0 ? (
-                <tr className="row-empty">
-                  <td colSpan={4}>
-                    <div className="agent-empty-state">
-                      <p>No withdrawals yet</p>
-                      <small>Your payouts will show up here.</small>
-                    </div>
-                  </td>
+        <div className="ledger-scroll" role="region" aria-label="Withdrawals" tabIndex={0}>
+          {withdrawals.length === 0 ? (
+            <div className="ledger-empty">
+              <p>No withdrawals yet</p>
+              <small>Your payouts will show here.</small>
+            </div>
+          ) : (
+            <table className="ledger-table">
+              <thead>
+                <tr>
+                  <th scope="col" className="ledger-wide-only">Date</th>
+                  <th scope="col">Reference</th>
+                  <th scope="col" className="t-num">Amount</th>
+                  <th scope="col" className="ledger-wide-only">Status</th>
                 </tr>
-              ) : (
-                withdrawals.map((item) => (
-                  <tr key={item.id}>
-                    <td data-label="Reference">
-                      <span className="agent-ref">{item.reference}</span>
-                    </td>
-                    <td data-label="Requested" className="t-num col-amount">
-                      {formatNaira(item.amount_requested)}
-                    </td>
-                    <td data-label="Paid out" className="t-num col-amount">
-                      {formatNaira(item.net_amount)}
-                    </td>
-                    <td data-label="Status">
-                      <StatusBadge status={item.status} />
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {withdrawals.map((item) => {
+                  const [tone, label] = withdrawalStatus(item.status);
+                  const deducted = Number(item.net_amount) !== Number(item.amount_requested);
+                  return (
+                    <tr key={item.id}>
+                      <td className="ledger-wide-only">
+                        <LedgerDate value={item.created_at} />
+                      </td>
+                      <td className="ledger-lead">
+                        <span className="ledger-ref">{item.reference}</span>
+                        <LedgerDateLine value={item.created_at} />
+                      </td>
+                      <td className="t-num">
+                        <span className="ledger-amount">{formatNaira(item.amount_requested)}</span>
+                        {deducted ? (
+                          <span className="ledger-sub">Paid {formatNaira(item.net_amount)}</span>
+                        ) : null}
+                        <span className="ledger-compact-only ledger-status-line">
+                          <LedgerStatus tone={tone}>{label}</LedgerStatus>
+                        </span>
+                      </td>
+                      <td className="ledger-wide-only">
+                        <LedgerStatus tone={tone}>{label}</LedgerStatus>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
         </div>
       </section>
 

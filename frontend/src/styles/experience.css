@@ -1777,3 +1777,36 @@ html { scroll-behavior: smooth; }
 }
 .sv-label-row .gx-link { font-size: 14px; }
 .sv-auth-card .agent-btn-block { margin-top: 8px; }
+
+/* ─────────────── Application switcher ─────────────── */
+
+/* One pill per school applied to. Long school names are cut with an ellipsis
+   rather than pushing the row wider than the screen. */
+.gx-app-switch { margin-bottom: 0; }
+.gx-app-switch .gx-segment { max-width: 100%; display: inline-flex; align-items: center; }
+.gx-app-switch-name {
+  display: block;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@media (max-width: 480px) {
+  .gx-app-switch-name { max-width: 200px; }
+}
+
+/* "You have applied here", above a school's course list. */
+.gx-applied-note {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px 16px;
+  margin-bottom: 12px;
+  border: 1px solid var(--g-accent-line);
+  border-radius: var(--g-r-md);
+  background: var(--g-accent-tint);
+  color: var(--g-ink);
+  font-size: 14px;
+}

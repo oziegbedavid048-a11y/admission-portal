@@ -2743,3 +2743,148 @@ textarea.agent-form-control { min-height: 96px; resize: vertical; }
   .fx2-rows { grid-template-columns: 1fr; }
   .fx2-input, .fx2-result { font-size: 20px; }
 }
+
+/* ─────────────── Money tables (earning history, withdrawals, Ads funding) ───────────────
+
+   Real tables, as the agent asked: each sits in its own frame that scrolls
+   down, with the column headings pinned to the top while the rows move under
+   them.
+
+   The table follows the width of its own frame, not the screen, so the same
+   table works in a full-width card, a half-width Overview card and on a
+   phone. Wide, every column shows. Narrow, it becomes two columns — what and
+   when on the left, the amount and its status on the right — so nothing has
+   to be scrolled sideways and the amount is never pushed out of sight. */
+
+.ledger-scroll {
+  container-type: inline-size;
+  max-height: 440px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  border: 1px solid var(--g-line);
+  border-radius: var(--g-r-md);
+  background: var(--g-surface);
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+.ledger-scroll.is-short { max-height: 380px; }
+.ledger-scroll:focus-visible { outline: none; box-shadow: var(--shadow-focus); }
+
+.ledger-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.ledger-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 11px 16px;
+  background: var(--g-surface-2);
+  border-bottom: 1px solid var(--g-line);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--g-ink-3);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.ledger-table td {
+  padding: 13px 16px;
+  border-bottom: 1px solid var(--g-line);
+  font-size: 14px;
+  color: var(--g-ink-2);
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.ledger-table tbody tr:last-child td { border-bottom: none; }
+.ledger-table .t-num { text-align: right; }
+
+.ledger-date { display: flex; flex-direction: column; gap: 2px; line-height: 1.25; }
+.ledger-date-day { font-weight: 500; color: var(--g-ink); }
+.ledger-date-time { font-size: 12px; color: var(--g-ink-3); }
+
+.ledger-main { display: block; font-weight: 600; color: var(--g-ink); line-height: 1.3; }
+.ledger-sub { display: block; margin-top: 2px; font-size: 12px; color: var(--g-ink-3); line-height: 1.35; }
+
+.ledger-ref { display: block; font-weight: 500; color: var(--g-ink-2); }
+
+.ledger-amount { display: block; font-weight: 600; color: var(--g-ink); }
+.ledger-amount.is-in { color: var(--g-accent); }
+.ledger-muted { color: var(--g-ink-3); }
+
+.ledger-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.ledger-status::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: var(--g-r-pill);
+  background: currentColor;
+  flex-shrink: 0;
+}
+.ledger-status.is-good { color: var(--g-accent); }
+.ledger-status.is-wait { color: var(--g-attn); }
+.ledger-status.is-bad { color: var(--g-neg); }
+.ledger-status.is-muted { color: var(--g-ink-3); }
+
+/* Pieces that only show in one of the two layouts. */
+.ledger-compact-only { display: none; }
+.ledger-status-line { margin-top: 4px; }
+
+.ledger-empty { padding: 32px 16px; text-align: center; }
+.ledger-empty p { font-size: 15px; font-weight: 500; color: var(--g-ink-2); }
+.ledger-empty small { display: block; margin-top: 4px; font-size: 14px; color: var(--g-ink-3); }
+
+@container (max-width: 560px) {
+  .ledger-table .ledger-wide-only { display: none; }
+  .ledger-table .ledger-compact-only { display: block; }
+  .ledger-table th { padding: 10px 14px; }
+  .ledger-table td { padding: 12px 14px; vertical-align: top; }
+  /* The left column takes the room and wraps; the amount keeps its line. */
+  .ledger-table td.ledger-lead { width: 100%; white-space: normal; overflow-wrap: anywhere; }
+}
+
+/* The new payment account, repeated above the password so the agent sees
+   exactly what they are confirming. */
+.payout-confirm-summary {
+  display: grid;
+  gap: 10px;
+  margin: 0 0 20px;
+  padding: 14px 16px;
+  border: 1px solid var(--g-line);
+  border-radius: var(--g-r-md);
+  background: var(--g-surface-2);
+}
+.payout-confirm-summary div { display: flex; justify-content: space-between; gap: 16px; }
+.payout-confirm-summary dt { font-size: 13px; color: var(--g-ink-3); }
+.payout-confirm-summary dd {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--g-ink);
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+/* Profile card headings: a title and one short line under it, no icon tile,
+   aligned with the fields below. */
+.ap-card-head {
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 4px;
+  flex-wrap: nowrap;
+}
+.ap-card-head .ap-card-title { font-size: 18px; line-height: 1.3; }
+.ap-card-head .ap-card-desc { font-size: 14px; line-height: 1.45; color: var(--g-ink-3); margin: 0; }

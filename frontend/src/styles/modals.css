@@ -201,3 +201,54 @@
     width: 100%;
   }
 }
+
+/* ─────────────── Profile photo crop ─────────────── */
+
+.crop { display: flex; flex-direction: column; align-items: center; gap: 20px; }
+
+.crop-stage {
+  position: relative;
+  max-width: 100%;
+  overflow: hidden;
+  border-radius: var(--g-r-md);
+  background: #111816;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.crop-stage:active { cursor: grabbing; }
+.crop-stage:focus-visible { outline: none; box-shadow: var(--shadow-focus); }
+
+.crop-image {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  max-width: none;
+  pointer-events: none;
+}
+
+/* Everything outside the circle is dimmed, so the circle shows exactly what
+   the profile picture will be. */
+.crop-mask {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  box-shadow: 0 0 0 999px rgba(0, 0, 0, 0.55);
+  outline: 2px solid rgba(255, 255, 255, 0.9);
+  outline-offset: -2px;
+  pointer-events: none;
+}
+
+.crop-loading { position: absolute; top: 50%; left: 50%; margin: -12px 0 0 -12px; }
+
+.crop-zoom {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: min(100%, 280px);
+  min-height: 44px;
+}
+.crop-zoom-label { font-size: 14px; font-weight: 500; color: var(--g-ink-2); }
+.crop-zoom input { flex: 1; min-width: 0; accent-color: var(--g-accent); }
+
+.crop-error { padding: 24px 8px; text-align: center; color: var(--g-ink-2); font-size: 15px; }

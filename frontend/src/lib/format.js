@@ -35,6 +35,16 @@ export function formatDate(value) {
   });
 }
 
+/** A moment as two short lines for a table: "2 Oct 2026" and "14:05". */
+export function formatDateTimeParts(value) {
+  if (!value) return { date: 'Not set', time: '' };
+  const moment = new Date(value);
+  return {
+    date: moment.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
+    time: moment.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
+  };
+}
+
 export function formatLongDate(value) {
   if (!value) return 'Not set';
   return new Date(value).toLocaleDateString('en-US', {

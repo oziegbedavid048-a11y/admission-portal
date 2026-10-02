@@ -2,12 +2,12 @@ import { useEffect, useState } from 'react';
 import Loading from '../../components/ui/Loading';
 import Modal from '../../components/ui/Modal';
 import Icon from '../../lib/icons';
-import { formatDate, formatNaira } from '../../lib/format';
+import { formatNaira } from '../../lib/format';
 import { errorMessage } from '../../api/client';
 import { partners } from '../../api/endpoints';
 import { useToast } from '../../context/ToastContext';
 import { useAgent } from './AgentContext';
-import StatusBadge from './StatusBadge';
+import { LedgerDate, LedgerDateLine, LedgerStatus, loanStatus } from './Ledger';
 
 const MIN = 10000;
 const MAX = 80000;
@@ -267,65 +267,67 @@ export default function AgentLoans() {
 
       <section className="agent-card">
         <div className="agent-card-header">
-          <h2 className="agent-card-title">
-            <span className="agent-icon accent" aria-hidden="true">
-              <Icon name="clock" size={18} />
-            </span>
-            Request history
-          </h2>
+          <h2 className="agent-card-title">Request history</h2>
         </div>
-        <div className="agent-table-wrap">
-          <table className="agent-table">
-            <thead>
-              <tr>
-                <th>Reference</th>
-                <th className="t-num">Requested</th>
-                <th className="t-num t-hide-sm">Disbursed</th>
-                <th className="t-hide-sm">Platform</th>
-                <th className="t-hide-sm">Date</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loans.length === 0 ? (
-                <tr className="row-empty">
-                  <td colSpan={6}>
-                    <div className="agent-empty-state">
-                      <p>No funding requests yet</p>
-                      <small>Pick an amount above to fund your recruitment campaigns.</small>
-                    </div>
-                  </td>
+        <div className="ledger-scroll" role="region" aria-label="Request history" tabIndex={0}>
+          {loans.length === 0 ? (
+            <div className="ledger-empty">
+              <p>No funding requests yet</p>
+              <small>Your requests will show here.</small>
+            </div>
+          ) : (
+            <table className="ledger-table">
+              <thead>
+                <tr>
+                  <th scope="col" className="ledger-wide-only">Date</th>
+                  <th scope="col">Reference</th>
+                  <th scope="col" className="ledger-wide-only">Platform</th>
+                  <th scope="col" className="t-num">Requested</th>
+                  <th scope="col" className="t-num ledger-wide-only">Approved</th>
+                  <th scope="col" className="ledger-wide-only">Status</th>
                 </tr>
-              ) : (
-                loans.map((loan) => (
-                  <tr key={loan.id}>
-                    <td data-label="Reference">
-                      <span className="agent-ref">{loan.reference}</span>
-                    </td>
-                    <td data-label="Requested" className="t-num col-amount">
-                      {formatNaira(loan.requested_amount)}
-                    </td>
-                    <td data-label="Disbursed" className="t-num t-hide-sm">
-                      {loan.approved_amount ? (
-                        <span className="col-amount">{formatNaira(loan.approved_amount)}</span>
-                      ) : (
-                        <span className="tbl-amount-zero">Not yet</span>
-                      )}
-                    </td>
-                    <td data-label="Platform" className="t-hide-sm">
-                      {loan.purpose}
-                    </td>
-                    <td data-label="Date" className="t-hide-sm">
-                      {formatDate(loan.requested_at)}
-                    </td>
-                    <td data-label="Status">
-                      <StatusBadge status={loan.status} />
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {loans.map((loan) => {
+                  const [tone, label] = loanStatus(loan.status);
+                  return (
+                    <tr key={loan.id}>
+                      <td className="ledger-wide-only">
+                        <LedgerDate value={loan.requested_at} />
+                      </td>
+                      <td className="ledger-lead">
+                        <span className="ledger-ref">{loan.reference}</span>
+                        <span className="ledger-sub ledger-compact-only">{loan.purpose}</span>
+                        <LedgerDateLine value={loan.requested_at} />
+                      </td>
+                      <td className="ledger-wide-only">{loan.purpose}</td>
+                      <td className="t-num">
+                        <span className="ledger-amount">{formatNaira(loan.requested_amount)}</span>
+                        {loan.approved_amount ? (
+                          <span className="ledger-sub ledger-compact-only">
+                            Approved {formatNaira(loan.approved_amount)}
+                          </span>
+                        ) : null}
+                        <span className="ledger-compact-only ledger-status-line">
+                          <LedgerStatus tone={tone}>{label}</LedgerStatus>
+                        </span>
+                      </td>
+                      <td className="t-num ledger-wide-only">
+                        {loan.approved_amount ? (
+                          <span className="ledger-amount">{formatNaira(loan.approved_amount)}</span>
+                        ) : (
+                          <span className="ledger-muted">Not yet</span>
+                        )}
+                      </td>
+                      <td className="ledger-wide-only">
+                        <LedgerStatus tone={tone}>{label}</LedgerStatus>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
         </div>
       </section>
 

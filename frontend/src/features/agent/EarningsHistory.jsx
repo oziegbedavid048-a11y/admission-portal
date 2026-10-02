@@ -1,24 +1,21 @@
 import { Link } from 'react-router-dom';
-import Icon from '../../lib/icons';
-import { formatNaira, timeAgo } from '../../lib/format';
+import { formatNaira } from '../../lib/format';
+import { LedgerDate, LedgerDateLine, LedgerStatus } from './Ledger';
 
 /**
- * An agent's commission ledger.
+ * The agent's commissions on the Overview, one row per student milestone.
  *
  * It used to fall back to four invented commissions and a made-up balance when
  * the API returned nothing, so a brand-new agent was shown four students they
  * had never registered and a ₦120,000 total they had never earned. An empty
  * ledger now says it is empty.
  */
-
 export default function EarningsHistory({ commissions = [], wallet }) {
-  const displayItems = commissions;
   const totalEarned = Number(wallet?.total_earned ?? 0);
   const available = Number(wallet?.available_balance ?? 0);
 
   return (
     <div className="eh-wrapper">
-      {/* Top Balance & Settlement Header */}
       <div className="eh-header-row">
         <div className="eh-balance-col">
           <span className="eh-balance-sub">Available balance</span>
@@ -30,55 +27,56 @@ export default function EarningsHistory({ commissions = [], wallet }) {
         </div>
       </div>
 
-      {displayItems.length === 0 ? (
-        <div className="eh-empty">
-          <Icon name="wallet" size={26} strokeWidth={1.6} />
-          <p className="eh-empty-title">No commission yet</p>
-          <p className="eh-empty-note">
-            You earn {formatNaira(30000)} when a student you registered has their
-            application fee settled, and {formatNaira(50000)} more when their visa
-            support is confirmed.
-          </p>
-          <Link to="/agent/students/new" className="agent-btn agent-btn-primary agent-btn-sm">
-            <Icon name="userPlus" size={15} strokeWidth={2.2} />
-            Register a student
-          </Link>
-        </div>
-      ) : (
-      <div className="eh-ledger">
-        {displayItems.map((item) => {
-          const isVisa = item.kind === 'visa';
-          const milestoneText =
-            item.kind_display ||
-            (isVisa ? 'Visa verification approved' : 'Admission offer verified');
-
-          return (
-            <div className="eh-ledger-row" key={item.id}>
-              <div className="eh-row-left">
-                <span className="eh-student-name">{item.student_name || 'Student Candidate'}</span>
-                <div className="eh-row-sub">
-                  <span className="eh-milestone-text">{milestoneText}</span>
-                </div>
-              </div>
-
-              <div className="eh-row-right">
-                <span className="eh-amount">+{formatNaira(item.amount)}</span>
-                <div className="eh-row-status-line">
-                  <span className="eh-status-pill">{item.status || 'Settled'}</span>
-                  <span className="eh-date">{timeAgo(item.earned_at)}</span>
-                </div>
-              </div>
-            </div>
-          );
-        })}
+      <div className="ledger-scroll is-short" role="region" aria-label="Commissions" tabIndex={0}>
+        {commissions.length === 0 ? (
+          <div className="ledger-empty">
+            <p>No commission yet</p>
+            <small>Earnings appear here once a student&rsquo;s application fee is paid.</small>
+          </div>
+        ) : (
+          <table className="ledger-table">
+            <thead>
+              <tr>
+                <th scope="col">Student</th>
+                <th scope="col" className="t-num">Amount</th>
+                <th scope="col" className="ledger-wide-only">Date</th>
+                <th scope="col" className="ledger-wide-only">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {commissions.map((item) => (
+                <tr key={item.id}>
+                  <td className="ledger-lead">
+                    <span className="ledger-main">{item.student_name || 'Student'}</span>
+                    <span className="ledger-sub">
+                      {item.kind === 'visa' ? 'Visa commission' : 'Registration commission'}
+                    </span>
+                    <LedgerDateLine value={item.earned_at} />
+                  </td>
+                  <td className="t-num">
+                    <span className="ledger-amount is-in">+{formatNaira(item.amount)}</span>
+                    <span className="ledger-compact-only ledger-status-line">
+                      <LedgerStatus tone="good">Settled</LedgerStatus>
+                    </span>
+                  </td>
+                  <td className="ledger-wide-only">
+                    <LedgerDate value={item.earned_at} />
+                  </td>
+                  <td className="ledger-wide-only">
+                    <LedgerStatus tone="good">Settled</LedgerStatus>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
-      )}
 
       <div className="eh-footer">
         <span className="eh-footer-count">
-          {displayItems.length === 0
+          {commissions.length === 0
             ? 'Nothing settled yet'
-            : `Showing the latest ${displayItems.length} commission payout${displayItems.length === 1 ? '' : 's'}`}
+            : `${commissions.length} latest commission${commissions.length === 1 ? '' : 's'}`}
         </span>
         <Link to="/agent/wallet" className="agent-btn agent-btn-secondary agent-btn-sm eh-action-btn">
           Manage wallet

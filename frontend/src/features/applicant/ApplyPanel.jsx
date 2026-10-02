@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import SearchableSelect from '../../components/ui/SearchableSelect';
 import StepField from '../../components/form/StepField';
 import { applications, catalog, payments } from '../../api/endpoints';
@@ -11,7 +11,7 @@ import Icon from '../../lib/icons';
 import { compressImageFile } from '../../lib/compress';
 import { formatMoney, formatTuition } from '../../lib/format';
 import ProgramPicker from '../wizard/ProgramPicker';
-import { useApplication } from './ApplicationContext';
+import { rememberSelectedApplication, useApplication } from './ApplicationContext';
 
 /**
  * The application, filled in from inside the dashboard, one step at a time.
@@ -37,7 +37,7 @@ const EMPTY_DOCS = { passport: null, academic: null, cv: null };
 
 export default function ApplyPanel() {
   const { user } = useAuth();
-  const { application, reload } = useApplication();
+  const { applicationsList, selectApplication } = useApplication();
   const { originNames, destinations } = useCatalog();
   const [params] = useSearchParams();
   const navigate = useNavigate();
@@ -169,7 +169,9 @@ export default function ApplyPanel() {
     if (step === 4) loadQuote();
   }, [step, loadQuote]);
 
-  if (application && !submitted && !submitting && !leaving.current) return <Navigate to="/portal" replace />;
+  // A school with a live application takes no second one.
+  const appliedAt = (slug) =>
+    applicationsList.find((item) => item.institution_slug === slug && item.status !== 'rejected') || null;
 
   const hasDoc = (slot) => Boolean(docs[slot]?.file || docs[slot]?.remote);
 
@@ -192,6 +194,9 @@ export default function ApplyPanel() {
       if (isCustomCourse && !form.custom_course.trim()) found.course = 'Enter the course you want to study.';
       if (!isCustomCourse && !form.institution) found.course = 'Choose a university.';
       else if (!isCustomCourse && !form.programs.length) found.course = 'Choose at least one course.';
+      else if (!isCustomCourse && appliedAt(form.institution)) {
+        found.course = `You have already applied to ${appliedAt(form.institution).institution}. Choose a different school.`;
+      }
     }
     if (index === 3) {
       if (!hasDoc('passport')) found.passport = 'Add your passport data page.';
@@ -359,6 +364,10 @@ export default function ApplyPanel() {
       const failed = results.filter((result) => result.status === 'rejected').length;
       if (failed) toast.warning(`${failed} document${failed === 1 ? '' : 's'} did not upload. Add them again from Application.`);
 
+      // The new application is the one the dashboard opens on, including on
+      // the way back from the payment page.
+      rememberSelectedApplication(created.reference);
+
       if (!isCustomCourse && settlement?.authorization_url) {
         leaving.current = true;
         setPhase('payment');
@@ -371,7 +380,7 @@ export default function ApplyPanel() {
         transferAccount: settlement?.transfer_account || null,
         feeOutstanding: !feeFree && !settlement?.waived,
       });
-      reload();
+      selectApplication(created.reference);
     } catch (error) {
       toast.error(errorMessage(error, 'Your application could not be submitted.'));
     } finally {

@@ -1,4 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
+import AvatarCropModal from '../../components/ui/AvatarCropModal';
+import Modal from '../../components/ui/Modal';
+import PasswordInput from '../../components/ui/PasswordInput';
 import Icon from '../../lib/icons';
 import { errorMessage } from '../../api/client';
 import { auth, partners } from '../../api/endpoints';
@@ -23,12 +26,22 @@ export default function AgentProfile() {
     account_name: '',
   });
   const [passwords, setPasswords] = useState({ current: '', next: '', confirm: '' });
-  // Changing where payouts go is confirmed with the account password.
+  // Changing where payouts go is confirmed with the account password, asked
+  // for in a sheet only once the new details are filled in and Update pressed.
   const [payoutPassword, setPayoutPassword] = useState('');
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [passwordError, setPasswordError] = useState('');
+  // A picture waiting in the crop sheet, and whether an upload is running.
+  const [pendingPhoto, setPendingPhoto] = useState(null);
+  const [uploading, setUploading] = useState(false);
   const [busy, setBusy] = useState(null);
   const [preview, setPreview] = useState(null);
   const [avatarVersion, setAvatarVersion] = useState(0);
 
+  // The form is filled from the profile once, when it first arrives. The
+  // dashboard refreshes the profile every few seconds, and refilling the form
+  // on each refresh wiped out whatever was being typed, so a change could be
+  // saved as the old value without anyone noticing.
   useEffect(() => {
     if (!profile) return;
     setForm({
@@ -40,7 +53,8 @@ export default function AgentProfile() {
       account_number: profile.account_number || '',
       account_name: profile.account_name || '',
     });
-  }, [profile]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile?.id]);
 
   const save = async (which, payload, message) => {
     setBusy(which);
@@ -71,31 +85,72 @@ export default function AgentProfile() {
     );
   };
 
-  const savePayout = async (event) => {
+  const payoutChanged =
+    Boolean(profile) &&
+    (form.bank_name.trim() !== (profile.bank_name || '') ||
+      form.account_number !== (profile.account_number || '') ||
+      form.account_name.trim() !== (profile.account_name || ''));
+
+  // Update checks the details, then asks for the password before anything
+  // is saved.
+  const savePayout = (event) => {
     event.preventDefault();
     if (!form.bank_name.trim() || !form.account_name.trim()) {
-      toast.warning('Fill in every payout field.');
+      toast.warning('Fill in every payment account field.');
       return;
     }
     if (!/^\d{10}$/.test(form.account_number)) {
       toast.warning('Account number should be 10 digits.');
       return;
     }
-    if (!payoutPassword) {
-      toast.warning('Enter your password to change your payout account.');
+    if (!payoutChanged) {
+      toast.info('Nothing has changed.');
       return;
     }
-    const saved = await save(
-      'payout',
-      {
-        bank_name: form.bank_name,
+    setPayoutPassword('');
+    setPasswordError('');
+    setConfirmOpen(true);
+  };
+
+  const closeConfirm = () => {
+    if (busy === 'payout') return;
+    setConfirmOpen(false);
+    setPayoutPassword('');
+    setPasswordError('');
+  };
+
+  const confirmPayout = async (event) => {
+    event?.preventDefault();
+    if (!payoutPassword) {
+      setPasswordError('Enter your password.');
+      return;
+    }
+    setBusy('payout');
+    setPasswordError('');
+    try {
+      const { data } = await partners.updateProfile({
+        bank_name: form.bank_name.trim(),
         account_number: form.account_number,
-        account_name: form.account_name,
+        account_name: form.account_name.trim(),
         current_password: payoutPassword,
-      },
-      'Payout account updated.',
-    );
-    if (saved) setPayoutPassword('');
+      });
+      setProfile(data);
+      await refreshUser();
+      setConfirmOpen(false);
+      setPayoutPassword('');
+      toast.success('Payment account updated.');
+    } catch (error) {
+      const fieldError = error?.response?.data?.current_password;
+      if (fieldError) {
+        setPasswordError(Array.isArray(fieldError) ? fieldError[0] : String(fieldError));
+      } else {
+        setConfirmOpen(false);
+        setPayoutPassword('');
+        toast.error(errorMessage(error, 'Could not update your payment account.'));
+      }
+    } finally {
+      setBusy(null);
+    }
   };
 
   const savePassword = async (event) => {
@@ -121,24 +176,25 @@ export default function AgentProfile() {
     }
   };
 
-  const uploadAvatar = async (file) => {
-    if (!file) return;
-    if (!file.type.startsWith('image/')) {
-      toast.warning('Choose an image file.');
-      return;
-    }
-    if (file.size > 4 * 1024 * 1024) {
-      toast.warning('Keep the image under 4MB.');
-      return;
-    }
+  // A chosen picture opens in the crop sheet first. What comes back is a small
+  // square JPEG, which is what gets uploaded.
+  const pickAvatar = (file) => {
+    if (avatarRef.current) avatarRef.current.value = '';
+    if (file) setPendingPhoto(file);
+  };
 
-    // Show the chosen file straight away. Waiting on the round trip is what
+  const uploadAvatar = async (file) => {
+    setPendingPhoto(null);
+    if (!file) return;
+
+    // Show the new picture straight away. Waiting on the round trip is what
     // made a new photo look as though it had not saved.
     const objectUrl = URL.createObjectURL(file);
     setPreview((current) => {
       if (current) URL.revokeObjectURL(current);
       return objectUrl;
     });
+    setUploading(true);
 
     try {
       await auth.updateAvatar(file);
@@ -153,7 +209,7 @@ export default function AgentProfile() {
       URL.revokeObjectURL(objectUrl);
       toast.error(errorMessage(error, 'Could not upload that photo.'));
     } finally {
-      if (avatarRef.current) avatarRef.current.value = '';
+      setUploading(false);
     }
   };
 
@@ -178,17 +234,18 @@ export default function AgentProfile() {
         <div className="ap-hero-body">
           <div className="ap-hero-left">
             <div className="ap-avatar-wrap">
-              <span className="ap-avatar">
+              <span className={`ap-avatar${uploading ? ' is-saving' : ''}`} aria-busy={uploading}>
                 {avatarSrc ? (
                   <img src={avatarSrc} alt={profile.full_name} />
                 ) : (
                   <span>{profile.initials}</span>
                 )}
+                {uploading ? <span className="avatar-spinner" aria-hidden="true" /> : null}
               </span>
               <label
                 className="ap-avatar-edit-btn"
                 htmlFor="agent-avatar-input"
-                title="Change photo (PNG or JPG under 4MB)"
+                title="Change photo"
               >
                 <Icon name="camera" size={15} />
                 <span className="sr-only">Upload a profile photo</span>
@@ -199,7 +256,8 @@ export default function AgentProfile() {
                 ref={avatarRef}
                 accept="image/*"
                 className="sr-only"
-                onChange={(event) => uploadAvatar(event.target.files?.[0])}
+                onChange={(event) => pickAvatar(event.target.files?.[0])}
+                disabled={uploading}
               />
             </div>
 
@@ -214,18 +272,8 @@ export default function AgentProfile() {
       <form onSubmit={savePersonal}>
           <section className="ap-card">
             <header className="ap-card-head">
-              <div className="ap-card-head-left">
-                <div className="ap-card-icon-box">
-                  <Icon name="user" size={20} />
-                </div>
-                <div>
-                  <h2 className="ap-card-title">Personal information</h2>
-                  <p className="ap-card-desc">
-                    Your legal identity and primary contact channels.
-                  </p>
-                </div>
-              </div>
-              <span className="ap-card-badge">Primary contact</span>
+              <h2 className="ap-card-title">Personal information</h2>
+              <p className="ap-card-desc">Your name and how we reach you.</p>
             </header>
 
             <div className="ap-grid-2col">
@@ -326,17 +374,8 @@ export default function AgentProfile() {
       <form onSubmit={savePayout}>
           <section className="ap-card">
             <header className="ap-card-head">
-              <div className="ap-card-head-left">
-                <div className="ap-card-icon-box">
-                  <Icon name="wallet" size={20} />
-                </div>
-                <div>
-                  <h2 className="ap-card-title">Payout & settlement account</h2>
-                  <p className="ap-card-desc">
-                    Commercial bank account where earned commissions and ads funding are paid.
-                  </p>
-                </div>
-              </div>
+              <h2 className="ap-card-title">Payment account</h2>
+              <p className="ap-card-desc">Where your earnings are paid.</p>
             </header>
 
             <div className="ap-grid-2col">
@@ -398,26 +437,6 @@ export default function AgentProfile() {
                 <span className="ap-field-hint">Must exactly match the name registered with your bank.</span>
               </div>
 
-              <div className="ap-form-field" style={{ gridColumn: '1 / -1' }}>
-                <label className="ap-label" htmlFor="ap-payout-pass">
-                  <span>Your Password *</span>
-                </label>
-                <div className="ap-input-wrap">
-                  <span className="ap-input-icon">
-                    <Icon name="lock" size={17} />
-                  </span>
-                  <input
-                    id="ap-payout-pass"
-                    type="password"
-                    className="ap-input"
-                    autoComplete="current-password"
-                    value={payoutPassword}
-                    onChange={(e) => setPayoutPassword(e.target.value)}
-                    required
-                  />
-                </div>
-                <span className="ap-field-hint">Needed to change where your earnings are paid.</span>
-              </div>
             </div>
 
             <footer className="ap-card-footer">
@@ -430,9 +449,8 @@ export default function AgentProfile() {
                 className="ap-btn-primary"
                 disabled={busy === 'payout'}
               >
-                {busy === 'payout' ? <span className="spinner-sm" aria-hidden="true" /> : null}
                 <Icon name="save" size={17} strokeWidth={2.2} />
-                Update Payout Account
+                Update Payment Account
               </button>
             </footer>
           </section>
@@ -442,17 +460,8 @@ export default function AgentProfile() {
       <form onSubmit={savePassword}>
           <section className="ap-card">
             <header className="ap-card-head">
-              <div className="ap-card-head-left">
-                <div className="ap-card-icon-box">
-                  <Icon name="lock" size={20} />
-                </div>
-                <div>
-                  <h2 className="ap-card-title">Security & access</h2>
-                  <p className="ap-card-desc">
-                    Update your password to keep your partner account and commission wallet secure.
-                  </p>
-                </div>
-              </div>
+              <h2 className="ap-card-title">Security & access</h2>
+              <p className="ap-card-desc">Change the password you sign in with.</p>
             </header>
 
             <div className="ap-grid-2col">
@@ -547,6 +556,83 @@ export default function AgentProfile() {
             </footer>
           </section>
       </form>
+
+      <AvatarCropModal
+        open={Boolean(pendingPhoto)}
+        file={pendingPhoto}
+        onCancel={() => setPendingPhoto(null)}
+        onConfirm={uploadAvatar}
+      />
+
+      <Modal
+        open={confirmOpen}
+        onClose={closeConfirm}
+        dismissable={busy !== 'payout'}
+        variant="agent"
+        title="Confirm with your password"
+        labelledBy="payout-confirm-title"
+        footer={
+          <>
+            <button
+              type="button"
+              className="agent-btn agent-btn-secondary"
+              onClick={closeConfirm}
+              disabled={busy === 'payout'}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              form="payout-confirm-form"
+              className="agent-btn agent-btn-primary"
+              disabled={busy === 'payout' || !payoutPassword}
+            >
+              {busy === 'payout' ? <span className="spinner-sm" aria-hidden="true" /> : null}
+              {busy === 'payout' ? 'Updating' : 'Update'}
+            </button>
+          </>
+        }
+      >
+        <form id="payout-confirm-form" onSubmit={confirmPayout} noValidate>
+          <dl className="payout-confirm-summary">
+            <div>
+              <dt>Bank</dt>
+              <dd>{form.bank_name.trim()}</dd>
+            </div>
+            <div>
+              <dt>Account number</dt>
+              <dd>{form.account_number}</dd>
+            </div>
+            <div>
+              <dt>Account name</dt>
+              <dd>{form.account_name.trim()}</dd>
+            </div>
+          </dl>
+          <div className="agent-form-group">
+            <label className="agent-form-label" htmlFor="payout-confirm-password">
+              Password
+            </label>
+            <PasswordInput
+              id="payout-confirm-password"
+              className="agent-form-control"
+              autoComplete="current-password"
+              autoFocus
+              value={payoutPassword}
+              onChange={(event) => {
+                setPayoutPassword(event.target.value);
+                if (passwordError) setPasswordError('');
+              }}
+              aria-invalid={Boolean(passwordError)}
+              aria-describedby={passwordError ? 'payout-confirm-error' : undefined}
+            />
+            {passwordError ? (
+              <span className="field-error" id="payout-confirm-error" role="alert">
+                {passwordError}
+              </span>
+            ) : null}
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }

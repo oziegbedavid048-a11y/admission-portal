@@ -4,6 +4,7 @@ import SiteHeader from '../../components/layout/SiteHeader';
 import Icon from '../../lib/icons';
 import { payments } from '../../api/endpoints';
 import { useAuth } from '../../context/AuthContext';
+import { rememberSelectedApplication } from '../applicant/ApplicationContext';
 
 /**
  * Where Paystack sends the applicant back to.
@@ -29,6 +30,11 @@ export default function PaymentReturnPage() {
   const { user } = useAuth();
   const [params] = useSearchParams();
   const gatewayReference = params.get('reference') || params.get('trxref') || '';
+
+  // The dashboard opens on the application that was just paid for.
+  useEffect(() => {
+    if (user && reference) rememberSelectedApplication(reference);
+  }, [user, reference]);
 
   const [state, setState] = useState('checking');
   const [result, setResult] = useState(null);
