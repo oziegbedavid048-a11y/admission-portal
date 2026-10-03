@@ -30,6 +30,7 @@ lose an upload.
 
 import io
 import logging
+import time
 import warnings
 from pathlib import Path
 
@@ -64,6 +65,16 @@ PROFILES = {
 }
 PDF_IMAGE_MAX_SIDE = 2000
 PDF_IMAGE_QUALITY = 75
+
+# Rewriting a PDF happens while the upload request waits. On a small server a
+# long scanned letter took more than the web server's 30 seconds, the request
+# was cut off and the desk saw "Internal Server Error" instead of a saved
+# letter. Past this budget the PDF is stored exactly as it was sent.
+PDF_TIME_BUDGET_SECONDS = 8
+
+
+class _OverBudget(Exception):
+    pass
 
 IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif")
 
@@ -122,17 +133,25 @@ def _compress_pdf(data):
     from PIL import Image
     from pypdf import PdfReader, PdfWriter
 
+    deadline = time.monotonic() + PDF_TIME_BUDGET_SECONDS
+
+    def check_time():
+        if time.monotonic() > deadline:
+            raise _OverBudget(f"took longer than {PDF_TIME_BUDGET_SECONDS} seconds")
+
     reader = PdfReader(io.BytesIO(data))
     if reader.is_encrypted or len(reader.pages) > MAX_PDF_PAGES:
         return None
     writer = PdfWriter(clone_from=reader)
 
     for page in writer.pages:
+        check_time()
         try:
             images = list(page.images)
         except Exception:  # noqa: BLE001 - an unusual page keeps its pictures
             images = []
         for embedded in images:
+            check_time()
             try:
                 picture = embedded.image
                 if picture.mode not in ("RGB", "L"):
@@ -145,7 +164,9 @@ def _compress_pdf(data):
                 continue
         page.compress_content_streams()
 
+    check_time()
     writer.compress_identical_objects(remove_identicals=True, remove_orphans=True)
+    check_time()
     out = io.BytesIO()
     writer.write(out)
     return out.getvalue()

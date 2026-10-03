@@ -124,7 +124,7 @@ export default function OverviewPanel() {
           <div>
             <h2>Complete your application</h2>
             <p className="gx-muted">
-              Pay the {payment.display_total} application fee to send it to the admissions desk.
+              Pay the {payment.display_total} application fee to complete your application.
             </p>
           </div>
           <button type="button" className="gx-btn gx-btn-primary gx-btn-lg" onClick={pay} disabled={paying}>

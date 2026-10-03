@@ -790,13 +790,23 @@ export default function AgentNewStudent() {
         {step === 6 && created ? (
           <>
             <p className="nf-lede">
-              <strong>{created.full_name}</strong> is registered as <strong>{created.reference}</strong>. Pay the
-              application fee to send the file to the admissions desk.
+              <strong>{created.full_name}</strong> has been registered as <strong>{created.reference}</strong>.
+              Pay the application fee to complete the application.
             </p>
             <FeePayment reference={created.reference} onTransferSent={() => setDone({ kind: 'review' })} />
             <div className="nf-footer nf-footer-single">
-              <button type="button" className="nf-link-btn" onClick={() => navigate('/agent/students')}>
-                Pay later from Students
+              {/* The student is already registered, so nothing is lost by
+                  leaving: the file waits under Students, marked Not paid, and
+                  the fee can be paid from there at any time. */}
+              <button
+                type="button"
+                className="agent-btn agent-btn-secondary agent-btn-block"
+                onClick={() => {
+                  toast.success('Saved. Pay the fee any time from Students.');
+                  navigate('/agent/students');
+                }}
+              >
+                Save as draft
               </button>
             </div>
           </>

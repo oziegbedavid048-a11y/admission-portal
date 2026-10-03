@@ -887,8 +887,9 @@ def send_application_received_email(application):
 
     institution = application.institution
     courses = ", ".join(program.name for program in application.programs.all())
-    fee_due = not application.is_custom_course and institution is not None and not institution.is_fee_free
 
+    # The facts of the application and a link to follow it, without a list of
+    # next steps, matching the agent's registration email.
     facts = [("Reference", application.reference)]
     if application.is_custom_course:
         facts.append(("Course requested", application.custom_course_name or "To be confirmed"))
@@ -898,25 +899,6 @@ def send_application_received_email(application):
             facts.append(("Course", courses))
     facts.append(("Destination", application.destination_country.name))
 
-    if application.is_custom_course:
-        next_steps = [
-            ("Course matching", "Our admissions team will contact you to match your course with a partner university."),
-            ("Document review", "We check the documents you uploaded and tell you if anything needs replacing."),
-            ("Updates", "You receive an email at every stage, and you can follow everything from your dashboard."),
-        ]
-    else:
-        next_steps = []
-        if fee_due:
-            next_steps.append(
-                ("Application fee", "If you have not paid yet, pay it from your dashboard. Your file goes for review once it is paid.")
-            )
-        next_steps += [
-            ("Document review", "Our admissions desk checks your details and documents."),
-            ("University review", "Your file is sent to the university for an admission decision."),
-            ("Offer letter", "Your letter appears in your dashboard as soon as it is issued."),
-            ("Visa support", "Once admitted, our visa desk guides you through your study permit."),
-        ]
-
     return _send(
         subject=f"Application received: {application.reference}",
         recipients=[application.email],
@@ -925,8 +907,6 @@ def send_application_received_email(application):
             "Thank you for applying through Gabstep. We have received your application "
             "and it is now with our admissions team.",
         ],
-        items_intro="Here is what happens next:",
-        items=next_steps,
         facts=facts,
         action=("Track your application", _url("/portal")),
     )
@@ -1043,9 +1023,10 @@ def send_agent_student_registered_email(application):
 
     institution = application.institution
     courses = ", ".join(program.name for program in application.programs.all())
-    fee_due = not application.is_custom_course and institution is not None and not institution.is_fee_free
-    documents = list(application.documents.all())
 
+    # The facts of the registration and a link to the student, without a
+    # document count or a step-by-step list, which David asked to be taken out
+    # to keep the message clean.
     facts = [
         ("Student", application.full_name),
         ("Reference", application.reference),
@@ -1058,21 +1039,6 @@ def send_agent_student_registered_email(application):
         facts.append(("University", institution.name if institution else "To be confirmed"))
         if courses:
             facts.append(("Course", courses))
-    facts.append(("Documents", f"{len(documents)} uploaded" if documents else "None yet"))
-
-    steps = []
-    if fee_due:
-        steps.append((
-            "Pay the application fee",
-            "Pay from the student's file in Students. Your first ₦30,000 is added to your wallet "
-            "as soon as the payment is confirmed.",
-        ))
-    steps += [
-        ("Document review", "Our admissions desk checks every document. You are emailed if one needs replacing, "
-                            "and again once they are all verified."),
-        ("Admission", "The file goes to the university. Every letter issued appears on your Letters page."),
-        ("Visa support", "Send the letter to visa support. ₦50,000 is added once our visa desk confirms it is done."),
-    ]
 
     return _send(
         subject=f"Student registered: {application.full_name} ({application.reference})",
@@ -1083,8 +1049,6 @@ def send_agent_student_registered_email(application):
             "The application is saved and linked to your partner account.",
         ],
         facts=facts,
-        items_intro="What happens next:",
-        items=steps,
         action=("Open your students", _url("/agent/students")),
     )
 
@@ -1166,16 +1130,11 @@ def send_commission_credited_email(agent, application, kind, amount):
     if wallet is not None:
         facts.append(("Available balance", _naira(wallet.available_balance)))
 
-    items = None
-    if kind == "registration":
-        items = [("Still to come", "₦50,000 more is added once visa support for this student is confirmed.")]
-
     return _send(
         subject=f"{_naira(amount)} added to your wallet",
         recipients=[agent.user.email],
         greeting=f"Hello {_first_name(agent.user.full_name, 'there')},",
         paragraphs=[f"{_naira(amount)} has been added to your Gabstep wallet because {reason}."],
         facts=facts,
-        items=items,
         action=("Open your wallet", _url("/agent/wallet")),
     )
