@@ -35,7 +35,7 @@ export default function DetailsPanel() {
             <div>
               <strong>Pending Correction Request in Review</strong>
               <p>
-                You have active correction requests currently undergoing admissions desk review.
+                We are reviewing your correction request.
               </p>
             </div>
           </div>

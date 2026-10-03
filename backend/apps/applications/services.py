@@ -204,8 +204,8 @@ def flag_action_required(application, verified_by=None):
     application.save(update_fields=["verification_status", "verified_by", "updated_at"])
     notify(
         application,
-        "The admissions desk needs something from you before your application can "
-        "continue. An advisor will be in touch.",
+        "Your application needs your attention before it can continue. "
+        "An advisor will be in touch.",
     )
     return True
 
@@ -461,7 +461,7 @@ def approve_correction(correction):
         application,
         f"Your correction to {correction.field} ({correction.ticket}) was approved and applied to your application file."
         if applied
-        else f"Your correction to {correction.field} ({correction.ticket}) was approved and verified by the admissions desk.",
+        else f"Your correction to {correction.field} ({correction.ticket}) was approved and verified.",
     )
     return True, applied
 
@@ -525,7 +525,7 @@ def send_applicant_email_message(application, subject, message_body):
     """
     from apps.accounts.emails import send_application_status_update_email
 
-    notify(application, f"Message from the admissions desk: {subject}. {message_body}", send_email=False)
+    notify(application, f"Message from Gabstep: {subject}. {message_body}", send_email=False)
     send_application_status_update_email(application, message_body, subject_override=subject)
     return True
 

@@ -272,7 +272,7 @@ export default function OverviewPanel() {
                 <p className="card-body-text" style={{ margin: 0, padding: '12px 0' }}>
                   {hasApplication
                     ? 'No updates yet. Milestones and verification notices will appear here.'
-                    : 'Nothing yet. Once you apply, every update from the admissions desk appears here.'}
+                    : 'Nothing yet. Once you apply, every update on your application appears here.'}
                 </p>
               ) : (
                 notifications.slice(0, 5).map((item) => (

@@ -344,7 +344,7 @@ def send_sales_manager_welcome_email(user, profile, password=None):
 
 
 NEXT_STEP_BY_STAGE = {
-    "Submitted & payment confirmed": "Our admissions desk reviews your details and documents.",
+    "Submitted & payment confirmed": "We are reviewing your details and documents.",
     "Document verification": "We are checking your documents and will tell you if anything needs replacing.",
     "Institution review": "The university is reviewing your file. Decisions usually take two to four weeks.",
     "Offer letter decision": "Your letter appears in your dashboard as soon as the university issues it.",
@@ -938,7 +938,7 @@ def send_document_rejected_email(document):
     steps = [
         ("Open the file", f"Go to {where} and find {document.name} under Documents."),
         ("Upload a replacement", "Press Upload a replacement and choose a clear, complete copy (PDF or photo, up to 10MB)."),
-        ("We review it again", "The new copy goes straight back to our admissions desk. We email you once it is checked."),
+        ("We review it again", "The new copy is checked again, and we email you once it is done."),
     ]
     reason = escape(document.review_note or "It could not be accepted as uploaded.").replace("\n", "<br>")
 
@@ -955,7 +955,7 @@ def send_document_rejected_email(document):
         subject=f"Action needed: please replace your {document.name}",
         recipients=recipients,
         greeting=greeting,
-        paragraphs=[opening, f"<strong>Reason from our admissions desk:</strong><br>{reason}"],
+        paragraphs=[opening, f"<strong>Reason:</strong><br>{reason}"],
         facts=facts,
         items_intro="How to fix it:",
         items=steps,
@@ -1077,13 +1077,13 @@ def send_documents_verified_email(application):
         greeting = f"Hello {_first_name(agent.user.full_name, 'there')},"
         opening = (
             f"Every document you uploaded for <strong>{escape(application.full_name)}</strong> "
-            "has been checked and verified by our admissions desk."
+            "has been checked and verified."
         )
         recipients, link = [agent.user.email], ("Open the student's file", _url("/agent/students"))
         subject = f"All documents verified: {application.full_name} ({application.reference})"
     else:
         greeting = f"Hello {_first_name(application.full_name, 'there')},"
-        opening = "Every document you uploaded has been checked and verified by our admissions desk."
+        opening = "Every document you uploaded has been checked and verified."
         recipients, link = [application.email], ("View your application", _url("/portal/details"))
         subject = f"All your documents are verified ({application.reference})"
 

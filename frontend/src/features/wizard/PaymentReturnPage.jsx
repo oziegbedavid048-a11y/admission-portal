@@ -103,8 +103,8 @@ export default function PaymentReturnPage() {
                 <h1 className="return-title">Payment successful</h1>
                 <p className="return-note">
                   {result?.display_total ? `${result.display_total} received. ` : ''}
-                  Application {result?.application || reference} is submitted and with
-                  the admissions desk.
+                  Application {result?.application || reference} has been submitted and is
+                  now under review.
                 </p>
 
                 {continueLink}

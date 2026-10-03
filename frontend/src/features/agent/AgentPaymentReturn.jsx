@@ -88,7 +88,7 @@ export default function AgentPaymentReturn() {
               <Icon name="check" size={26} strokeWidth={2.4} />
             </span>
             <h2>Payment successful</h2>
-            <p className="nf-done-lede">The application fee is paid and the file is with the admissions desk.</p>
+            <p className="nf-done-lede">The application fee is paid and the application is now under review.</p>
             <dl className="nf-done-facts">
               <div>
                 <dt>Application reference</dt>

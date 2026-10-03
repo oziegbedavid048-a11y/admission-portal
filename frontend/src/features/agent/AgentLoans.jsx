@@ -253,7 +253,7 @@ export default function AgentLoans() {
             </div>
             <div className="payout-calc-row">
               <span>Approval</span>
-              <strong>Reviewed by the admissions desk</strong>
+              <strong>Subject to approval</strong>
             </div>
           </div>
 

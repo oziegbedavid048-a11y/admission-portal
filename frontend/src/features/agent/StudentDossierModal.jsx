@@ -127,8 +127,8 @@ export default function StudentDossierModal({ student, onClose, onChanged }) {
             </div>
           ) : fee === 'review' ? (
             <p className="ds-text">
-              Your transfer receipt{payment?.transfer_bank ? ` for ${payment.transfer_bank}` : ''} is with the
-              admissions desk. Your commission is credited once they confirm the money arrived.
+              Your transfer receipt{payment?.transfer_bank ? ` for ${payment.transfer_bank}` : ''} has been
+              received. Your commission is credited once the payment is confirmed.
             </p>
           ) : (
             <FeePayment

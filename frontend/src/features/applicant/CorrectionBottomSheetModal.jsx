@@ -214,7 +214,7 @@ export default function CorrectionBottomSheetModal({
       open={open}
       onClose={onClose}
       title="Request a correction"
-      subtitle="Change any detail below. Everything you send goes to the admissions desk for verification and approval."
+      subtitle="Update any detail below. Every change is reviewed before it is applied."
       labelledBy="correction-sheet-title"
       size={640}
       footer={

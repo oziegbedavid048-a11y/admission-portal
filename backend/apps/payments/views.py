@@ -326,8 +326,8 @@ class CheckoutView(APIView):
 
             services.notify(
                 application,
-                f"Application fee of {payment.display_total} is outstanding. Your file "
-                "is with the admissions desk and moves on once the fee clears.",
+                f"Application fee of {payment.display_total} is outstanding. "
+                "Pay it to complete your application.",
                 send_email=False,
             )
 

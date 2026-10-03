@@ -48,7 +48,7 @@ export default function LettersPanel() {
           </div>
           <h3 className="letter-empty-title">No letters issued yet</h3>
           <p className="letter-empty-sub">
-            Your official admission or offer letter will appear here once issued by the admissions desk.
+            Your admission or offer letter will appear here once it is issued.
           </p>
         </section>
       ) : (
