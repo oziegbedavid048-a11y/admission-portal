@@ -210,10 +210,73 @@ class Wallet(models.Model):
     loan_repaid_total = models.DecimalField(
         max_digits=12, decimal_places=2, default=Decimal("0.00")
     )
+    # Every amount above is in this currency: Naira for an agent in Nigeria,
+    # the agent's own country's currency anywhere else (see currency.py). It
+    # follows the agent's country until the first money lands, then stays.
+    currency = models.CharField(max_length=8, default="NGN")
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return f"Wallet for {self.agent}"
+
+    @property
+    def is_empty(self):
+        """No money has ever moved through this wallet."""
+        return not any(
+            (
+                self.total_earned,
+                self.loan_balance,
+                self.saved_balance,
+                self.total_withdrawn,
+                self.loan_repaid_total,
+            )
+        )
+
+    def sync_currency(self):
+        """Match the agent's country, while nothing is in the wallet yet.
+
+        Once money has landed the currency is fixed, so a balance is never
+        relabelled in a currency it was not earned in. Returns True if changed.
+        """
+        from .currency import currency_for_country
+
+        if not self.is_empty:
+            return False
+        currency, _ = currency_for_country(self.agent.user.country)
+        if currency == self.currency:
+            return False
+        self.currency = currency
+        if self.pk:
+            Wallet.objects.filter(pk=self.pk).update(currency=currency)
+        return True
+
+    @property
+    def symbol(self):
+        from .currency import symbol_for
+
+        return symbol_for(self.currency)
+
+    def money(self, amount):
+        from .currency import money
+
+        return money(amount, self.currency, self.symbol)
+
+    @property
+    def minimum_withdrawal(self):
+        """The smallest payout, set in Naira, in this wallet's currency today."""
+        from .currency import threshold_from_naira
+
+        return threshold_from_naira(MIN_WITHDRAWAL_NGN, self.currency)
+
+    @property
+    def loan_limits(self):
+        """Smallest and largest Ads funding request, in this wallet's currency."""
+        from .currency import threshold_from_naira
+
+        return (
+            threshold_from_naira(Loan.MIN_AMOUNT, self.currency),
+            threshold_from_naira(Loan.MAX_AMOUNT, self.currency),
+        )
 
     @property
     def available_balance(self):
@@ -271,7 +334,7 @@ class Wallet(models.Model):
             raise ValidationError("You have no Ads funding to repay.")
         if amount > wallet.loan_balance:
             raise ValidationError(
-                f"You owe ₦{wallet.loan_balance:,.0f}. Enter that amount or less."
+                f"You owe {wallet.money(wallet.loan_balance)}. Enter that amount or less."
             )
         if amount > wallet.available_balance:
             raise ValidationError("That is more than your available balance.")
@@ -280,7 +343,7 @@ class Wallet(models.Model):
         wallet.loan_repaid_total += amount
         wallet.save(update_fields=["loan_balance", "loan_repaid_total"])
         # Each repayment is its own line in the agent's earnings history.
-        LoanRepayment.objects.create(agent=wallet.agent, amount=amount)
+        LoanRepayment.objects.create(agent=wallet.agent, amount=amount, currency=wallet.currency)
 
         if wallet.loan_balance == 0:
             wallet.agent.loans.filter(
@@ -328,9 +391,15 @@ class Commission(models.Model):
         "applications.Application", on_delete=models.CASCADE, related_name="commissions"
     )
     kind = models.CharField(max_length=12, choices=Kind.choices)
+    # What was added to the wallet, in the wallet's currency.
     amount = models.DecimalField(
-        max_digits=10, decimal_places=2, default=AGENT_COMMISSION_PER_MILESTONE
+        max_digits=12, decimal_places=2, default=AGENT_COMMISSION_PER_MILESTONE
     )
+    currency = models.CharField(max_length=8, default="NGN")
+    # The commission as it is set, in Naira, and the rate it was converted at
+    # the moment it was credited (Naira per unit; 1 for Naira).
+    amount_ngn = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+    fx_rate = models.DecimalField(max_digits=18, decimal_places=6, default=Decimal("1"))
     earned_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -361,10 +430,12 @@ class Loan(models.Model):
     agent = models.ForeignKey(
         AgentProfile, on_delete=models.CASCADE, related_name="loans"
     )
-    requested_amount = models.DecimalField(max_digits=10, decimal_places=2)
+    requested_amount = models.DecimalField(max_digits=12, decimal_places=2)
     approved_amount = models.DecimalField(
-        max_digits=10, decimal_places=2, null=True, blank=True
+        max_digits=12, decimal_places=2, null=True, blank=True
     )
+    # The agent's wallet currency when the request was made.
+    currency = models.CharField(max_length=8, default="NGN")
     purpose = models.CharField(max_length=80, help_text="Advertising platform.")
     ad_account_link = models.URLField(max_length=400, blank=True, default="")
     status = models.CharField(
@@ -400,6 +471,7 @@ class LoanRepayment(models.Model):
         AgentProfile, on_delete=models.CASCADE, related_name="loan_repayments"
     )
     amount = models.DecimalField(max_digits=12, decimal_places=2)
+    currency = models.CharField(max_length=8, default="NGN")
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -427,7 +499,7 @@ def loan_block_reason(agent, wallet=None):
     owed = wallet.loan_balance if wallet else Decimal("0.00")
     if owed > 0:
         return (
-            f"₦{owed:,.0f} of Ads funding is still owed. Repay it from your balance "
+            f"{wallet.money(owed)} of Ads funding is still owed. Repay it from your balance "
             "on this page, and you can request again once it is cleared."
         )
     if agent.loans.filter(status__in=(Loan.Status.APPROVED, Loan.Status.DISBURSED)).exists():
@@ -458,6 +530,8 @@ class Withdrawal(models.Model):
         max_digits=12, decimal_places=2, default=Decimal("0.00")
     )
     net_amount = models.DecimalField(max_digits=12, decimal_places=2)
+    # The agent's wallet currency: what the payout is to be paid in.
+    currency = models.CharField(max_length=8, default="NGN")
     status = models.CharField(
         max_length=12, choices=Status.choices, default=Status.PENDING
     )
@@ -495,9 +569,11 @@ class Withdrawal(models.Model):
         """
         wallet = Wallet.objects.select_for_update().get(agent=agent)
 
-        if amount < cls.MIN_AMOUNT:
+        # The minimum is set in Naira and applied in the wallet's currency.
+        minimum = wallet.minimum_withdrawal
+        if amount < minimum:
             raise ValidationError(
-                f"The smallest withdrawal is ₦{cls.MIN_AMOUNT:,.0f}."
+                f"The smallest withdrawal is {wallet.money(minimum)}."
             )
         if amount > wallet.available_balance:
             raise ValidationError("That is more than your available balance.")
@@ -508,6 +584,7 @@ class Withdrawal(models.Model):
             agent=agent,
             amount_requested=amount,
             net_amount=amount,
+            currency=wallet.currency,
             paid_to=destination_label(agent),
         )
 

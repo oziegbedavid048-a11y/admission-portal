@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import Modal from '../../components/ui/Modal';
 import DocumentReplaceButton from '../../components/ui/DocumentReplaceButton';
 import Icon from '../../lib/icons';
-import { formatDate, formatNaira, resolveMediaUrl } from '../../lib/format';
+import { formatDate, resolveMediaUrl } from '../../lib/format';
+import { useAgent } from './AgentContext';
 import { errorMessage } from '../../api/client';
 import { partners } from '../../api/endpoints';
 import { useToast } from '../../context/ToastContext';
@@ -27,6 +28,7 @@ const DOC_TONE = {
  * Decisions stay with the desk.
  */
 export default function StudentDossierModal({ student, onClose, onChanged }) {
+  const { money } = useAgent();
   const [stages, setStages] = useState([]);
   const [downloading, setDownloading] = useState(false);
   const toast = useToast();
@@ -108,7 +110,7 @@ export default function StudentDossierModal({ student, onClose, onChanged }) {
           </div>
           <div>
             <dt>Commission earned</dt>
-            <dd>{formatNaira(student.commission_earned)}</dd>
+            <dd>{money(student.commission_earned)}</dd>
           </div>
         </dl>
 

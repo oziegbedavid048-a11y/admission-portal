@@ -66,34 +66,52 @@ def notify(application, text, send_email=True):
     )
 
 
+@transaction.atomic
 def award_commission(application, kind):
     """Pay the agent for a milestone, once.
 
-    Returns the amount credited, or zero if this application has no agent or the
-    milestone was already paid. Imported lazily because ``partners`` reads its
-    constants from this app, and a module-level import would close the loop.
+    Returns the amount credited (in the agent's wallet currency), or zero if
+    this application has no agent or the milestone was already paid. Imported
+    lazily because ``partners`` reads its constants from this app, and a
+    module-level import would close the loop.
+
+    Commissions are set in Naira. An agent outside Nigeria is paid in their own
+    currency, converted at the exchange rate of this moment; the Naira figure
+    and that rate are kept on the commission, and the converted amount never
+    changes afterwards.
     """
-    from apps.partners.models import Commission
+    from apps.partners.currency import from_naira
+    from apps.partners.models import Commission, Wallet
 
     agent = application.submitted_by_agent
     if agent is None:
         return 0
+    if Commission.objects.filter(application=application, kind=kind).exists():
+        return 0
 
-    amount = AGENT_COMMISSION_BY_KIND[kind]
+    # An agent added from the admin may not have a wallet yet; one is made
+    # rather than losing the commission. Locked, so the currency cannot move
+    # while this commission is being credited.
+    Wallet.objects.get_or_create(agent=agent)
+    wallet = Wallet.objects.select_for_update().select_related("agent__user").get(agent=agent)
+    wallet.sync_currency()
+
+    amount_ngn = AGENT_COMMISSION_BY_KIND[kind]
+    amount, rate = from_naira(amount_ngn, wallet.currency)
     _, created = Commission.objects.get_or_create(
         agent=agent,
         application=application,
         kind=kind,
-        defaults={"amount": amount},
+        defaults={
+            "amount": amount,
+            "currency": wallet.currency,
+            "amount_ngn": amount_ngn,
+            "fx_rate": rate,
+        },
     )
     if not created:
         return 0
 
-    # An agent added from the admin may not have a wallet yet; one is made
-    # rather than losing the commission.
-    from apps.partners.models import Wallet
-
-    wallet, _ = Wallet.objects.get_or_create(agent=agent)
     wallet.credit_commission(kind, amount)
 
     if kind == Commission.Kind.REGISTRATION:

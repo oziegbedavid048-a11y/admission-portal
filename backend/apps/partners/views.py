@@ -14,6 +14,7 @@ from apps.applications.constants import AGENT_REGISTRATION_COMMISSION_NGN, AGENT
 from apps.applications.models import Application
 from config.throttles import MoneyThrottle, UploadThrottle, UserThrottle
 
+from .currency import money
 from .models import (
     Commission,
     Loan,
@@ -91,6 +92,7 @@ class WalletHistoryView(AgentScopedMixin, APIView):
                     "detail": item.application.full_name,
                     "reference": item.application.reference,
                     "amount": item.amount,
+                    "currency": item.currency,
                     "at": item.earned_at,
                     "status": "",
                 }
@@ -104,6 +106,7 @@ class WalletHistoryView(AgentScopedMixin, APIView):
                     "detail": "",
                     "reference": "",
                     "amount": item.amount,
+                    "currency": item.currency,
                     "at": item.created_at,
                     "status": "",
                 }
@@ -118,6 +121,7 @@ class WalletHistoryView(AgentScopedMixin, APIView):
                     "detail": "",
                     "reference": item.reference,
                     "amount": item.amount_requested,
+                    "currency": item.currency,
                     "at": item.created_at,
                     "status": item.status,
                 }
@@ -214,7 +218,8 @@ class LoanViewSet(AgentScopedMixin, viewsets.ModelViewSet):
             reason = loan_block_reason(self.agent, wallet)
             if reason:
                 raise drf_serializers.ValidationError({"detail": reason})
-            serializer.save(agent=self.agent)
+            wallet.sync_currency()
+            serializer.save(agent=self.agent, currency=wallet.currency)
 
     @action(detail=False, methods=["post"])
     def repay(self, request):
@@ -451,9 +456,15 @@ class AgentOverviewView(AgentScopedMixin, APIView):
                 pipeline["in_review"] += 1
 
         wallet = agent.wallet
+        wallet.sync_currency()
+        from .currency import from_naira
+
+        per_student, _ = from_naira(
+            AGENT_REGISTRATION_COMMISSION_NGN + AGENT_VISA_COMMISSION_NGN, wallet.currency
+        )
         outstanding = max(
             Decimal("0.00"),
-            len(applications) * (AGENT_REGISTRATION_COMMISSION_NGN + AGENT_VISA_COMMISSION_NGN)
+            len(applications) * per_student
             - wallet.registration_commission_total
             - wallet.visa_commission_total,
         )
@@ -505,7 +516,7 @@ class AgentOverviewView(AgentScopedMixin, APIView):
             events.append(
                 {
                     "at": loan.requested_at,
-                    "text": f"Ads funding of ₦{loan.requested_amount:,.0f} "
+                    "text": f"Ads funding of {money(loan.requested_amount, loan.currency)} "
                     f"requested for {loan.purpose}.",
                 }
             )
@@ -513,7 +524,7 @@ class AgentOverviewView(AgentScopedMixin, APIView):
             events.append(
                 {
                     "at": wd.created_at,
-                    "text": f"Withdrawal of ₦{wd.amount_requested:,.0f} submitted.",
+                    "text": f"Withdrawal of {money(wd.amount_requested, wd.currency)} submitted.",
                 }
             )
         events.sort(key=lambda e: e["at"], reverse=True)

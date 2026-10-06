@@ -4,7 +4,7 @@ import PipelinePieChart from './PipelinePieChart';
 import EarningsHistory from './EarningsHistory';
 import Loading from '../../components/ui/Loading';
 import Icon from '../../lib/icons';
-import { firstNameOf, formatNaira, timeAgo } from '../../lib/format';
+import { firstNameOf, formatCurrency, timeAgo } from '../../lib/format';
 import { partners } from '../../api/endpoints';
 import { useToast } from '../../context/ToastContext';
 import useLiveRefresh from '../../hooks/useLiveRefresh';
@@ -97,7 +97,7 @@ export default function AgentOverview() {
             <Icon name="trend" size={20} />
           </span>
           <span className="s-label">Earned</span>
-          <span className="s-value">{formatNaira(data.wallet.total_earned)}</span>
+          <span className="s-value">{formatCurrency(data.wallet.total_earned, data.wallet.currency, data.wallet.symbol)}</span>
         </div>
       </div>
 
@@ -123,7 +123,7 @@ export default function AgentOverview() {
         </section>
       </div>
 
-      <CurrencyConverter />
+      <CurrencyConverter currency={data.wallet?.currency} />
 
       <section className="agent-card">
         <div className="agent-card-header">

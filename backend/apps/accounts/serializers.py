@@ -165,7 +165,9 @@ class AgentRegistrationSerializer(serializers.Serializer):
             agency_name=validated_data.get("agency_name", ""),
             supervisor=validated_data.get("agent_code"),
         )
-        Wallet.objects.create(agent=profile)
+        from apps.partners.currency import currency_for_country
+
+        Wallet.objects.create(agent=profile, currency=currency_for_country(user.country)[0])
         # The verification email is sent by the view once the account exists.
         return user
 

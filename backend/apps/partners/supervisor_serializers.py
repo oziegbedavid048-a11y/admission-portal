@@ -162,8 +162,10 @@ class SupervisedAgentSerializer(serializers.ModelSerializer):
         return getattr(obj, "visa_count", 0)
 
     def get_earned(self, obj):
-        wallet = getattr(obj, "wallet", None)
-        return wallet.total_earned if wallet else Decimal("0.00")
+        """What the agent has earned, in Naira, so every agent reads alike."""
+        from django.db.models import Sum
+
+        return obj.commissions.aggregate(total=Sum("amount_ngn"))["total"] or Decimal("0.00")
 
     def get_bonus_from_agent(self, obj):
         return sum(

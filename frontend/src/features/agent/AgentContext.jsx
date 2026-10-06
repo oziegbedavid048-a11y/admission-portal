@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { partners } from '../../api/endpoints';
 import { useToast } from '../../context/ToastContext';
 import useLiveRefresh from '../../hooks/useLiveRefresh';
-import { formatNaira } from '../../lib/format';
+import { formatCurrency } from '../../lib/format';
 
 const AgentContext = createContext(null);
 
@@ -49,7 +49,7 @@ export function AgentProvider({ children }) {
         earned.current = total;
         setWallet(wallet);
         if (before !== null && total > before) {
-          toast.success(`${formatNaira(total - before)} added to your wallet.`);
+          toast.success(`${formatCurrency(total - before, wallet.currency, wallet.symbol)} added to your wallet.`);
           window.dispatchEvent(new CustomEvent(WALLET_CHANGED, { detail: wallet }));
         }
       } catch {
@@ -59,9 +59,15 @@ export function AgentProvider({ children }) {
     { intervalMs: 6000, enabled: Boolean(profile) },
   );
 
+  // Every amount in the agent portal is in the wallet's currency: Naira in
+  // Nigeria, the agent's own currency elsewhere.
+  const currency = profile?.wallet?.currency || 'NGN';
+  const symbol = profile?.wallet?.symbol || '';
+  const money = useCallback((amount) => formatCurrency(amount, currency, symbol), [currency, symbol]);
+
   const value = useMemo(
-    () => ({ profile, setProfile, wallet: profile?.wallet, setWallet, loading, reload }),
-    [profile, setWallet, loading, reload],
+    () => ({ profile, setProfile, wallet: profile?.wallet, setWallet, loading, reload, money, currency, symbol }),
+    [profile, setWallet, loading, reload, money, currency, symbol],
   );
 
   return <AgentContext.Provider value={value}>{children}</AgentContext.Provider>;

@@ -10,6 +10,7 @@ import { useCatalog, useInstitutions } from '../../hooks/useCatalog';
 import Icon from '../../lib/icons';
 import { compressImageFile } from '../../lib/compress';
 import { formatMoney, formatTuition } from '../../lib/format';
+import EuropeanCvTip from '../../components/ui/EuropeanCvTip';
 import ProgramPicker from '../wizard/ProgramPicker';
 import { rememberSelectedApplication, useApplication } from './ApplicationContext';
 
@@ -638,6 +639,7 @@ export default function ApplyPanel() {
                     () => setSlotFile(meta.slot, null),
                   )}
                   {errors[meta.slot] ? <span className="nf-error">{errors[meta.slot]}</span> : null}
+                  {meta.slot === 'cv' ? <EuropeanCvTip /> : null}
                 </div>
               ))}
             </div>

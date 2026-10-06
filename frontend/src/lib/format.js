@@ -10,6 +10,23 @@ export function formatNaira(value) {
   return NAIRA + Number(value || 0).toLocaleString('en-NG', { maximumFractionDigits: 0 });
 }
 
+/**
+ * An agent's amount in the currency their wallet is kept in: "₦30,000" for
+ * Naira, "KSh 2,520" or "KSh 2,520.50" for anything else. Whole amounts show
+ * no decimals.
+ */
+export function formatCurrency(value, currency = 'NGN', symbol = '') {
+  const code = (currency || 'NGN').toUpperCase();
+  if (code === 'NGN') return formatNaira(value);
+  const number = Number(value || 0);
+  const whole = Number.isInteger(Math.round(number * 100) / 100) && Math.round(number * 100) % 100 === 0;
+  const text = number.toLocaleString('en-US', {
+    minimumFractionDigits: whole ? 0 : 2,
+    maximumFractionDigits: whole ? 0 : 2,
+  });
+  return `${symbol || code} ${text}`;
+}
+
 export function formatMoney(amount, currency = 'NGN') {
   const number = Number(amount || 0).toLocaleString('en-US', {
     minimumFractionDigits: 2,

@@ -2883,3 +2883,11 @@ textarea.agent-form-control { min-height: 96px; resize: vertical; }
 }
 .ap-card-head .ap-card-title { font-size: 18px; line-height: 1.3; }
 .ap-card-head .ap-card-desc { font-size: 14px; line-height: 1.45; color: var(--g-ink-3); margin: 0; }
+
+/* Slider labels stay on one line each. With a longer currency on a phone the
+   middle two make way, leaving the minimum and maximum. */
+.loan-ticks-row span { white-space: nowrap; }
+@media (max-width: 480px) {
+  .loan-ticks-row span:nth-child(2),
+  .loan-ticks-row span:nth-child(3) { display: none; }
+}

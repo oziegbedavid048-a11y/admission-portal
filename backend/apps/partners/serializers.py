@@ -5,10 +5,7 @@ from django.db import transaction
 from rest_framework import serializers
 
 from apps.accounts.models import User
-from apps.applications.constants import (
-    AGENT_COMMISSION_PER_MILESTONE,
-    MIN_WITHDRAWAL_NGN,
-)
+from apps.applications.constants import AGENT_COMMISSION_PER_MILESTONE
 from apps.applications import services
 from apps.applications.models import Application, Notification
 from apps.applications.serializers import ApplicationCreateSerializer
@@ -31,9 +28,13 @@ class WalletSerializer(serializers.ModelSerializer):
         max_digits=12, decimal_places=2, read_only=True
     )
     # Published so the portal enforces the same floor the API does, rather than
-    # keeping its own copy of the number that can drift out of step.
+    # keeping its own copy of the number that can drift out of step. Like every
+    # amount here, it is in the wallet's currency.
     minimum_withdrawal = serializers.SerializerMethodField()
     can_withdraw = serializers.SerializerMethodField()
+    symbol = serializers.CharField(read_only=True)
+    loan_min = serializers.SerializerMethodField()
+    loan_max = serializers.SerializerMethodField()
 
     class Meta:
         model = Wallet
@@ -46,17 +47,27 @@ class WalletSerializer(serializers.ModelSerializer):
             "total_withdrawn",
             "loan_repaid_total",
             "available_balance",
+            "currency",
+            "symbol",
             "minimum_withdrawal",
             "can_withdraw",
+            "loan_min",
+            "loan_max",
             "updated_at",
         )
         read_only_fields = fields
 
     def get_minimum_withdrawal(self, obj):
-        return MIN_WITHDRAWAL_NGN
+        return obj.minimum_withdrawal
 
     def get_can_withdraw(self, obj):
-        return obj.available_balance >= MIN_WITHDRAWAL_NGN
+        return obj.available_balance >= obj.minimum_withdrawal
+
+    def get_loan_min(self, obj):
+        return obj.loan_limits[0]
+
+    def get_loan_max(self, obj):
+        return obj.loan_limits[1]
 
 
 class AgentProfileSerializer(serializers.ModelSerializer):
@@ -114,6 +125,10 @@ class AgentProfileSerializer(serializers.ModelSerializer):
             instance.user.save()
         updated = super().update(instance, validated_data)
         announce_bank_change(updated, before)
+        if "country" in user_data:
+            wallet = Wallet.objects.filter(agent=updated).first()
+            if wallet is not None:
+                wallet.sync_currency()
         return updated
 
 
@@ -133,16 +148,27 @@ class LoanSerializer(serializers.ModelSerializer):
             "purpose",
             "ad_account_link",
             "status",
+            "currency",
             "requested_at",
             "disbursed_at",
         )
-        read_only_fields = ("id", "reference", "approved_amount", "status", "requested_at", "disbursed_at")
+        read_only_fields = (
+            "id", "reference", "approved_amount", "status", "currency", "requested_at", "disbursed_at",
+        )
 
     def validate_requested_amount(self, value):
-        if value < Loan.MIN_AMOUNT or value > Loan.MAX_AMOUNT:
-            raise serializers.ValidationError(
-                f"Ads funding runs from {Loan.MIN_AMOUNT:,.0f} to {Loan.MAX_AMOUNT:,.0f} Naira."
-            )
+        """The range is set in Naira and applied in the agent's currency."""
+        agent = self.context.get("agent")
+        if agent is None:
+            low, high = Loan.MIN_AMOUNT, Loan.MAX_AMOUNT
+            wallet = None
+        else:
+            wallet, _ = Wallet.objects.get_or_create(agent=agent)
+            wallet.sync_currency()
+            low, high = wallet.loan_limits
+        if value < low or value > high:
+            show = wallet.money if wallet else (lambda amount: f"₦{amount:,.0f}")
+            raise serializers.ValidationError(f"Ads funding runs from {show(low)} to {show(high)}.")
         return value
 
     def validate(self, attrs):
@@ -178,10 +204,11 @@ class WithdrawalSerializer(serializers.ModelSerializer):
             "amount_requested",
             "loan_deduction",
             "net_amount",
+            "currency",
             "status",
             "created_at",
         )
-        read_only_fields = ("id", "reference", "loan_deduction", "net_amount", "status", "created_at")
+        read_only_fields = ("id", "reference", "loan_deduction", "net_amount", "currency", "status", "created_at")
 
 
 class WithdrawalRequestSerializer(serializers.Serializer):
@@ -195,11 +222,13 @@ class WithdrawalRequestSerializer(serializers.Serializer):
         an error from the model.
         """
         agent = self.context["agent"]
-        if value < MIN_WITHDRAWAL_NGN:
+        wallet = agent.wallet
+        minimum = wallet.minimum_withdrawal
+        if value < minimum:
             raise serializers.ValidationError(
-                f"The smallest withdrawal is ₦{MIN_WITHDRAWAL_NGN:,.0f}."
+                f"The smallest withdrawal is {wallet.money(minimum)}."
             )
-        if value > agent.wallet.available_balance:
+        if value > wallet.available_balance:
             raise serializers.ValidationError("That is more than your available balance.")
         return value
 
@@ -240,6 +269,7 @@ class CommissionSerializer(serializers.ModelSerializer):
             "kind",
             "kind_display",
             "amount",
+            "currency",
             "earned_at",
             "application_reference",
             "student_name",

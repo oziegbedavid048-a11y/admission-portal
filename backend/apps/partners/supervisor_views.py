@@ -167,10 +167,13 @@ class SupervisorOverviewView(SupervisorScopedMixin, APIView):
             elif s.status in (Application.Status.SUBMITTED, Application.Status.IN_REVIEW):
                 pipeline["in_review"] += 1
 
+        # In Naira: agents outside Nigeria are paid in their own currency, so
+        # their wallets cannot be added together; each commission's Naira
+        # figure can.
+        from .models import Commission
+
         team_earned = (
-            AgentProfile.objects.filter(supervisor=supervisor).aggregate(
-                total=Sum("wallet__total_earned")
-            )["total"]
+            Commission.objects.filter(agent__supervisor=supervisor).aggregate(total=Sum("amount_ngn"))["total"]
             or Decimal("0.00")
         )
 

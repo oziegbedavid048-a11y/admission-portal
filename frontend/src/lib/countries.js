@@ -85,6 +85,7 @@ export const ALL_WORLD_COUNTRIES = [
   'Ireland',
   'Israel',
   'Italy',
+  'Ivory Coast',
   'Jamaica',
   'Japan',
   'Jordan',

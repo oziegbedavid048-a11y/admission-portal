@@ -10,6 +10,7 @@ import { useToast } from '../../context/ToastContext';
 import { useCatalog, useInstitutions } from '../../hooks/useCatalog';
 import { ALL_WORLD_COUNTRIES } from '../../lib/countries';
 import ProgramPicker from '../wizard/ProgramPicker';
+import EuropeanCvTip from '../../components/ui/EuropeanCvTip';
 import FeePayment from './FeePayment';
 import { downloadStudentSummary } from './studentSummary';
 
@@ -663,6 +664,7 @@ export default function AgentNewStudent() {
                     },
                     () => setSlotFile(meta.slot, null),
                   )}
+                  {meta.slot === 'cv' ? <EuropeanCvTip forStudent /> : null}
                 </div>
               ))}
             </div>

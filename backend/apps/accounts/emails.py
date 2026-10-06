@@ -106,6 +106,13 @@ def _naira(amount):
     return f"₦{amount:,.0f}"
 
 
+def _money(amount, currency):
+    """An agent's amount in the currency it is held in ("₦30,000", "KSh 2,450")."""
+    from apps.partners.currency import money
+
+    return money(amount, currency)
+
+
 # ── Rendering ────────────────────────────────────────────────────────
 
 BODY = "margin:0;padding:24px;background:#ffffff;color:#111827;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;"
@@ -485,8 +492,8 @@ def send_letter_issued_email(letter):
         if celebrating:
             steps.append((
                 "Send to visa support",
-                "Press Send to visa support on the letter. Once our visa desk confirms the visa "
-                "support is done, ₦50,000 is added to your wallet.",
+                "Press Send to visa support on the letter. Once visa support is confirmed, "
+                "your visa commission is added to your wallet.",
             ))
         steps.append(("Questions", "Our team answers from the Support page in the portal."))
     else:
@@ -520,7 +527,7 @@ def send_letter_issued_email(letter):
 def send_loan_approved_email(loan):
     user = loan.agent.user
     _send(
-        subject=f"Ads funding approved: {_naira(loan.approved_amount)}",
+        subject=f"Ads funding approved: {_money(loan.approved_amount, loan.currency)}",
         recipients=[user.email],
         greeting=f"Hello {_first_name(user.full_name, 'there')},",
         paragraphs=[
@@ -530,7 +537,7 @@ def send_loan_approved_email(loan):
         ],
         facts=[
             ("Reference", loan.reference),
-            ("Amount", _naira(loan.approved_amount)),
+            ("Amount", _money(loan.approved_amount, loan.currency)),
             ("Platform", loan.purpose),
         ],
         action=("View your funding", _url("/agent/loans")),
@@ -551,7 +558,7 @@ def send_loan_declined_email(loan):
         ],
         facts=[
             ("Reference", loan.reference),
-            ("Amount requested", _naira(loan.requested_amount)),
+            ("Amount requested", _money(loan.requested_amount, loan.currency)),
             ("Platform", loan.purpose),
         ],
         action=("Request funding again", _url("/agent/loans")),
@@ -566,17 +573,17 @@ def send_agent_payout_sent_email(withdrawal):
     user = agent.user
     facts = [
         ("Reference", withdrawal.reference),
-        ("Requested", _naira(withdrawal.amount_requested)),
+        ("Requested", _money(withdrawal.amount_requested, withdrawal.currency)),
     ]
     if withdrawal.loan_deduction:
-        facts.append(("Ads funding repaid", _naira(withdrawal.loan_deduction)))
+        facts.append(("Ads funding repaid", _money(withdrawal.loan_deduction, withdrawal.currency)))
     facts += [
-        ("Sent to you", _naira(withdrawal.net_amount)),
+        ("Sent to you", _money(withdrawal.net_amount, withdrawal.currency)),
         ("Account", f"{agent.bank_name} {agent.account_number}"),
     ]
 
     _send(
-        subject=f"Payout sent: {_naira(withdrawal.net_amount)}",
+        subject=f"Payout sent: {_money(withdrawal.net_amount, withdrawal.currency)}",
         recipients=[user.email],
         greeting=f"Hello {_first_name(user.full_name, 'there')},",
         paragraphs=[
@@ -601,7 +608,7 @@ def send_agent_payout_failed_email(withdrawal):
         ],
         facts=[
             ("Reference", withdrawal.reference),
-            ("Amount returned", _naira(withdrawal.amount_requested)),
+            ("Amount returned", _money(withdrawal.amount_requested, withdrawal.currency)),
         ],
         action=("Check your payout account", _url("/agent/profile")),
     )
@@ -1120,21 +1127,22 @@ def send_commission_credited_email(agent, application, kind, amount):
         name=f"<strong>{escape(application.full_name)}</strong>"
     )
 
+    currency = wallet.currency if wallet is not None else "NGN"
     facts = [
-        ("Amount", _naira(amount)),
+        ("Amount", _money(amount, currency)),
         ("For", "Registration and fee paid" if kind == "registration" else "Visa support completed"),
         ("Student", application.full_name),
         ("Reference", application.reference),
         ("Credited", timezone.localtime().strftime("%d %B %Y, %H:%M")),
     ]
     if wallet is not None:
-        facts.append(("Available balance", _naira(wallet.available_balance)))
+        facts.append(("Available balance", _money(wallet.available_balance, currency)))
 
     return _send(
-        subject=f"{_naira(amount)} added to your wallet",
+        subject=f"{_money(amount, currency)} added to your wallet",
         recipients=[agent.user.email],
         greeting=f"Hello {_first_name(agent.user.full_name, 'there')},",
-        paragraphs=[f"{_naira(amount)} has been added to your Gabstep wallet because {reason}."],
+        paragraphs=[f"{_money(amount, currency)} has been added to your Gabstep wallet because {reason}."],
         facts=facts,
         action=("Open your wallet", _url("/agent/wallet")),
     )

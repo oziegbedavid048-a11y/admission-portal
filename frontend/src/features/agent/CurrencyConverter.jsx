@@ -35,11 +35,12 @@ const NAMES = {
 const number = (value, digits = 2) =>
   new Intl.NumberFormat('en-US', { minimumFractionDigits: 0, maximumFractionDigits: digits }).format(value);
 
-export default function CurrencyConverter() {
+// Starts on Naira to the agent's own currency (US dollars for agents in Nigeria).
+export default function CurrencyConverter({ currency = 'NGN' }) {
   const [data, setData] = useState(null);
   const [amount, setAmount] = useState('200000');
   const [from, setFrom] = useState('NGN');
-  const [to, setTo] = useState('USD');
+  const [to, setTo] = useState(currency && currency !== 'NGN' ? currency : 'USD');
   const mounted = useRef(true);
 
   const load = useCallback(async () => {

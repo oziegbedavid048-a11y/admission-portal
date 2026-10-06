@@ -2,16 +2,30 @@ import { useEffect, useState } from 'react';
 import Loading from '../../components/ui/Loading';
 import Modal from '../../components/ui/Modal';
 import Icon from '../../lib/icons';
-import { formatNaira } from '../../lib/format';
 import { errorMessage } from '../../api/client';
 import { partners } from '../../api/endpoints';
 import { useToast } from '../../context/ToastContext';
 import { useAgent } from './AgentContext';
 import { LedgerDate, LedgerStatus, ShowMore, loanStatus, useShowMore } from './Ledger';
 
-const MIN = 10000;
-const MAX = 80000;
-const PRESETS = [10000, 25000, 50000, 80000];
+// The range is set in Naira (₦10,000 to ₦80,000). Outside Nigeria the server
+// sends it in the agent's currency at today's rate, as loan_min and loan_max.
+const NAIRA_MIN = 10000;
+const NAIRA_MAX = 80000;
+
+function roundTo(value, step) {
+  return Math.round(value / step) * step;
+}
+
+// Four quick picks across the range: the minimum, about a third, about two
+// thirds, and the maximum, in round figures for the currency.
+function presetsFor(min, max, naira) {
+  if (naira) return [10000, 25000, 50000, 80000];
+  const step = max >= 5000 ? 100 : max >= 500 ? 10 : 1;
+  const third = Math.min(max, Math.max(min, roundTo(min + (max - min) * 0.2, step)));
+  const twoThirds = Math.min(max, Math.max(min, roundTo(min + (max - min) * 0.57, step)));
+  return Array.from(new Set([min, third, twoThirds, max]));
+}
 
 const PLATFORMS = [
   'Facebook Ads',
@@ -25,11 +39,21 @@ const PLATFORMS = [
 const OPEN_STATUSES = ['pending', 'approved', 'disbursed'];
 
 export default function AgentLoans() {
-  const { profile, wallet, setWallet } = useAgent();
+  const { profile, wallet, setWallet, money, symbol, currency } = useAgent();
+  const naira = currency === 'NGN';
+  const MIN = Number(wallet?.loan_min) || NAIRA_MIN;
+  const MAX = Number(wallet?.loan_max) || NAIRA_MAX;
+  const PRESETS = presetsFor(MIN, MAX, naira);
+  const STEP = naira ? 1000 : 1;
   const [loans, setLoans] = useState([]);
   const loanRows = useShowMore(loans);
   const [loading, setLoading] = useState(true);
-  const [amount, setAmount] = useState(25000);
+  const [amount, setAmount] = useState(() => PRESETS[1] || MIN);
+  // When the wallet's range arrives or changes, start from the second pick.
+  useEffect(() => {
+    setAmount(PRESETS[1] || MIN);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [MIN, MAX]);
   const [purpose, setPurpose] = useState('');
   const [busy, setBusy] = useState(false);
   const [repayOpen, setRepayOpen] = useState(false);
@@ -55,7 +79,7 @@ export default function AgentLoans() {
       return;
     }
     if (value > owed) {
-      toast.warning(`You owe ${formatNaira(owed)}. Enter that amount or less.`);
+      toast.warning(`You owe ${money(owed)}. Enter that amount or less.`);
       return;
     }
     if (value > available) {
@@ -70,7 +94,7 @@ export default function AgentLoans() {
       setRepayOpen(false);
       toast.success(
         Number(data.wallet.loan_balance) > 0
-          ? `${formatNaira(value)} repaid. ${formatNaira(data.wallet.loan_balance)} left to repay.`
+          ? `${money(value)} repaid. ${money(data.wallet.loan_balance)} left to repay.`
           : 'Ads funding fully repaid. You can request again.',
       );
     } catch (error) {
@@ -114,8 +138,8 @@ export default function AgentLoans() {
       });
       setLoans((current) => [data, ...current]);
       setPurpose('');
-      setAmount(25000);
-      toast.success(`${formatNaira(amount)} requested. We review the campaign and disburse within 24 hours.`);
+      setAmount(PRESETS[1] || MIN);
+      toast.success(`${money(amount)} requested. We review the campaign and disburse within 24 hours.`);
     } catch (error) {
       toast.error(errorMessage(error, 'Could not submit that request.'));
     } finally {
@@ -142,11 +166,11 @@ export default function AgentLoans() {
           <div className="payout-calc-box" style={{ margin: '0 0 20px' }}>
             <div className="payout-calc-row total">
               <span>To repay</span>
-              <strong>{formatNaira(owed)}</strong>
+              <strong>{money(owed)}</strong>
             </div>
             <div className="payout-calc-row">
               <span>Available balance</span>
-              <strong>{formatNaira(available)}</strong>
+              <strong>{money(available)}</strong>
             </div>
           </div>
           <button
@@ -183,7 +207,7 @@ export default function AgentLoans() {
           <div className="loan-hero-module">
             <div className="loan-amount-hero">
               <div className="loan-amount-eyebrow">Requested budget</div>
-              <div className="loan-slider-amount-large">{formatNaira(amount)}</div>
+              <div className="loan-slider-amount-large">{money(amount)}</div>
             </div>
 
             <div className="loan-presets-wrap">
@@ -194,7 +218,7 @@ export default function AgentLoans() {
                   className={`loan-preset-chip ${amount === preset ? 'active' : ''}`.trim()}
                   onClick={() => setAmount(preset)}
                 >
-                  {formatNaira(preset)}
+                  {money(preset)}
                   {preset === MAX ? ' (max)' : ''}
                 </button>
               ))}
@@ -210,17 +234,17 @@ export default function AgentLoans() {
                 className="loan-custom-range"
                 min={MIN}
                 max={MAX}
-                step={1000}
+                step={STEP}
                 value={amount}
                 style={{ '--pct': `${percent}%` }}
-                aria-valuetext={formatNaira(amount)}
+                aria-valuetext={money(amount)}
                 onChange={(event) => setAmount(Number(event.target.value))}
               />
               <div className="loan-ticks-row" aria-hidden="true">
-                <span>{formatNaira(MIN)} min</span>
-                <span>{formatNaira(25000)}</span>
-                <span>{formatNaira(50000)}</span>
-                <span>{formatNaira(MAX)} max</span>
+                <span>{money(MIN)} min</span>
+                <span>{money(PRESETS[1])}</span>
+                <span>{money(PRESETS[2])}</span>
+                <span>{money(MAX)} max</span>
               </div>
             </div>
           </div>
@@ -301,11 +325,11 @@ export default function AgentLoans() {
                       </td>
                       <td>{loan.purpose}</td>
                       <td className="t-num">
-                        <span className="ledger-amount">{formatNaira(loan.requested_amount)}</span>
+                        <span className="ledger-amount">{money(loan.requested_amount)}</span>
                       </td>
                       <td className="t-num">
                         {loan.approved_amount ? (
-                          <span className="ledger-amount">{formatNaira(loan.approved_amount)}</span>
+                          <span className="ledger-amount">{money(loan.approved_amount)}</span>
                         ) : (
                           <span className="ledger-muted">Not yet</span>
                         )}
@@ -352,7 +376,7 @@ export default function AgentLoans() {
       >
         <div className="agent-form-group">
           <label className="agent-form-label" htmlFor="repay-amount">
-            Amount (₦)
+            Amount ({symbol || '₦'})
           </label>
           <input
             id="repay-amount"
@@ -366,7 +390,7 @@ export default function AgentLoans() {
             onChange={(event) => setRepayAmount(event.target.value)}
           />
           <span className="form-helper">
-            Owed {formatNaira(owed)} · available {formatNaira(available)}
+            Owed {money(owed)} · available {money(available)}
           </span>
         </div>
         <p className="agent-card-note">Taken from your available balance. There is no interest.</p>

@@ -33,6 +33,13 @@ def _naira(value):
     return f"₦{Decimal(value or 0):,.0f}"
 
 
+def _money(value, currency):
+    """An agent's amount in the currency it is held in."""
+    from .currency import money
+
+    return money(Decimal(value or 0), currency)
+
+
 def _pill(text, tone):
     return pill(text, tone)
 
@@ -52,6 +59,7 @@ class WalletInline(admin.StackedInline):
         "loan_repaid_total",
         "saved_balance",
         "total_withdrawn",
+        "currency",
         "updated_at",
     )
     fields = (
@@ -59,20 +67,20 @@ class WalletInline(admin.StackedInline):
         ("total_earned", "available"),
         ("loan_balance", "loan_repaid_total"),
         ("saved_balance", "total_withdrawn"),
-        "updated_at",
+        ("currency", "updated_at"),
     )
 
     @admin.display(description="Available to withdraw")
     def available(self, obj):
-        return _naira(obj.available_balance)
+        return _money(obj.available_balance, obj.currency)
 
 
 class CommissionInline(admin.TabularInline):
     model = Commission
     extra = 0
     can_delete = False
-    fields = ("application", "kind", "amount", "earned_at")
-    readonly_fields = ("application", "kind", "amount", "earned_at")
+    fields = ("application", "kind", "amount", "currency", "amount_ngn", "fx_rate", "earned_at")
+    readonly_fields = fields
     max_num = 0
     ordering = ("-earned_at",)
 
@@ -110,12 +118,12 @@ class AgentProfileAdmin(admin.ModelAdmin):
 
     @admin.display(description="Earned")
     def earned(self, obj):
-        return _naira(obj.wallet.total_earned)
+        return _money(obj.wallet.total_earned, obj.wallet.currency)
 
     @admin.display(description="Loan owed")
     def owing(self, obj):
         balance = obj.wallet.loan_balance
-        return _pill(_naira(balance), "wait" if balance else "idle")
+        return _pill(_money(balance, obj.wallet.currency), "wait" if balance else "idle")
 
 
 @admin.register(Loan)
@@ -129,7 +137,7 @@ class LoanAdmin(admin.ModelAdmin):
     date_hierarchy = "requested_at"
     # Status moves only through the actions, which also move the agent's loan
     # balance. Set by hand it changed the status and left the balance behind.
-    readonly_fields = ("reference", "status", "requested_at", "disbursed_at", "campaign")
+    readonly_fields = ("reference", "status", "currency", "requested_at", "disbursed_at", "campaign")
     actions = ("action_approve_and_disburse", "action_mark_repaid", "action_decline")
 
     def has_delete_permission(self, request, obj=None):
@@ -140,7 +148,7 @@ class LoanAdmin(admin.ModelAdmin):
         return super().has_delete_permission(request, obj)
 
     fieldsets = (
-        (None, {"fields": ("reference", "agent", "status")}),
+        (None, {"fields": ("reference", "agent", "status", "currency")}),
         ("Request", {"fields": ("requested_amount", "purpose", "ad_account_link", "campaign")}),
         ("Disbursement", {"fields": ("approved_amount", "requested_at", "disbursed_at")}),
     )
@@ -150,7 +158,7 @@ class LoanAdmin(admin.ModelAdmin):
 
     @admin.display(description="Requested", ordering="requested_amount")
     def requested(self, obj):
-        return _naira(obj.requested_amount)
+        return _money(obj.requested_amount, obj.currency)
 
     @admin.display(description="Campaign")
     def campaign(self, obj):
@@ -179,6 +187,7 @@ class LoanAdmin(admin.ModelAdmin):
         loans = queryset.select_for_update().exclude(
             status__in=(Loan.Status.DISBURSED, Loan.Status.REPAID)
         )
+        released_by_currency = {}
         for loan in loans:
             loan.status = Loan.Status.DISBURSED
             loan.approved_amount = loan.requested_amount
@@ -186,12 +195,19 @@ class LoanAdmin(admin.ModelAdmin):
             loan.save()
 
             # Added in the database, so a withdrawal made at the same moment is
-            # not overwritten by this copy of the wallet.
-            Wallet.objects.get_or_create(agent=loan.agent)
+            # not overwritten by this copy of the wallet. The loan was asked for
+            # in the wallet's currency; an empty wallet takes the loan's, so the
+            # balance is never added in two currencies.
+            wallet, _ = Wallet.objects.get_or_create(agent=loan.agent)
+            if wallet.is_empty and wallet.currency != loan.currency:
+                Wallet.objects.filter(pk=wallet.pk).update(currency=loan.currency)
             Wallet.objects.filter(agent=loan.agent).update(
                 loan_balance=F("loan_balance") + loan.approved_amount
             )
 
+            released_by_currency[loan.currency] = (
+                released_by_currency.get(loan.currency, Decimal("0")) + loan.approved_amount
+            )
             released += loan.approved_amount
             count += 1
             # Queued after the write so the agent is only told about money that
@@ -200,7 +216,9 @@ class LoanAdmin(admin.ModelAdmin):
 
         self.message_user(
             request,
-            f"{_plural(count, 'loan')} disbursed, {_naira(released)} released.",
+            f"{_plural(count, 'loan')} disbursed"
+            + (", " + " and ".join(_money(total, cur) for cur, total in released_by_currency.items()) + " released."
+               if released_by_currency else "."),
             messages.SUCCESS if count else messages.INFO,
         )
 
@@ -264,6 +282,7 @@ class WithdrawalAdmin(admin.ModelAdmin):
         "amount_requested",
         "loan_deduction",
         "net_amount",
+        "currency",
         "destination",
         # Moved only by the actions below. Editing it by hand could turn a paid
         # payout back to pending and then refund it.
@@ -287,17 +306,17 @@ class WithdrawalAdmin(admin.ModelAdmin):
 
     @admin.display(description="Requested", ordering="amount_requested")
     def requested(self, obj):
-        return _naira(obj.amount_requested)
+        return _money(obj.amount_requested, obj.currency)
 
     @admin.display(description="To loan")
     def deduction(self, obj):
         if not obj.loan_deduction:
             return "None"
-        return pill(f"-{_naira(obj.loan_deduction)}", "wait")
+        return pill(f"-{_money(obj.loan_deduction, obj.currency)}", "wait")
 
     @admin.display(description="Pay out", ordering="net_amount")
     def net(self, obj):
-        return format_html("<strong>{}</strong>", _naira(obj.net_amount))
+        return format_html("<strong>{}</strong>", _money(obj.net_amount, obj.currency))
 
     @admin.display(description="Destination")
     def destination(self, obj):

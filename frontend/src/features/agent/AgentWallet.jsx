@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import Modal from '../../components/ui/Modal';
 import Loading from '../../components/ui/Loading';
 import Icon from '../../lib/icons';
-import { formatNaira } from '../../lib/format';
 import { errorMessage } from '../../api/client';
 import { partners } from '../../api/endpoints';
 import { useToast } from '../../context/ToastContext';
@@ -16,7 +15,7 @@ const FALLBACK_MINIMUM = 100000;
 const listOf = (data) => (Array.isArray(data) ? data : data?.results || []);
 
 export default function AgentWallet() {
-  const { profile, wallet, setWallet } = useAgent();
+  const { profile, wallet, setWallet, money, symbol } = useAgent();
   const [withdrawals, setWithdrawals] = useState([]);
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -74,7 +73,7 @@ export default function AgentWallet() {
     try {
       const { data } = await partners.releaseFromSavings(amount);
       setWallet(data);
-      toast.success(`${formatNaira(amount)} is available to withdraw again.`);
+      toast.success(`${money(amount)} is available to withdraw again.`);
     } catch (error) {
       toast.error(errorMessage(error, 'Could not release that amount.'));
     } finally {
@@ -95,7 +94,7 @@ export default function AgentWallet() {
       return;
     }
     if (requested < minimum) {
-      toast.warning(`The smallest withdrawal is ${formatNaira(minimum)}.`);
+      toast.warning(`The smallest withdrawal is ${money(minimum)}.`);
       return;
     }
     if (requested > available) {
@@ -114,7 +113,7 @@ export default function AgentWallet() {
         .catch(() => {});
       setWithdrawOpen(false);
       setAmount('');
-      toast.success(`${formatNaira(data.withdrawal.net_amount)} on its way.`);
+      toast.success(`${money(data.withdrawal.net_amount)} on its way.`);
     } catch (error) {
       toast.error(errorMessage(error, 'Could not start that withdrawal.'));
     } finally {
@@ -136,7 +135,7 @@ export default function AgentWallet() {
             </span>
             <span className="balance-lead-text">
               <span className="balance-label">Available to withdraw</span>
-              <span className="balance-amount">{formatNaira(wallet.available_balance)}</span>
+              <span className="balance-amount">{money(wallet.available_balance)}</span>
             </span>
           </div>
           <div className="balance-actions">
@@ -148,7 +147,7 @@ export default function AgentWallet() {
               title={
                 canWithdraw
                   ? undefined
-                  : `You need ${formatNaira(minimum)} available to withdraw.`
+                  : `You need ${money(minimum)} available to withdraw.`
               }
             >
               <Icon name="payout" size={18} />
@@ -160,17 +159,17 @@ export default function AgentWallet() {
         <dl className="balance-split">
           <div className="fig">
             <dt className="fig-label">Loan owed</dt>
-            <dd className="fig-value neg">{formatNaira(wallet.loan_balance)}</dd>
+            <dd className="fig-value neg">{money(wallet.loan_balance)}</dd>
           </div>
           <div className="fig">
             <dt className="fig-label">Withdrawn</dt>
-            <dd className="fig-value">{formatNaira(wallet.total_withdrawn)}</dd>
+            <dd className="fig-value">{money(wallet.total_withdrawn)}</dd>
           </div>
           {Number(wallet.saved_balance) > 0 ? (
             <div className="fig">
               <dt className="fig-label">Set aside</dt>
               <dd className="fig-value">
-                {formatNaira(wallet.saved_balance)}
+                {money(wallet.saved_balance)}
                 {/* Savings is subtracted from what is withdrawable, so without a
                     way back out this money would be stranded for good. */}
                 <button
@@ -190,7 +189,7 @@ export default function AgentWallet() {
       <section className="agent-card">
         <div className="agent-card-header">
           <h2 className="agent-card-title">Earning history</h2>
-          <span className="agent-card-note">{formatNaira(wallet.total_earned)} earned</span>
+          <span className="agent-card-note">{money(wallet.total_earned)} earned</span>
         </div>
         <div className="ledger-scroll" role="region" aria-label="Earning history" tabIndex={0}>
           {history.length === 0 ? (
@@ -224,7 +223,7 @@ export default function AgentWallet() {
                       <td className="t-num">
                         <span className={`ledger-amount${incoming ? ' is-in' : ''}`}>
                           {incoming ? '+' : '\u2212'}
-                          {formatNaira(row.amount)}
+                          {money(row.amount)}
                         </span>
                       </td>
                     </tr>
@@ -240,7 +239,7 @@ export default function AgentWallet() {
       <section className="agent-card">
         <div className="agent-card-header">
           <h2 className="agent-card-title">Withdrawals</h2>
-          <span className="agent-card-note">{formatNaira(wallet.total_withdrawn)} withdrawn</span>
+          <span className="agent-card-note">{money(wallet.total_withdrawn)} withdrawn</span>
         </div>
         <div className="ledger-scroll" role="region" aria-label="Withdrawals" tabIndex={0}>
           {withdrawals.length === 0 ? (
@@ -271,9 +270,9 @@ export default function AgentWallet() {
                         <span className="ledger-ref">{item.reference}</span>
                       </td>
                       <td className="t-num">
-                        <span className="ledger-amount">{formatNaira(item.amount_requested)}</span>
+                        <span className="ledger-amount">{money(item.amount_requested)}</span>
                         {deducted ? (
-                          <span className="ledger-sub">Paid {formatNaira(item.net_amount)}</span>
+                          <span className="ledger-sub">Paid {money(item.net_amount)}</span>
                         ) : null}
                       </td>
                       <td>
@@ -318,7 +317,7 @@ export default function AgentWallet() {
       >
         <div className="agent-form-group">
           <label className="agent-form-label" htmlFor="wd-amount">
-            Amount (₦)
+            Amount ({symbol || '₦'})
           </label>
           <input
             id="wd-amount"
@@ -332,11 +331,11 @@ export default function AgentWallet() {
             onChange={(event) => setAmount(event.target.value)}
           />
           <span className="form-helper">
-            Minimum {formatNaira(minimum)} · available {formatNaira(available)}
+            Minimum {money(minimum)} · available {money(available)}
           </span>
           {belowMinimum ? (
             <span className="field-error">
-              The smallest withdrawal is {formatNaira(minimum)}.
+              The smallest withdrawal is {money(minimum)}.
             </span>
           ) : null}
         </div>
@@ -344,7 +343,7 @@ export default function AgentWallet() {
         <div className="payout-calc-box">
           <div className="payout-calc-row total">
             <span>You receive</span>
-            <strong>{formatNaira(requestedAmount)}</strong>
+            <strong>{money(requestedAmount)}</strong>
           </div>
         </div>
 

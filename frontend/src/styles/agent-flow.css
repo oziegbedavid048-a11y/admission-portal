@@ -528,3 +528,8 @@ a.ag-text-btn { text-decoration: none; }
 .nf-field.has-error .agent-form-select { border-color: var(--g-neg); }
 .nf-head-link { position: absolute; top: 0; right: 0; }
 @media (max-width: 600px) { .nf-head-link { position: static; display: inline-flex; margin-top: 10px; } }
+
+/* An optional suggestion under a field, quieter than the field itself. */
+.nf-tip { margin: 2px 0 0; font-size: 13px; line-height: 1.5; color: var(--g-ink-3); }
+.nf-tip a { color: var(--g-accent); font-weight: 600; text-decoration: underline; text-underline-offset: 2px; }
+.nf-tip a:hover { color: var(--g-accent-hover); }

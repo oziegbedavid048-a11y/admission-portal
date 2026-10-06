@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { formatNaira } from '../../lib/format';
+import { formatCurrency } from '../../lib/format';
 import { LedgerDate, LedgerStatus } from './Ledger';
 
 /**
@@ -11,6 +11,7 @@ import { LedgerDate, LedgerStatus } from './Ledger';
  * ledger now says it is empty.
  */
 export default function EarningsHistory({ commissions = [], wallet }) {
+  const money = (amount) => formatCurrency(amount, wallet?.currency, wallet?.symbol);
   const totalEarned = Number(wallet?.total_earned ?? 0);
   const available = Number(wallet?.available_balance ?? 0);
 
@@ -19,11 +20,11 @@ export default function EarningsHistory({ commissions = [], wallet }) {
       <div className="eh-header-row">
         <div className="eh-balance-col">
           <span className="eh-balance-sub">Available balance</span>
-          <span className="eh-balance-val">{formatNaira(available)}</span>
+          <span className="eh-balance-val">{money(available)}</span>
         </div>
         <div className="eh-balance-col text-right">
           <span className="eh-balance-sub">Total earned</span>
-          <span className="eh-balance-val is-earned">{formatNaira(totalEarned)}</span>
+          <span className="eh-balance-val is-earned">{money(totalEarned)}</span>
         </div>
       </div>
 
@@ -53,7 +54,7 @@ export default function EarningsHistory({ commissions = [], wallet }) {
                     </span>
                   </td>
                   <td className="t-num">
-                    <span className="ledger-amount is-in">+{formatNaira(item.amount)}</span>
+                    <span className="ledger-amount is-in">+{money(item.amount)}</span>
                   </td>
                   <td>
                     <LedgerDate value={item.earned_at} />

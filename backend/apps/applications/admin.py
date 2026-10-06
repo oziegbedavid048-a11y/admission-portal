@@ -702,6 +702,15 @@ class VisaSupportApplicationAdmin(admin.ModelAdmin):
             ),
         ] + super().get_urls()
 
+    @staticmethod
+    def _commission_text(application):
+        """The visa commission just paid, in the currency it was paid in."""
+        from apps.partners.currency import money
+        from apps.partners.models import Commission
+
+        commission = Commission.objects.filter(application=application, kind=Commission.Kind.VISA).first()
+        return money(commission.amount, commission.currency) if commission else "The commission"
+
     def confirm_view(self, request, pk):
         """One job: confirm visa support is done. Asks first, because it pays the agent."""
         application = get_object_or_404(self.get_queryset(request), pk=pk)
@@ -712,7 +721,7 @@ class VisaSupportApplicationAdmin(admin.ModelAdmin):
                 self.message_user(
                     request,
                     f"Visa support confirmed for {application.full_name}."
-                    + (f" ₦{paid:,.0f} credited to the agent, who has been emailed." if paid else ""),
+                    + (f" {self._commission_text(application)} credited to the agent, who has been emailed." if paid else ""),
                     messages.SUCCESS,
                 )
             else:
