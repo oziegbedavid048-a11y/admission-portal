@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import AvatarCropModal from '../../components/ui/AvatarCropModal';
 import Modal from '../../components/ui/Modal';
 import PasswordInput from '../../components/ui/PasswordInput';
+import SearchableSelect from '../../components/ui/SearchableSelect';
+import { ALL_WORLD_COUNTRIES } from '../../lib/countries';
 import Icon from '../../lib/icons';
 import { errorMessage } from '../../api/client';
 import { auth, partners } from '../../api/endpoints';
@@ -335,20 +337,20 @@ export default function AgentProfile() {
               </div>
 
               <div className="ap-form-field">
-                <label className="ap-label" htmlFor="ap-country">
+                <span className="ap-label" id="ap-country-label">
                   <span>Operating country</span>
-                </label>
-                <div className="ap-input-wrap">
-                  <span className="ap-input-icon">
-                    <Icon name="globe" size={17} />
-                  </span>
-                  <input
-                    id="ap-country"
-                    className="ap-input"
-                    value={form.country}
-                    onChange={(e) => setForm({ ...form, country: e.target.value })}
-                  />
-                </div>
+                </span>
+                {/* The same list as sign-up. The country decides the wallet's
+                    currency, so it is chosen, never typed: a misspelt name
+                    would have meant Naira. */}
+                <SearchableSelect
+                  options={ALL_WORLD_COUNTRIES}
+                  value={form.country}
+                  onChange={(value) => setForm({ ...form, country: value })}
+                  labelledBy="ap-country-label"
+                  placeholder="Choose your country"
+                />
+                <span className="ap-field-hint">Sets your wallet currency until your first earning.</span>
               </div>
             </div>
 

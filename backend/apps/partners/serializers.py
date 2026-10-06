@@ -108,6 +108,15 @@ class AgentProfileSerializer(serializers.ModelSerializer):
         )
         read_only_fields = ("id", "total_closed_sales", "created_at")
 
+    def validate_country(self, value):
+        """Stored as the Exchange rates table spells it ("kenya " becomes
+        "Kenya"), because the wallet's currency is looked up by this name."""
+        from apps.catalog.models import OriginCountry
+
+        name = " ".join(str(value or "").split())[:80]
+        row = OriginCountry.objects.filter(name__iexact=name).only("name").first() if name else None
+        return row.name if row else name
+
     def validate_account_number(self, value):
         if value and not (value.isdigit() and len(value) == 10):
             raise serializers.ValidationError("Account number should be 10 digits.")

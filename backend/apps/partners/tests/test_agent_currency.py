@@ -150,6 +150,14 @@ class AgentCurrencyTests(TestCase):
         self.assertEqual(response.status_code, 200, response.content[:300])
         self.assertEqual(Wallet.objects.get(pk=self.wallet.pk).currency, "GHS")
 
+    def test_a_country_typed_loosely_is_saved_as_the_table_spells_it(self):
+        OriginCountry.objects.create(name="Ghana", currency="GHS", symbol="GH₵", ngn_per_unit=Decimal("100"))
+        response = self.client.patch("/api/partners/me/", {"country": "  gHaNa "}, format="json")
+        self.assertEqual(response.status_code, 200, response.content[:300])
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.country, "Ghana")
+        self.assertEqual(Wallet.objects.get(pk=self.wallet.pk).currency, "GHS")
+
     def test_changing_country_after_money_landed_keeps_the_currency(self):
         self.credit(self.student(), Commission.Kind.REGISTRATION, 0.084)
         OriginCountry.objects.create(name="Ghana", currency="GHS", symbol="GH₵", ngn_per_unit=Decimal("100"))
