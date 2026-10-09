@@ -354,26 +354,9 @@
   color: var(--g-ink-2);
 }
 
-/* Previous and next sit together under the cards, never over the text. */
-.lp-reviews-nav {
-  display: flex;
-  justify-content: center;
-  gap: 12px;
-  margin-top: 20px;
-}
-
-.lp-reviews-nav button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 44px;
-  height: 44px;
-  border: 1px solid var(--lp-hair);
-  border-radius: 50%;
-  background: var(--lp-bg);
-  color: var(--g-ink);
-  box-shadow: var(--g-sh-1);
-  cursor: pointer;
+/* The link to Google sits close under the cards. */
+.lp-reviews + .lp-cta {
+  margin-top: 24px;
 }
 
 @media (max-width: 960px) {

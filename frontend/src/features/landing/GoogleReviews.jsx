@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Icon from '../../lib/icons';
 
 /**
@@ -90,28 +90,21 @@ export default function GoogleReviews() {
   const track = useRef(null);
   const [paused, setPaused] = useState(false);
 
-  // Moves the row by one card, or back to the start after the last one.
-  const step = useCallback((direction) => {
-    const node = track.current;
-    if (!node || !node.firstElementChild) return;
-    const card = node.firstElementChild.getBoundingClientRect().width;
-    const gap = parseFloat(getComputedStyle(node).columnGap) || 0;
-    const width = card + gap;
-    const last = node.scrollWidth - node.clientWidth - 2;
-    let target = node.scrollLeft + direction * width;
-    if (direction > 0 && node.scrollLeft >= last) target = 0;
-    if (direction < 0 && node.scrollLeft <= 2) target = node.scrollWidth;
-    node.scrollTo({ left: target, behavior: 'smooth' });
-  }, []);
-
+  // Moves the row on by one card, or back to the start after the last one.
+  // Visitors can also swipe the row themselves.
   useEffect(() => {
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (paused || reduced) return undefined;
     const timer = window.setInterval(() => {
-      if (!document.hidden) step(1);
+      const node = track.current;
+      if (document.hidden || !node || !node.firstElementChild) return;
+      const card = node.firstElementChild.getBoundingClientRect().width;
+      const gap = parseFloat(getComputedStyle(node).columnGap) || 0;
+      const atEnd = node.scrollLeft >= node.scrollWidth - node.clientWidth - 2;
+      node.scrollTo({ left: atEnd ? 0 : node.scrollLeft + card + gap, behavior: 'smooth' });
     }, SLIDE_EVERY_MS);
     return () => window.clearInterval(timer);
-  }, [paused, step]);
+  }, [paused]);
 
   if (!HAS_REVIEWS) return null;
 
@@ -149,15 +142,6 @@ export default function GoogleReviews() {
               </li>
             ))}
           </ul>
-
-          <div className="lp-reviews-nav">
-            <button type="button" aria-label="Previous review" onClick={() => step(-1)}>
-              <Icon name="chevronLeft" size={20} strokeWidth={2} />
-            </button>
-            <button type="button" aria-label="Next review" onClick={() => step(1)}>
-              <Icon name="chevronRight" size={20} strokeWidth={2} />
-            </button>
-          </div>
         </div>
 
         <div className="lp-cta reveal">
