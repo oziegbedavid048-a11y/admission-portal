@@ -132,10 +132,6 @@ export default function GoogleReviews() {
           onTouchStart={() => setPaused(true)}
           onTouchEnd={() => setPaused(false)}
         >
-          <button type="button" className="lp-reviews-nav prev" aria-label="Previous review" onClick={() => step(-1)}>
-            <Icon name="chevronLeft" size={20} strokeWidth={2} />
-          </button>
-
           <ul ref={track} className="lp-reviews-track">
             {REVIEWS.map((review) => (
               <li key={review.name} className="lp-review">
@@ -154,14 +150,19 @@ export default function GoogleReviews() {
             ))}
           </ul>
 
-          <button type="button" className="lp-reviews-nav next" aria-label="Next review" onClick={() => step(1)}>
-            <Icon name="chevronRight" size={20} strokeWidth={2} />
-          </button>
+          <div className="lp-reviews-nav">
+            <button type="button" aria-label="Previous review" onClick={() => step(-1)}>
+              <Icon name="chevronLeft" size={20} strokeWidth={2} />
+            </button>
+            <button type="button" aria-label="Next review" onClick={() => step(1)}>
+              <Icon name="chevronRight" size={20} strokeWidth={2} />
+            </button>
+          </div>
         </div>
 
         <div className="lp-cta reveal">
           <a href={ALL_REVIEWS_URL} target="_blank" rel="noopener noreferrer" className="lp-btn">
-            See more reviews on Google
+            See more Google reviews
             <Icon name="arrowRight" size={18} strokeWidth={2} interactive={false} />
           </a>
         </div>
