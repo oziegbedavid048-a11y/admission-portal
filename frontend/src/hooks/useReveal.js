@@ -28,7 +28,7 @@ export default function useReveal() {
     const watch = () =>
       document.querySelectorAll('.reveal:not(.is-visible)').forEach((node) => observer.observe(node));
     watch();
-    // Sections that mount later (the reviews widget) are picked up too.
+    // Sections that mount later are picked up too.
     const mutations = new MutationObserver(watch);
     mutations.observe(document.body, { childList: true, subtree: true });
 

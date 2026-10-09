@@ -266,8 +266,137 @@
   color: var(--g-accent);
 }
 
-.lp-reviews-widget {
-  min-height: 120px;
+/* Google reviews: a row of cards that slides on by one every few seconds.
+   Three cards on wide screens, two on tablets, one on phones. */
+.lp-reviews {
+  position: relative;
+  --lp-per-view: 3;
+  --lp-review-gap: 20px;
+}
+
+.lp-reviews-track {
+  display: flex;
+  gap: var(--lp-review-gap);
+  margin: 0;
+  padding: 4px 0 8px;
+  list-style: none;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+}
+
+.lp-reviews-track::-webkit-scrollbar {
+  display: none;
+}
+
+.lp-review {
+  flex: 0 0 calc((100% - (var(--lp-per-view) - 1) * var(--lp-review-gap)) / var(--lp-per-view));
+  scroll-snap-align: start;
+  padding: 24px;
+  border: 1px solid var(--lp-hair);
+  border-radius: var(--g-r-lg);
+  background: var(--lp-bg);
+}
+
+.lp-review-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.lp-review-avatar {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 1.125rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.lp-review-who {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.lp-review-who strong {
+  overflow: hidden;
+  font-size: 1rem;
+  color: var(--g-ink);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lp-review-stars {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.lp-review-stars svg {
+  fill: #dadce0;
+}
+
+/* Google's own star yellow, so the rating reads as Google's. */
+.lp-review-stars svg.on {
+  fill: #fbbc04;
+}
+
+.lp-review p {
+  margin: 16px 0 0;
+  font-size: 0.975rem;
+  line-height: 1.6;
+  color: var(--g-ink-2);
+}
+
+.lp-reviews-nav {
+  position: absolute;
+  top: 50%;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--lp-hair);
+  border-radius: 50%;
+  background: var(--lp-bg);
+  color: var(--g-ink);
+  box-shadow: var(--g-sh-1);
+  cursor: pointer;
+  transform: translateY(-50%);
+}
+
+.lp-reviews-nav.prev {
+  left: -20px;
+}
+
+.lp-reviews-nav.next {
+  right: -20px;
+}
+
+@media (max-width: 960px) {
+  .lp-reviews {
+    --lp-per-view: 2;
+  }
+}
+
+@media (max-width: 640px) {
+  .lp-reviews {
+    --lp-per-view: 1;
+  }
+  .lp-reviews-nav.prev {
+    left: -8px;
+  }
+  .lp-reviews-nav.next {
+    right: -8px;
+  }
 }
 
 @media (max-width: 960px) {
