@@ -20,6 +20,7 @@ from apps.accounts.emails import (
     send_agent_payout_sent_email,
     send_loan_approved_email,
     send_loan_declined_email,
+    send_partnership_certificate_email,
 )
 
 from .models import AgentProfile, Commission, Loan, Wallet, Withdrawal
@@ -96,21 +97,60 @@ class AgentProfileAdmin(admin.ModelAdmin):
         "earned",
         "owing",
         "bank_name",
+        "certificate_link",
         "created_at",
     )
     search_fields = ("user__full_name", "user__email", "agency_name", "account_number")
     list_filter = ("supervisor",)
     autocomplete_fields = ("user", "supervisor")
-    readonly_fields = ("partner_code", "created_at")
+    readonly_fields = ("partner_code", "certificate_link", "created_at")
     inlines = (WalletInline, CommissionInline)
+    actions = ("action_send_partnership_certificate",)
 
     fieldsets = (
-        (None, {"fields": ("user", "partner_code", "agency_name", "supervisor", "total_closed_sales", "created_at")}),
+        (None, {"fields": ("user", "partner_code", "agency_name", "supervisor", "certificate_link", "total_closed_sales", "created_at")}),
         ("Payout account", {"fields": ("bank_name", "account_number", "account_name")}),
     )
 
     def get_queryset(self, request):
         return super().get_queryset(request).select_related("user", "wallet", "supervisor__user")
+
+    def get_urls(self):
+        from django.urls import path
+        urls = super().get_urls()
+        custom_urls = [
+            path(
+                "<int:agent_id>/certificate/",
+                self.admin_site.admin_view(self.download_certificate_view),
+                name="agent-certificate-download",
+            ),
+        ]
+        return custom_urls + urls
+
+    def download_certificate_view(self, request, agent_id):
+        from django.http import Http404, HttpResponse
+        from apps.partners.certificate import build_partnership_certificate
+
+        agent = self.get_object(request, agent_id)
+        if not agent:
+            raise Http404("Agent profile not found")
+        pdf_bytes = build_partnership_certificate(agent)
+        name = agent.user.full_name or agent.agency_name or f"agent_{agent.id}"
+        safe_name = "".join(c if c.isalnum() else "_" for c in name).strip("_")
+        response = HttpResponse(pdf_bytes, content_type="application/pdf")
+        response["Content-Disposition"] = f'inline; filename="Apply_Gabstep_Certificate_{safe_name}.pdf"'
+        return response
+
+    @admin.display(description="Certificate")
+    def certificate_link(self, obj):
+        from django.urls import reverse
+        if not obj or not obj.pk:
+            return "—"
+        url = reverse("admin:agent-certificate-download", args=[obj.pk])
+        return format_html(
+            '<a class="button" href="{}" target="_blank" rel="noopener noreferrer" style="white-space:nowrap; padding: 3px 8px; font-size: 11px;">View PDF</a>',
+            url,
+        )
 
     @admin.display(description="Students")
     def students(self, obj):
@@ -124,6 +164,35 @@ class AgentProfileAdmin(admin.ModelAdmin):
     def owing(self, obj):
         balance = obj.wallet.loan_balance
         return _pill(_money(balance, obj.wallet.currency), "wait" if balance else "idle")
+
+    @admin.action(description="Send partnership certificate by email")
+    def action_send_partnership_certificate(self, request, queryset):
+        """Queue a certificate email for every selected agent.
+
+        Each email is dispatched on a background daemon thread (matching the
+        pattern used throughout this project) so the admin page responds
+        immediately even when many agents are selected.
+        """
+        sent = 0
+        agents = queryset.select_related("user")
+        for agent in agents:
+            if not agent.user.email:
+                self.message_user(
+                    request,
+                    f"Skipped {agent} – no email address on file.",
+                    messages.WARNING,
+                )
+                continue
+            send_partnership_certificate_email(agent)
+            sent += 1
+
+        if sent:
+            self.message_user(
+                request,
+                f"Partnership certificate queued for {_plural(sent, 'agent')}. "
+                "The email will arrive shortly.",
+                messages.SUCCESS,
+            )
 
 
 @admin.register(Loan)

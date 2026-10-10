@@ -258,6 +258,27 @@ class HttpEmailBackend(BaseEmailBackend):
             if message.reply_to:
                 reply = _split_address(message.reply_to[0])[1]
                 payload["reply_to"] = [{"address": reply}]
+            # Attachments (e.g. PDF certificates) - ZeptoMail accepts base64
+            raw_attachments = getattr(message, "attachments", None)
+            if raw_attachments:
+                import base64
+                encoded = []
+                for att in raw_attachments:
+                    if isinstance(att, tuple):
+                        att_name, att_content, att_mime = att
+                    else:
+                        att_name = att.get_filename() or "attachment"
+                        att_content = att.get_payload(decode=True)
+                        att_mime = att.get_content_type()
+                    if isinstance(att_content, str):
+                        att_content = att_content.encode()
+                    encoded.append({
+                        "name": att_name,
+                        "content": base64.b64encode(att_content).decode(),
+                        "mime_type": att_mime,
+                    })
+                if encoded:
+                    payload["attachments"] = encoded
             host = _clean_host(
                 getattr(settings, "ZEPTOMAIL_HOST", ""), ZEPTOMAIL_DEFAULT_HOST
             )

@@ -1146,3 +1146,101 @@ def send_commission_credited_email(agent, application, kind, amount):
         facts=facts,
         action=("Open your wallet", _url("/agent/wallet")),
     )
+
+
+# ── Partnership Certificate ───────────────────────────────────────────────────
+
+def send_partnership_certificate_email(agent_profile):
+    """Generate a PDF partnership certificate and email it to the agent.
+
+    The email carries a professional welcome note and attaches the certificate
+    as a PDF file.  Generation and sending both happen on a daemon thread so
+    the admin action never holds up the HTTP response.
+    """
+    from apps.partners.certificate import build_partnership_certificate
+
+    def _worker():
+        agent = agent_profile
+        user  = agent.user
+        name  = _first_name(user.full_name, "Partner")
+        agent_name_full = user.full_name or agent.agency_name or user.email
+
+        # ── Build the PDF ──────────────────────────────────────────────
+        try:
+            pdf_bytes = build_partnership_certificate(agent)
+        except Exception as exc:
+            logger.error(
+                "Failed to generate partnership certificate for %s: %s",
+                user.email, exc,
+            )
+            return
+
+        # ── Compose the cover note ─────────────────────────────────────
+        subject = "Welcome to the Apply Gabstep Partner Network – Your Certificate of Partnership"
+
+        text_body = "\n".join([
+            f"Dear {name},",
+            "",
+            "On behalf of the entire Apply Gabstep team, it is our great pleasure to welcome you "
+            "as an official partner of Apply Gabstep.",
+            "",
+            "Please find attached your Corporate Certificate of Partnership. This certificate "
+            "is a testament to the trust we place in you and the commitment we share towards "
+            "expanding access to world-class education opportunities.",
+            "",
+            "As a valued partner, you play a critical role in helping students achieve their "
+            "dreams of studying abroad. We look forward to a long, successful, and mutually "
+            "rewarding collaboration.",
+            "",
+            "Should you have any questions or require support, our team is always here to help.",
+            "",
+            "Warm regards,",
+            "The Apply Gabstep Partnerships Team",
+            _footer_plain(),
+        ])
+
+        html_body = _render(
+            greeting=f"Dear {html.escape(name)},",
+            paragraphs=[
+                "On behalf of the entire Apply Gabstep team, it is our great pleasure to welcome you "
+                "as an <strong>official partner of Apply Gabstep</strong>.",
+
+                "Please find <strong>attached your Corporate Certificate of Partnership</strong>. "
+                "This certificate is a testament to the trust we place in you and the commitment "
+                "we share towards expanding access to world-class education opportunities.",
+
+                "As a valued partner, you play a critical role in helping students achieve their "
+                "dreams of studying abroad. We look forward to a long, successful, and mutually "
+                "rewarding collaboration.",
+
+                "Should you have any questions or require support, our team is always here to help.",
+
+                "<em>Warm regards,<br>The Apply Gabstep Partnerships Team</em>",
+            ],
+        )
+
+        # ── Attach and send ────────────────────────────────────────────
+        try:
+            from django.core.mail import EmailMultiAlternatives
+
+            filename = f"Apply_Gabstep_Partnership_Certificate_{agent_name_full.replace(' ', '_')}.pdf"
+            msg = EmailMultiAlternatives(
+                subject=subject,
+                body=text_body,
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                to=[user.email],
+            )
+            msg.attach_alternative(html_body, "text/html")
+            msg.attach(filename, pdf_bytes, "application/pdf")
+            msg.send(fail_silently=False)
+            logger.info(
+                "Partnership certificate sent to %s (%s)",
+                user.email, agent_name_full,
+            )
+        except Exception as exc:
+            logger.error(
+                "Failed to send partnership certificate to %s: %s",
+                user.email, exc,
+            )
+
+    threading.Thread(target=_worker, daemon=True).start()
