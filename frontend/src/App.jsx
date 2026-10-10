@@ -7,6 +7,7 @@ import LoginModal from './features/auth/LoginModal';
 import LandingPage from './features/landing/LandingPage';
 import ErrorBoundary from './components/ui/ErrorBoundary';
 import { useAuth } from './context/AuthContext';
+import { usePostHogPageView } from './hooks/usePostHogPageView';
 
 // The portals and the wizard are big and most visitors never open them, so
 // they are split out of the first download.
@@ -34,6 +35,7 @@ function ApplyRedirect() {
 }
 
 export default function App() {
+  usePostHogPageView(); // fire $pageview on every route change
   const [loginOpen, setLoginOpen] = useState(false);
   const openLogin = useCallback(() => setLoginOpen(true), []);
   const closeLogin = useCallback(() => setLoginOpen(false), []);

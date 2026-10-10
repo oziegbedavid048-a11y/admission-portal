@@ -1,0 +1,691 @@
+<!doctype html>
+<html lang="en" data-resolution="portrait">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <script src="assets/gsap.min.js"></script>
+    <script src="assets/audio-energy.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1080px; height: 1920px; overflow: hidden; background: #ffffff; }
+      #root {
+        position: relative;
+        width: 100%; height: 100%;
+        overflow: hidden;
+        font-family: Montserrat, sans-serif;
+        color: #08211b;
+        background: #ffffff;
+      }
+
+      /* ── Persistent background: white, with soft brand-mint light ── */
+      .bg { position: absolute; inset: 0; background: #ffffff; }
+      .dots {
+        position: absolute; inset: 0;
+        background-image: radial-gradient(circle, rgba(11, 92, 67, 0.16) 2.2px, rgba(255, 255, 255, 0) 2.6px);
+        background-size: 54px 54px;
+        opacity: 0.55;
+      }
+      .glow {
+        position: absolute;
+        width: 1400px; height: 1400px;
+        left: -160px; top: 340px;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(159, 216, 184, 0.62) 0%, rgba(225, 246, 221, 0.45) 38%, rgba(255, 255, 255, 0) 70%);
+      }
+      .glow-2 {
+        position: absolute;
+        width: 900px; height: 900px;
+        right: -380px; top: -300px;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(127, 190, 156, 0.4) 0%, rgba(255, 255, 255, 0) 68%);
+      }
+      .ring { position: absolute; border-radius: 50%; border: 4px solid rgba(11, 92, 67, 0.16); }
+      .ring-a { width: 760px; height: 760px; left: -420px; bottom: -260px; }
+      .ring-b { width: 420px; height: 420px; right: -150px; top: 260px; border-color: rgba(11, 92, 67, 0.12); }
+      .ghost-mark { position: absolute; width: 520px; height: 763px; right: -150px; bottom: -120px; opacity: 0.08; }
+      .ghost-mark img { width: 100%; height: 100%; display: block; }
+
+      .scene { position: absolute; inset: 0; width: 100%; height: 100%; }
+
+      /* ── Scene 1: hook ─────────────────────────────────────── */
+      .mini-brand { position: absolute; left: 80px; top: 92px; display: flex; align-items: center; gap: 16px; }
+      .mini-brand img { width: 38px; height: 56px; display: block; }
+      .mini-brand span { font-size: 38px; font-weight: 800; letter-spacing: -0.5px; color: #08211b; }
+      .photo-card {
+        position: absolute;
+        left: 80px; right: 80px; top: 200px; height: 1040px;
+        border-radius: 64px;
+        overflow: hidden;
+        box-shadow: 0 50px 110px rgba(4, 35, 27, 0.25);
+      }
+      .photo {
+        position: absolute; inset: 0;
+        width: 100%; height: 100%;
+        background-image: url("assets/img/graduates.jpg");
+        background-size: cover;
+        background-position: 50% 50%;
+      }
+      .photo-shade { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(4, 35, 27, 0) 55%, rgba(4, 35, 27, 0.35) 100%); }
+      .photo-tag {
+        position: absolute;
+        left: 48px; bottom: 48px;
+        height: 76px; padding: 0 34px;
+        border-radius: 38px;
+        background: #ffffff;
+        display: flex; align-items: center; gap: 14px;
+        font-size: 30px; font-weight: 800; color: #0b5c43;
+      }
+      .hook-copy { position: absolute; left: 80px; right: 80px; top: 1310px; }
+      .hook-line { display: block; font-size: 104px; line-height: 1.03; font-weight: 800; letter-spacing: -3.5px; color: #08211b; }
+      .hook-line.accent { color: #0b5c43; }
+
+      /* ── Scene 2: reveal ───────────────────────────────────── */
+      .center-stack {
+        position: absolute; inset: 0;
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        padding: 0 80px; text-align: center;
+      }
+      .reveal-mark { width: 160px; height: 235px; display: block; }
+      .reveal-mark img { width: 100%; height: 100%; display: block; }
+      .reveal-name { margin-top: 56px; font-size: 116px; font-weight: 800; letter-spacing: -4px; line-height: 1; color: #08211b; }
+      .reveal-line { margin-top: 44px; max-width: 860px; text-wrap: balance; font-size: 48px; font-weight: 600; line-height: 1.3; color: #54665f; }
+      .url-pill {
+        margin-top: 60px;
+        height: 88px; padding: 0 48px;
+        border-radius: 44px;
+        background: #e1f6dd;
+        display: inline-flex; align-items: center;
+        font-size: 38px; font-weight: 800; color: #0b5c43;
+      }
+
+      /* ── The phone (scenes 3-5) ────────────────────────────── */
+      .step-titles { position: absolute; left: 80px; right: 80px; top: 130px; height: 150px; }
+      .step-title {
+        position: absolute; left: 0; right: 0; top: 0;
+        display: flex; align-items: center; justify-content: center; gap: 26px;
+        opacity: 0;
+      }
+      .step-num {
+        flex: none;
+        width: 104px; height: 104px; border-radius: 30px;
+        background: #0b5c43; color: #ffffff;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 44px; font-weight: 800;
+      }
+      .step-text { font-size: 74px; font-weight: 800; letter-spacing: -2.5px; line-height: 1.05; color: #08211b; }
+
+      .phone-wrap { position: absolute; left: 0; right: 0; top: 390px; height: 1330px; display: flex; justify-content: center; }
+      .phone {
+        position: relative;
+        width: 700px; height: 1300px;
+        border-radius: 112px;
+        background: #0e1513;
+        padding: 22px;
+        box-shadow: 0 70px 140px rgba(4, 35, 27, 0.32), 0 0 0 4px #2a3431 inset;
+      }
+      .phone-side { position: absolute; width: 8px; border-radius: 4px; background: #1b2422; }
+      .phone-side.s1 { right: -8px; top: 300px; height: 150px; }
+      .phone-side.s2 { left: -8px; top: 250px; height: 90px; }
+      .phone-side.s3 { left: -8px; top: 370px; height: 90px; }
+      .screen {
+        position: relative;
+        width: 100%; height: 100%;
+        border-radius: 92px;
+        overflow: hidden;
+        background: #fbf7ef;
+      }
+      .island {
+        position: absolute; left: 228px; top: 24px;
+        width: 200px; height: 58px;
+        border-radius: 29px;
+        background: #0e1513;
+        z-index: 6;
+      }
+      .status {
+        position: absolute; left: 0; right: 0; top: 0; height: 104px;
+        padding: 0 62px;
+        display: flex; align-items: center; justify-content: space-between;
+        font-size: 26px; font-weight: 700; color: #08211b;
+        z-index: 5;
+      }
+      .status-icons { display: flex; align-items: center; gap: 10px; }
+      .bar { width: 6px; border-radius: 2px; background: #08211b; display: block; }
+      .battery { width: 44px; height: 22px; border-radius: 6px; border: 3px solid #08211b; position: relative; display: block; }
+      .battery i { position: absolute; left: 2px; top: 2px; bottom: 2px; width: 26px; border-radius: 2px; background: #08211b; display: block; }
+      .appbar {
+        position: absolute; left: 0; right: 0; top: 104px; height: 100px;
+        padding: 0 40px;
+        display: flex; align-items: center; justify-content: space-between;
+        background: #ffffff;
+        border-bottom: 2px solid #e6dfd1;
+        z-index: 4;
+      }
+      .appbar-title { font-size: 28px; font-weight: 800; color: #08211b; letter-spacing: -0.3px; }
+      .avatar {
+        width: 60px; height: 60px; border-radius: 50%;
+        background: #0b5c43; color: #ffffff;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 24px; font-weight: 800;
+      }
+      .viewport { position: absolute; left: 0; right: 0; top: 204px; bottom: 0; overflow: hidden; }
+      .view { position: absolute; left: 0; top: 0; width: 570px; height: 914px; padding: 30px 30px 34px; }
+
+      .label { font-size: 22px; font-weight: 800; letter-spacing: 1.5px; color: #54665f; text-transform: uppercase; }
+      .view-title { font-size: 40px; font-weight: 800; letter-spacing: -0.8px; line-height: 1.1; color: #08211b; margin-bottom: 24px; }
+      .chips { margin-top: 18px; display: flex; gap: 14px; }
+      .chip {
+        position: relative;
+        height: 72px; padding: 0 32px;
+        border-radius: 36px;
+        border: 3px solid #d3c9b6;
+        background: #ffffff;
+        display: flex; align-items: center;
+        font-size: 30px; font-weight: 800; color: #08211b;
+      }
+      .chip-fill { position: absolute; inset: 0; border-radius: 33px; background: #0b5c43; opacity: 0; }
+      .chip-text { position: relative; }
+      .card {
+        position: relative;
+        margin-top: 26px;
+        background: #ffffff;
+        border: 3px solid #e6dfd1;
+        border-radius: 30px;
+        padding: 30px;
+      }
+      .school-row { display: flex; align-items: center; gap: 22px; }
+      .school-badge {
+        flex: none;
+        width: 84px; height: 84px; border-radius: 24px;
+        background: #e1f6dd; color: #0b5c43;
+        display: flex; align-items: center; justify-content: center;
+      }
+      .school-name { font-size: 32px; font-weight: 800; line-height: 1.15; }
+      .school-loc { margin-top: 8px; display: flex; align-items: center; gap: 8px; font-size: 25px; font-weight: 700; color: #54665f; }
+      .course-name { font-size: 34px; font-weight: 800; line-height: 1.15; letter-spacing: -0.3px; }
+      .meta { margin-top: 20px; display: flex; flex-wrap: wrap; gap: 12px; }
+      .meta span {
+        height: 54px; padding: 0 22px; border-radius: 27px;
+        background: #f7f2e8;
+        display: inline-flex; align-items: center;
+        font-size: 25px; font-weight: 800;
+      }
+      .intake { margin-top: 18px; font-size: 25px; font-weight: 700; line-height: 1.35; color: #54665f; }
+      .btn {
+        position: relative;
+        margin-top: 26px;
+        height: 88px; border-radius: 44px;
+        background: #0b5c43; color: #ffffff;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 32px; font-weight: 800;
+      }
+      .btn-label { position: relative; display: flex; align-items: center; gap: 12px; }
+      .btn-done {
+        position: absolute; inset: 0; border-radius: 44px;
+        background: #227152;
+        display: flex; align-items: center; justify-content: center; gap: 12px;
+        opacity: 0;
+      }
+      .tap {
+        position: absolute;
+        width: 96px; height: 96px;
+        border-radius: 50%;
+        background: rgba(8, 33, 27, 0.18);
+        border: 4px solid rgba(255, 255, 255, 0.95);
+        box-shadow: 0 10px 30px rgba(4, 35, 27, 0.3);
+        opacity: 0;
+        z-index: 3;
+      }
+
+      .doc-row {
+        display: flex; align-items: center; gap: 22px;
+        height: 112px; padding: 0 26px;
+        background: #ffffff;
+        border: 3px solid #e6dfd1;
+        border-radius: 28px;
+      }
+      .doc-row + .doc-row { margin-top: 16px; }
+      .doc-icon {
+        flex: none;
+        width: 64px; height: 64px; border-radius: 18px;
+        background: #f7f2e8; color: #0b5c43;
+        display: flex; align-items: center; justify-content: center;
+      }
+      .doc-name { flex: 1; font-size: 32px; font-weight: 800; }
+      .tick { position: relative; flex: none; width: 54px; height: 54px; border-radius: 50%; box-shadow: inset 0 0 0 4px #d3c9b6; }
+      .tick-on {
+        position: absolute; inset: 0; border-radius: 50%;
+        background: #0b5c43;
+        display: flex; align-items: center; justify-content: center;
+        opacity: 0;
+      }
+      .pay { margin-top: 30px; padding-top: 30px; border-top: 3px solid #e6dfd1; }
+      .pay-line { font-size: 34px; font-weight: 800; line-height: 1.2; letter-spacing: -0.3px; }
+
+      .stages { position: relative; margin-top: 6px; }
+      .stage { position: relative; display: flex; align-items: center; gap: 24px; height: 150px; }
+      .stage-dot {
+        position: relative; flex: none;
+        width: 60px; height: 60px; border-radius: 50%;
+        background: #ffffff; box-shadow: inset 0 0 0 4px #d3c9b6;
+        z-index: 2;
+      }
+      .stage-dot-on {
+        position: absolute; inset: 0; border-radius: 50%;
+        background: #0b5c43;
+        display: flex; align-items: center; justify-content: center;
+        opacity: 0;
+      }
+      .stage-ring { position: absolute; inset: -16px; border-radius: 50%; border: 4px solid #4e9f79; opacity: 0; }
+      .stage-text { flex: 1; }
+      .stage-name { font-size: 30px; font-weight: 800; line-height: 1.15; }
+      .stage-eta { margin-top: 6px; font-size: 23px; font-weight: 700; color: #54665f; }
+      .track-base, .track-fill {
+        position: absolute; left: 28px; top: 75px;
+        width: 4px; height: 600px;
+        background: #d3c9b6; z-index: 1;
+      }
+      .track-fill { background: #0b5c43; transform-origin: 50% 0%; }
+
+      /* Offer of admission: pops out over the phone. */
+      .confetti { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+      .bit { position: absolute; left: 540px; top: 700px; width: 22px; height: 34px; border-radius: 4px; opacity: 0; }
+      .cel-wrap { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 0 80px; }
+      .celebrate {
+        position: relative; width: 100%;
+        background: #ffffff;
+        border-radius: 56px;
+        padding: 64px 56px 56px;
+        text-align: center;
+        color: #08211b;
+        box-shadow: 0 60px 140px rgba(4, 35, 27, 0.32), 0 0 0 3px #e6dfd1;
+      }
+      .seal {
+        margin: 0 auto;
+        width: 140px; height: 140px; border-radius: 50%;
+        background: #e1f6dd; color: #0b5c43;
+        display: flex; align-items: center; justify-content: center;
+      }
+      .cel-eyebrow { margin-top: 36px; font-size: 30px; font-weight: 800; letter-spacing: 3px; color: #0b5c43; text-transform: uppercase; }
+      .cel-title { margin-top: 18px; text-wrap: balance; font-size: 78px; font-weight: 800; letter-spacing: -2.5px; line-height: 1.05; }
+      .cel-school { margin-top: 24px; font-size: 38px; font-weight: 700; line-height: 1.3; color: #54665f; }
+      .cel-btn {
+        margin: 44px auto 0;
+        height: 100px; width: 600px; border-radius: 50px;
+        background: #0b5c43; color: #ffffff;
+        display: flex; align-items: center; justify-content: center; gap: 16px;
+        font-size: 38px; font-weight: 800;
+      }
+
+      /* ── Scene 6: outro ────────────────────────────────────── */
+      .outro-lock { display: flex; align-items: center; gap: 32px; }
+      .outro-lock img { width: 82px; height: 120px; display: block; }
+      .outro-name { font-size: 100px; font-weight: 800; letter-spacing: -3.5px; line-height: 1; color: #08211b; }
+      .outro-line { margin-top: 56px; font-size: 58px; font-weight: 800; letter-spacing: -1.5px; line-height: 1.15; color: #08211b; }
+      .cta {
+        margin-top: 64px;
+        height: 136px; padding: 0 72px; border-radius: 68px;
+        background: #0b5c43; color: #ffffff;
+        display: inline-flex; align-items: center; gap: 22px;
+        font-size: 48px; font-weight: 800;
+        box-shadow: 0 30px 70px rgba(11, 92, 67, 0.35);
+      }
+      .outro-url { margin-top: 44px; font-size: 44px; font-weight: 800; color: #0b5c43; letter-spacing: 0.5px; }
+      .outro-agent { margin-top: 72px; max-width: 820px; text-wrap: balance; font-size: 34px; font-weight: 700; line-height: 1.35; color: #54665f; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="23.8" data-width="1080" data-height="1920">
+      <div class="bg"></div>
+      <div id="dots" class="dots"></div>
+      <div id="glow" class="glow"></div>
+      <div id="glow2" class="glow-2"></div>
+      <div id="ring-a" class="ring ring-a"></div>
+      <div id="ring-b" class="ring ring-b"></div>
+      <div id="ghost" class="ghost-mark"><img src="assets/img/leaves.svg" alt="" /></div>
+
+      <!-- Scene 1: hook -->
+      <section id="s1" class="scene clip" data-start="0" data-duration="2.8" data-track-index="1">
+        <div id="s1-brand" class="mini-brand"><img src="assets/img/leaves.svg" alt="" /><span>Apply Gabstep</span></div>
+        <div id="s1-card" class="photo-card">
+          <div id="s1-photo" class="photo"></div>
+          <div class="photo-shade"></div>
+          <div id="s1-tag" class="photo-tag">
+            <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#0b5c43" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9l10-5 10 5-10 5z"/><path d="M6 11v5c0 1.7 2.7 3 6 3s6-1.3 6-3v-5"/></svg>
+            Study abroad
+          </div>
+        </div>
+        <div class="hook-copy">
+          <span id="s1-l1" class="hook-line">Begin your</span>
+          <span id="s1-l2" class="hook-line">global education</span>
+          <span id="s1-l3" class="hook-line accent">journey</span>
+        </div>
+      </section>
+
+      <!-- Scene 2: reveal -->
+      <section id="s2" class="scene clip" data-start="2.8" data-duration="2.4" data-track-index="1">
+        <div class="center-stack">
+          <div id="s2-mark" class="reveal-mark"><img src="assets/img/leaves.svg" alt="" /></div>
+          <div id="s2-name" class="reveal-name">Apply Gabstep</div>
+          <div id="s2-line" class="reveal-line">Fifteen years of opening doors abroad.</div>
+          <div id="s2-url" class="url-pill">apply.gabstep.com</div>
+        </div>
+      </section>
+
+      <!-- Scenes 3-5: the journey, inside the phone -->
+      <section id="s345" class="scene clip" data-start="5.2" data-duration="15.0" data-track-index="1">
+        <div class="step-titles">
+          <div id="t1" class="step-title"><div class="step-num">01</div><div class="step-text">Pick a course</div></div>
+          <div id="t2" class="step-title"><div class="step-num">02</div><div class="step-text">Upload and pay</div></div>
+          <div id="t3" class="step-title"><div class="step-num">03</div><div class="step-text">Track every stage</div></div>
+        </div>
+
+        <div class="phone-wrap">
+          <div id="phone" class="phone">
+            <div class="phone-side s1"></div><div class="phone-side s2"></div><div class="phone-side s3"></div>
+            <div class="screen">
+              <div class="island"></div>
+              <div class="status">
+                <span>9:41</span>
+                <span class="status-icons">
+                  <span class="bar" style="height: 10px"></span><span class="bar" style="height: 14px"></span><span class="bar" style="height: 18px"></span><span class="bar" style="height: 22px"></span>
+                  <span class="battery"><i></i></span>
+                </span>
+              </div>
+              <div class="appbar"><div class="appbar-title">Gabstep Application Portal</div><div class="avatar">AO</div></div>
+
+              <div class="viewport">
+                <!-- View A: pick a course -->
+                <div id="vA" class="view">
+                  <div class="label">Choose a country</div>
+                  <div class="chips">
+                    <div id="fr" class="chip"><div id="fr-fill" class="chip-fill"></div><span id="fr-text" class="chip-text">France</span></div>
+                    <div class="chip"><span class="chip-text">Spain</span></div>
+                  </div>
+                  <div id="vA-school" class="card">
+                    <div class="school-row">
+                      <div class="school-badge"><svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V9l7-5 7 5v12"/><path d="M9 21v-6h6v6"/></svg></div>
+                      <div>
+                        <div class="school-name">Paris Business Academy (PBA)</div>
+                        <div class="school-loc"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#0b5c43" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>Paris, France</div>
+                      </div>
+                    </div>
+                  </div>
+                  <div id="vA-course" class="card">
+                    <div class="course-name">Bachelor's in Web Marketing</div>
+                    <div class="meta"><span>3 Years</span><span>€7,500/yr</span></div>
+                    <div class="intake">Intake: September / October &amp; January</div>
+                    <div id="vA-apply" class="btn"><span class="btn-label">Apply
+                      <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg></span>
+                    </div>
+                  </div>
+                  <div id="tapA1" class="tap" data-target="fr"></div>
+                  <div id="tapA2" class="tap" data-target="vA-apply"></div>
+                </div>
+
+                <!-- View B: upload and pay -->
+                <div id="vB" class="view">
+                  <div class="view-title">Your documents</div>
+                  <div id="vB-r1" class="doc-row">
+                    <div class="doc-icon"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="2"/><circle cx="12" cy="10" r="3"/><path d="M8.5 17h7"/></svg></div>
+                    <div class="doc-name">Passport</div>
+                    <div class="tick"><div id="vB-t1" class="tick-on"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div></div>
+                  </div>
+                  <div id="vB-r2" class="doc-row">
+                    <div class="doc-icon"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h6"/></svg></div>
+                    <div class="doc-name">Transcripts</div>
+                    <div class="tick"><div id="vB-t2" class="tick-on"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div></div>
+                  </div>
+                  <div id="vB-r3" class="doc-row">
+                    <div class="doc-icon"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg></div>
+                    <div class="doc-name">CV</div>
+                    <div class="tick"><div id="vB-t3" class="tick-on"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div></div>
+                  </div>
+                  <div id="vB-pay" class="pay">
+                    <div class="pay-line">Pay the fee in your own currency.</div>
+                    <div id="vB-btn" class="btn">
+                      <span id="vB-btn-label" class="btn-label">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+                        Pay securely
+                      </span>
+                      <div id="vB-done" class="btn-done">
+                        <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>
+                        Payment confirmed
+                      </div>
+                    </div>
+                  </div>
+                  <div id="tapB" class="tap" data-target="vB-btn"></div>
+                </div>
+
+                <!-- View C: track every stage -->
+                <div id="vC" class="view">
+                  <div class="view-title">Your application</div>
+                  <div class="stages">
+                    <div class="track-base"></div>
+                    <div id="vC-fill" class="track-fill"></div>
+                    <div id="vC-g1" class="stage">
+                      <div class="stage-dot"><div id="vC-d1" class="stage-dot-on"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div></div>
+                      <div class="stage-text"><div class="stage-name">Submitted &amp; payment confirmed</div><div class="stage-eta">Done</div></div>
+                    </div>
+                    <div id="vC-g2" class="stage">
+                      <div class="stage-dot"><div id="vC-d2" class="stage-dot-on"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div></div>
+                      <div class="stage-text"><div class="stage-name">Document verification</div><div class="stage-eta">Within 48 hours</div></div>
+                    </div>
+                    <div id="vC-g3" class="stage">
+                      <div class="stage-dot"><div id="vC-d3" class="stage-dot-on"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div></div>
+                      <div class="stage-text"><div class="stage-name">Institution review</div><div class="stage-eta">Est. 5-7 days</div></div>
+                    </div>
+                    <div id="vC-g4" class="stage">
+                      <div class="stage-dot"><div id="vC-ring" class="stage-ring"></div><div id="vC-d4" class="stage-dot-on"></div></div>
+                      <div class="stage-text"><div class="stage-name">Offer letter decision</div><div class="stage-eta">Est. 2-4 weeks</div></div>
+                    </div>
+                    <div id="vC-g5" class="stage">
+                      <div class="stage-dot"></div>
+                      <div class="stage-text"><div class="stage-name">Visa guidance &amp; enrolment</div></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="confetti" class="confetti" data-layout-allow-overflow></div>
+        <div class="cel-wrap">
+          <div id="cel" class="celebrate">
+            <div class="seal"><svg width="76" height="76" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9l10-5 10 5-10 5z"/><path d="M6 11v5c0 1.7 2.7 3 6 3s6-1.3 6-3v-5"/><path d="M22 9v6"/></svg></div>
+            <div class="cel-eyebrow">Offer of admission</div>
+            <div class="cel-title">Congratulations, Ada</div>
+            <div class="cel-school">Paris Business Academy (PBA)</div>
+            <div class="cel-btn">
+              <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg>
+              View your letter
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Scene 6: outro -->
+      <section id="s6" class="scene clip" data-start="20.2" data-duration="3.6" data-track-index="1">
+        <div class="center-stack">
+          <div id="s6-lock" class="outro-lock"><img src="assets/img/leaves.svg" alt="" /><div class="outro-name">Apply Gabstep</div></div>
+          <div id="s6-line" class="outro-line">Apply in four simple steps.</div>
+          <div id="s6-cta" class="cta">Start your application
+            <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg>
+          </div>
+          <div id="s6-url" class="outro-url">apply.gabstep.com</div>
+          <div id="s6-agent" class="outro-agent">Agents: earn with every student you place.</div>
+        </div>
+      </section>
+
+      <!-- Audio -->
+      <audio id="music" data-start="0" data-duration="23.8" data-track-index="10" data-volume="0.34" data-fade-out="1.6" src="assets/music/happy-beats-business-moves-vol-12-by-ende-dot-app.mp3"></audio>
+      <audio id="sfx-hook" data-start="0.2" data-duration="0.18" data-track-index="11" data-volume="0.6" src="assets/sfx/impact/impactSoft_medium_001.ogg"></audio>
+      <audio id="sfx-lock" data-start="2.95" data-duration="0.11" data-track-index="12" data-volume="0.55" src="assets/sfx/interface/drop_001.ogg"></audio>
+      <audio id="sfx-phone" data-start="5.3" data-duration="0.18" data-track-index="13" data-volume="0.5" src="assets/sfx/impact/impactSoft_medium_001.ogg"></audio>
+      <audio id="sfx-tap1" data-start="6.3" data-duration="0.06" data-track-index="14" data-volume="0.6" src="assets/sfx/ui/click2.ogg"></audio>
+      <audio id="sfx-tap2" data-start="8.1" data-duration="0.06" data-track-index="15" data-volume="0.6" src="assets/sfx/ui/click2.ogg"></audio>
+      <audio id="sfx-doc1" data-start="10.3" data-duration="0.11" data-track-index="16" data-volume="0.5" src="assets/sfx/interface/drop_001.ogg"></audio>
+      <audio id="sfx-doc3" data-start="10.9" data-duration="0.11" data-track-index="17" data-volume="0.5" src="assets/sfx/interface/drop_001.ogg"></audio>
+      <audio id="sfx-pay" data-start="12.05" data-duration="0.06" data-track-index="18" data-volume="0.6" src="assets/sfx/ui/click2.ogg"></audio>
+      <audio id="sfx-offer" data-start="17.47" data-duration="1.48" data-track-index="19" data-volume="0.55" src="assets/sfx/impact/impactBell_heavy_000.ogg"></audio>
+      <audio id="sfx-outro" data-start="20.3" data-duration="0.12" data-track-index="20" data-volume="0.55" src="assets/sfx/interface/bong_001.ogg"></audio>
+    </div>
+
+    <script>
+      // Centre each tap circle on its button, using layout offsets (unaffected by transforms).
+      function placeTaps() {
+        document.querySelectorAll(".tap").forEach(function (tap) {
+          const view = tap.parentElement;
+          const target = document.getElementById(tap.getAttribute("data-target"));
+          let x = 0, y = 0, el = target;
+          while (el && el !== view) { x += el.offsetLeft; y += el.offsetTop; el = el.offsetParent; }
+          tap.style.left = Math.round(x + target.offsetWidth / 2 - 48) + "px";
+          tap.style.top = Math.round(y + target.offsetHeight / 2 - 48) + "px";
+        });
+      }
+      placeTaps();
+      if (document.fonts && document.fonts.ready) document.fonts.ready.then(placeTaps);
+
+      const tl = gsap.timeline({ paused: true });
+      tl.set(["#vA", "#vB", "#vC"], { scale: 1.15, transformOrigin: "0% 0%" }, 0);
+
+      // ── Background: slow drift; the mint glow breathes with the music ──
+      tl.fromTo("#glow2", { x: 0, y: 0 }, { x: -140, y: 110, duration: 23.8, ease: "none" }, 0);
+      tl.fromTo("#ring-a", { rotation: 0, x: 0 }, { rotation: 40, x: 60, duration: 23.8, ease: "none" }, 0);
+      tl.fromTo("#ring-b", { scale: 0.9, y: 0 }, { scale: 1.1, y: 80, duration: 23.8, ease: "none" }, 0);
+      tl.fromTo("#ghost", { y: 0, rotation: -4 }, { y: -90, rotation: 3, duration: 23.8, ease: "none" }, 0);
+      tl.fromTo("#dots", { y: 0 }, { y: -54, duration: 23.8, ease: "none" }, 0);
+      const energy = (window.AUDIO_ENERGY && window.AUDIO_ENERGY.values) || [];
+      for (let f = 0; f < energy.length; f++) {
+        tl.call(
+          (function (v) {
+            return function () {
+              gsap.set("#glow", { scale: 0.9 + v * 0.18, opacity: 0.75 + v * 0.25 });
+            };
+          })(energy[f]),
+          [],
+          f / 30,
+        );
+      }
+
+      // ── Scene 1: hook ──
+      tl.fromTo("#s1-brand", { opacity: 0, y: -24 }, { opacity: 1, y: 0, duration: 0.5, ease: "power2.out" }, 0.05);
+      tl.fromTo("#s1-card", { opacity: 0, y: 120, scale: 0.92 }, { opacity: 1, y: 0, scale: 1, duration: 0.7, ease: "power3.out" }, 0);
+      tl.fromTo("#s1-photo", { scale: 1.18 }, { scale: 1.02, duration: 2.8, ease: "power1.out" }, 0);
+      tl.fromTo("#s1-tag", { opacity: 0, x: -40 }, { opacity: 1, x: 0, duration: 0.45, ease: "back.out(1.8)" }, 0.6);
+      tl.fromTo("#s1-l1", { opacity: 0, y: 70 }, { opacity: 1, y: 0, duration: 0.5, ease: "power3.out" }, 0.22);
+      tl.fromTo("#s1-l2", { opacity: 0, y: 70 }, { opacity: 1, y: 0, duration: 0.5, ease: "power3.out" }, 0.55);
+      tl.fromTo("#s1-l3", { opacity: 0, x: -60 }, { opacity: 1, x: 0, duration: 0.55, ease: "back.out(1.6)" }, 0.95);
+      tl.to(["#s1-brand", "#s1-card", "#s1-l1", "#s1-l2", "#s1-l3"], { opacity: 0, y: -60, duration: 0.32, ease: "power2.in", stagger: 0.03 }, 2.42);
+
+      // ── Scene 2: reveal ──
+      tl.fromTo("#s2-mark", { opacity: 0, scale: 0.5, rotation: -20 }, { opacity: 1, scale: 1, rotation: 0, duration: 0.6, ease: "back.out(1.8)" }, 2.9);
+      tl.fromTo("#s2-name", { opacity: 0, y: 60 }, { opacity: 1, y: 0, duration: 0.5, ease: "power3.out" }, 3.12);
+      tl.fromTo("#s2-line", { opacity: 0, y: 40 }, { opacity: 1, y: 0, duration: 0.5, ease: "power2.out" }, 3.45);
+      tl.fromTo("#s2-url", { opacity: 0, scale: 0.8 }, { opacity: 1, scale: 1, duration: 0.45, ease: "back.out(2)" }, 3.8);
+      tl.to(["#s2-mark", "#s2-name", "#s2-line", "#s2-url"], { opacity: 0, y: -50, duration: 0.3, ease: "power2.in", stagger: 0.04 }, 4.85);
+
+      // ── The phone enters, then floats with a gentle tilt ──
+      tl.fromTo("#phone", { opacity: 0, y: 900, rotation: -8, scale: 0.86 }, { opacity: 1, y: 0, rotation: 0, scale: 1, duration: 0.9, ease: "power4.out" }, 5.2);
+      tl.fromTo("#phone", { rotation: 0 }, { rotation: 1.6, duration: 2.4, ease: "sine.inOut", yoyo: true, repeat: 3, immediateRender: false }, 6.2);
+
+      // Step titles swap as the screens change.
+      tl.fromTo("#t1", { opacity: 0, y: 40 }, { opacity: 1, y: 0, duration: 0.45, ease: "power3.out" }, 5.35);
+      tl.to("#t1", { opacity: 0, y: -40, duration: 0.3, ease: "power2.in" }, 9.1);
+      tl.fromTo("#t2", { opacity: 0, y: 40 }, { opacity: 1, y: 0, duration: 0.45, ease: "power3.out" }, 9.45);
+      tl.to("#t2", { opacity: 0, y: -40, duration: 0.3, ease: "power2.in" }, 12.7);
+      tl.fromTo("#t3", { opacity: 0, y: 40 }, { opacity: 1, y: 0, duration: 0.45, ease: "power3.out" }, 13.05);
+      tl.to("#t3", { opacity: 0, y: -40, duration: 0.3, ease: "power2.in" }, 17.15);
+
+      // View A: pick a course. Views B and C wait off-screen to the right.
+      tl.set("#vA", { x: 0 }, 0);
+      tl.set("#vB", { x: 660, autoAlpha: 0 }, 0);
+      tl.set("#vC", { x: 660, autoAlpha: 0 }, 0);
+      tl.fromTo("#tapA1", { opacity: 0, scale: 1.6 }, { opacity: 1, scale: 1, duration: 0.25, ease: "power2.out" }, 6.05);
+      tl.to("#tapA1", { opacity: 0, scale: 1.4, duration: 0.3, ease: "power2.out" }, 6.38);
+      tl.to("#fr-fill", { opacity: 1, duration: 0.2, ease: "power1.out" }, 6.3);
+      tl.to("#fr-text", { color: "#ffffff", duration: 0.2, ease: "power1.out" }, 6.3);
+      tl.to("#fr", { borderColor: "#0b5c43", duration: 0.2, ease: "power1.out" }, 6.3);
+      tl.fromTo("#vA-school", { opacity: 0, y: 60 }, { opacity: 1, y: 0, duration: 0.45, ease: "power3.out" }, 6.5);
+      tl.fromTo("#vA-course", { opacity: 0, y: 60 }, { opacity: 1, y: 0, duration: 0.45, ease: "power3.out" }, 6.8);
+      tl.fromTo("#tapA2", { opacity: 0, scale: 1.6 }, { opacity: 1, scale: 1, duration: 0.25, ease: "power2.out" }, 7.85);
+      tl.fromTo("#vA-apply", { scale: 1 }, { scale: 0.96, duration: 0.1, yoyo: true, repeat: 1, ease: "power1.inOut", immediateRender: false }, 8.1);
+      tl.to("#tapA2", { opacity: 0, scale: 1.4, duration: 0.3, ease: "power2.out" }, 8.18);
+
+      // Swipe to view B: upload and pay.
+      tl.set("#vB", { autoAlpha: 1 }, 9.15);
+      tl.to("#vA", { x: -660, duration: 0.5, ease: "power3.inOut" }, 9.15);
+      tl.set("#vA", { autoAlpha: 0 }, 9.66);
+      tl.to("#vB", { x: 0, duration: 0.5, ease: "power3.inOut" }, 9.15);
+      tl.fromTo(["#vB-r1", "#vB-r2", "#vB-r3"], { opacity: 0, x: 60 }, { opacity: 1, x: 0, duration: 0.35, ease: "power2.out", stagger: 0.1 }, 9.55);
+      [["#vB-t1", 10.3], ["#vB-t2", 10.6], ["#vB-t3", 10.9]].forEach(function (pair) {
+        tl.fromTo(pair[0], { opacity: 0, scale: 0.4 }, { opacity: 1, scale: 1, duration: 0.3, ease: "back.out(2.4)" }, pair[1]);
+      });
+      tl.fromTo("#vB-pay", { opacity: 0, y: 40 }, { opacity: 1, y: 0, duration: 0.4, ease: "power3.out" }, 11.15);
+      tl.fromTo("#tapB", { opacity: 0, scale: 1.6 }, { opacity: 1, scale: 1, duration: 0.25, ease: "power2.out" }, 11.8);
+      // A clean swap, so the two labels never overlap.
+      tl.set("#vB-btn-label", { opacity: 0 }, 12.05);
+      tl.set("#vB-done", { opacity: 1 }, 12.05);
+      tl.fromTo("#vB-done", { scale: 0.95 }, { scale: 1, duration: 0.25, ease: "back.out(2)", immediateRender: false }, 12.05);
+      tl.to("#tapB", { opacity: 0, scale: 1.4, duration: 0.3, ease: "power2.out" }, 12.12);
+
+      // Swipe to view C: track every stage.
+      tl.set("#vC", { autoAlpha: 1 }, 12.75);
+      tl.to("#vB", { x: -660, duration: 0.5, ease: "power3.inOut" }, 12.75);
+      tl.set("#vB", { autoAlpha: 0 }, 13.26);
+      tl.to("#vC", { x: 0, duration: 0.5, ease: "power3.inOut" }, 12.75);
+      tl.fromTo(["#vC-g1", "#vC-g2", "#vC-g3", "#vC-g4", "#vC-g5"], { opacity: 0, x: 50 }, { opacity: 1, x: 0, duration: 0.35, ease: "power2.out", stagger: 0.08 }, 13.15);
+      tl.fromTo("#vC-fill", { scaleY: 0 }, { scaleY: 0.75, duration: 1.9, ease: "power1.inOut" }, 13.8);
+      [["#vC-d1", 13.9], ["#vC-d2", 14.5], ["#vC-d3", 15.1], ["#vC-d4", 15.7]].forEach(function (pair) {
+        tl.fromTo(pair[0], { opacity: 0, scale: 0.4 }, { opacity: 1, scale: 1, duration: 0.3, ease: "back.out(2.4)" }, pair[1]);
+      });
+      tl.fromTo("#vC-ring", { opacity: 0.9, scale: 0.6 }, { opacity: 0, scale: 1.25, duration: 0.7, ease: "power2.out", repeat: 1 }, 15.75);
+
+      // The phone steps back; the offer pops out on the 17.47s strong cue.
+      tl.to("#phone", { opacity: 0, y: 160, scale: 0.9, duration: 0.35, ease: "power2.in" }, 17.12);
+      tl.fromTo("#cel", { opacity: 0, scale: 0.6, y: 140 }, { opacity: 1, scale: 1, y: 0, duration: 0.6, ease: "back.out(1.6)" }, 17.47); // beat-locked: 17.47s
+
+      (function () {
+        const colours = ["#e63946", "#ffd23f", "#3a86ff", "#06d6a0", "#ff5d8f", "#8338ec", "#fb8500", "#4cc9f0", "#0b5c43"];
+        let seed = 20260930;
+        function rand() {
+          seed |= 0; seed = (seed + 0x6d2b79f5) | 0;
+          let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+          t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+          return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+        }
+        const host = document.getElementById("confetti");
+        for (let i = 0; i < 100; i++) {
+          const bit = document.createElement("div");
+          bit.className = "bit";
+          bit.setAttribute("data-layout-allow-overflow", "");
+          bit.style.background = colours[i % colours.length];
+          const w = 14 + Math.round(rand() * 14);
+          bit.style.width = w + "px";
+          bit.style.height = Math.round(w * (1.3 + rand() * 0.6)) + "px";
+          host.appendChild(bit);
+          const angle = rand() * Math.PI * 2;
+          const reach = 260 + rand() * 560;
+          const up = -240 - rand() * 560;
+          const start = 17.47 + rand() * 0.18;
+          tl.set(bit, { opacity: 1 }, start);
+          tl.fromTo(bit, { x: 0, rotation: 0 }, { x: Math.cos(angle) * reach, rotation: (rand() - 0.5) * 1080, duration: 2.6, ease: "power2.out" }, start);
+          tl.fromTo(bit, { y: 0 }, { y: up, duration: 0.55, ease: "power2.out" }, start);
+          tl.to(bit, { y: up + 950 + rand() * 500, duration: 2.0, ease: "power1.in" }, start + 0.55);
+        }
+      })();
+      tl.to(["#cel", "#confetti"], { opacity: 0, duration: 0.3, ease: "power2.in" }, 19.88);
+
+      // ── Scene 6: outro ──
+      tl.fromTo("#s6-lock", { opacity: 0, scale: 0.8 }, { opacity: 1, scale: 1, duration: 0.55, ease: "back.out(1.6)" }, 20.3);
+      tl.fromTo("#s6-line", { opacity: 0, y: 50 }, { opacity: 1, y: 0, duration: 0.45, ease: "power3.out" }, 20.75); // beat-grid: 20.75s
+      tl.fromTo("#s6-cta", { opacity: 0, scale: 0.8 }, { opacity: 1, scale: 1, duration: 0.5, ease: "back.out(1.8)" }, 21.28); // beat-grid: 21.28s
+      tl.fromTo("#s6-url", { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.4, ease: "power2.out" }, 21.55);
+      tl.fromTo("#s6-agent", { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.4, ease: "power2.out" }, 21.84); // beat-grid: 21.84s
+
+      window.__timelines = window.__timelines || {};
+      window.__timelines["main"] = tl;
+      tl.seek(0);
+    </script>
+  </body>
+</html>

@@ -8,6 +8,7 @@ import {
 } from 'react';
 import { restoreSession, tokenStore } from '../api/client';
 import { auth } from '../api/endpoints';
+import posthog from '../lib/posthog';
 
 const AuthContext = createContext(null);
 
@@ -20,6 +21,8 @@ export function AuthProvider({ children }) {
   const signOut = useCallback(() => {
     tokenStore.clear();
     setUser(null);
+    // Reset PostHog so the next visitor gets a fresh anonymous identity.
+    posthog.reset();
     // The cookie is httpOnly, so only the server can remove it.
     auth.logout().catch(() => {});
   }, []);
@@ -57,6 +60,15 @@ export function AuthProvider({ children }) {
   const adopt = useCallback((payload) => {
     tokenStore.save(payload);
     setUser(payload.user);
+    // Identify the user in PostHog so all subsequent events are linked.
+    const u = payload.user;
+    if (u?.id) {
+      posthog.identify(String(u.id), {
+        email:    u.email,
+        role:     u.role,
+        name:     u.full_name ?? u.name ?? undefined,
+      });
+    }
     return payload.user;
   }, []);
 
