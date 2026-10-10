@@ -22,10 +22,12 @@ if (key && key !== 'phc_REPLACE_WITH_YOUR_KEY') {
     // Capture clicks, form submits, rage-clicks, and page-leave events.
     autocapture: true,
 
-    // Session recordings – inputs are masked to protect personal data.
+    // Session recordings – only mask password fields, unmask everything else
     session_recording: {
-      maskAllInputs: true,
-      maskTextSelector: '[data-ph-mask]', // add this attribute to any sensitive element
+      maskAllInputs: false,
+      maskInputOptions: {
+        password: true,
+      },
     },
 
     // Enable heatmaps (click maps, scroll depth).
