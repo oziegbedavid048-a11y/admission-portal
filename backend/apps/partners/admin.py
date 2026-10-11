@@ -202,17 +202,26 @@ class AgentProfileAdmin(admin.ModelAdmin):
         from django.shortcuts import render
         from django.urls import reverse
 
-        users = [agent.user for agent in queryset.select_related("user") if agent.user and agent.user.email]
-        if not users:
-            self.message_user(request, "None of the selected agents have a valid email address.", messages.WARNING)
-            return None
-
         if request.POST.get("apply") == "send_custom_message":
+            # On the second POST the queryset is empty because Django's action
+            # machinery doesn't carry it through the intermediate form. Read
+            # the PKs that the template embedded as hidden fields instead.
+            from apps.accounts.models import User
+            selected_pks = request.POST.getlist("_selected_action")
+            users = list(
+                User.objects.filter(pk__in=selected_pks)
+                .exclude(email="")
+                .exclude(email__isnull=True)
+            )
+            if not users:
+                self.message_user(request, "No valid recipients found. Please go back and try again.", messages.ERROR)
+                return HttpResponseRedirect(request.get_full_path())
+
             subject = request.POST.get("subject", "").strip()
             message_body = request.POST.get("message", "").strip()
             if not subject or not message_body:
                 self.message_user(request, "Subject and message are both required.", messages.ERROR)
-                return None
+                return HttpResponseRedirect(request.get_full_path())
 
             attachments = extract_attachments(request)
             sent_count = 0
@@ -237,7 +246,13 @@ class AgentProfileAdmin(admin.ModelAdmin):
                     f"Failed to email {failed_count} agent(s). Check mail server logs.",
                     messages.ERROR,
                 )
-            return HttpResponseRedirect(request.get_full_path())
+            return HttpResponseRedirect(reverse("admin:partners_agentprofile_changelist"))
+
+        # First step: show intermediate form with the selected agents from queryset
+        users = [agent.user for agent in queryset.select_related("user") if agent.user and agent.user.email]
+        if not users:
+            self.message_user(request, "None of the selected agents have a valid email address.", messages.WARNING)
+            return None
 
         return render(
             request,
