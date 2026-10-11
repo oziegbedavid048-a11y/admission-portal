@@ -331,15 +331,6 @@ def send_custom_message_email(
 
     greeting = f"Hello {_first_name(name, 'there')},"
 
-    if user_role == User.Role.AGENT:
-        action = ("Open Partner Portal", _url("/agent/dashboard"))
-    elif user_role == User.Role.SUPERVISOR:
-        action = ("Open Manager Portal", _url("/sales-manager/dashboard"))
-    elif user_role == User.Role.APPLICANT:
-        action = ("Open Student Portal", _url("/portal"))
-    else:
-        action = ("Open Portal", _url("/portal"))
-
     clean_paragraphs = [escape(p).replace("\n", "<br>") for p in message_body.split("\n\n") if p.strip()]
     if not clean_paragraphs:
         clean_paragraphs = [escape(message_body).replace("\n", "<br>")]
@@ -349,7 +340,7 @@ def send_custom_message_email(
         recipients=[recipient_email],
         greeting=greeting,
         paragraphs=clean_paragraphs,
-        action=action,
+        action=None,
         wait=wait,
         attachments=attachments,
     )
