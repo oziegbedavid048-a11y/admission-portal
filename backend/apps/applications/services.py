@@ -534,7 +534,7 @@ def award_registration_commission(application):
     return amount
 
 
-def send_applicant_email_message(application, subject, message_body):
+def send_applicant_email_message(application, subject, message_body, attachments=None):
     """Send a message the desk wrote to whoever owns this file.
 
     It lands on the application's feed and goes out by email once. A file an
@@ -544,7 +544,9 @@ def send_applicant_email_message(application, subject, message_body):
     from apps.accounts.emails import send_application_status_update_email
 
     notify(application, f"Message from Gabstep: {subject}. {message_body}", send_email=False)
-    send_application_status_update_email(application, message_body, subject_override=subject)
+    send_application_status_update_email(
+        application, message_body, subject_override=subject, attachments=attachments
+    )
     return True
 
 

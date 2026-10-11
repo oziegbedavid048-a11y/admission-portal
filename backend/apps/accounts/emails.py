@@ -24,23 +24,32 @@ from django.utils.html import escape
 logger = logging.getLogger(__name__)
 
 
-def _send_mail_worker(subject, text_content, html_content, recipient_list):
+def _send_mail_worker(subject, text_content, html_content, recipient_list, attachments=None):
     try:
         message = EmailMultiAlternatives(
             subject=subject,
             body=text_content,
             from_email=settings.DEFAULT_FROM_EMAIL,
             to=recipient_list,
+            reply_to=[getattr(settings, "SUPPORT_EMAIL", "support@gabstep.com")],
         )
         if html_content:
             message.attach_alternative(html_content, "text/html")
+        if attachments:
+            for item in attachments:
+                if hasattr(item, "read"):
+                    message.attach(getattr(item, "name", "attachment"), item.read(), getattr(item, "content_type", "application/octet-stream"))
+                elif isinstance(item, (tuple, list)) and len(item) == 3:
+                    message.attach(item[0], item[1], item[2])
+                elif isinstance(item, (tuple, list)) and len(item) == 2:
+                    message.attach(item[0], item[1])
         message.send(fail_silently=False)
         logger.info("Email sent: %r to %s", subject, recipient_list)
     except Exception as exc:
         logger.error("Email failed: %r to %s: %s", subject, recipient_list, exc)
 
 
-def _send_mail_now(subject, text_content, html_content, recipient_list):
+def _send_mail_now(subject, text_content, html_content, recipient_list, attachments=None):
     """Send on this thread and say whether it worked.
 
     For the messages where "did it arrive" decides what happens next. The
@@ -53,9 +62,18 @@ def _send_mail_now(subject, text_content, html_content, recipient_list):
             body=text_content,
             from_email=settings.DEFAULT_FROM_EMAIL,
             to=recipient_list,
+            reply_to=[getattr(settings, "SUPPORT_EMAIL", "support@gabstep.com")],
         )
         if html_content:
             message.attach_alternative(html_content, "text/html")
+        if attachments:
+            for item in attachments:
+                if hasattr(item, "read"):
+                    message.attach(getattr(item, "name", "attachment"), item.read(), getattr(item, "content_type", "application/octet-stream"))
+                elif isinstance(item, (tuple, list)) and len(item) == 3:
+                    message.attach(item[0], item[1], item[2])
+                elif isinstance(item, (tuple, list)) and len(item) == 2:
+                    message.attach(item[0], item[1])
         message.send(fail_silently=False)
         logger.info("Email sent: %r to %s", subject, recipient_list)
         return True
@@ -64,7 +82,7 @@ def _send_mail_now(subject, text_content, html_content, recipient_list):
         return False
 
 
-def send_async_email(subject, text_content, html_content, recipient_list, wait=False):
+def send_async_email(subject, text_content, html_content, recipient_list, wait=False, attachments=None):
     """Queue a message, or send it now and report the outcome.
 
     The default is a daemon thread, so an HTTP response is never held up by SMTP.
@@ -80,10 +98,10 @@ def send_async_email(subject, text_content, html_content, recipient_list, wait=F
     if not recipients:
         return False
     if wait:
-        return _send_mail_now(subject, text_content, html_content, recipients)
+        return _send_mail_now(subject, text_content, html_content, recipients, attachments=attachments)
     threading.Thread(
         target=_send_mail_worker,
-        args=(subject, text_content, html_content, recipients),
+        args=(subject, text_content, html_content, recipients, attachments),
         daemon=True,
     ).start()
     return None
@@ -249,13 +267,91 @@ def _plain(greeting, paragraphs, facts=None, action=None, items=None, items_intr
     return "\n".join(lines)
 
 
-def _send(subject, recipients, greeting, paragraphs, facts=None, action=None, wait=False, items=None, items_intro=None):
+def _send(subject, recipients, greeting, paragraphs, facts=None, action=None, wait=False, items=None, items_intro=None, attachments=None):
     return send_async_email(
         subject,
         _plain(greeting, paragraphs, facts, action, items, items_intro),
         _render(greeting, paragraphs, facts, action, items, items_intro),
         recipients,
         wait=wait,
+        attachments=attachments,
+    )
+
+
+def extract_attachments(request):
+    """Extract uploaded files from request.FILES as (name, content_bytes, mime_type) tuples.
+
+    Reads file content into memory once so multiple recipient emails can attach the
+    exact same bytes without seek/pointer issues.
+    """
+    files = request.FILES.getlist("attachments")
+    if not files and "attachment" in request.FILES:
+        files = request.FILES.getlist("attachment")
+
+    extracted = []
+    for f in files:
+        try:
+            f.seek(0)
+            content = f.read()
+            name = getattr(f, "name", "attachment")
+            mime = getattr(f, "content_type", "application/octet-stream")
+            extracted.append((name, content, mime))
+        except Exception as exc:
+            logger.warning("Could not read uploaded attachment %s: %s", getattr(f, "name", "file"), exc)
+    return extracted
+
+
+def send_custom_message_email(
+    user_or_email,
+    subject,
+    message_body,
+    attachments=None,
+    wait=True,
+    full_name=None,
+    role=None,
+):
+    """Send a custom message from admin to an applicant, partner agent, or any user.
+
+    Supports attaching files (list of (name, bytes, mime_type) tuples or UploadedFile instances).
+    """
+    from .models import User
+
+    if isinstance(user_or_email, User):
+        user = user_or_email
+        recipient_email = user.email
+        name = user.full_name or ""
+        user_role = user.role
+    else:
+        recipient_email = str(user_or_email).strip()
+        name = full_name or ""
+        user_role = role or ""
+
+    if not recipient_email:
+        return False
+
+    greeting = f"Hello {_first_name(name, 'there')},"
+
+    if user_role == User.Role.AGENT:
+        action = ("Open Partner Portal", _url("/agent/dashboard"))
+    elif user_role == User.Role.SUPERVISOR:
+        action = ("Open Manager Portal", _url("/sales-manager/dashboard"))
+    elif user_role == User.Role.APPLICANT:
+        action = ("Open Student Portal", _url("/portal"))
+    else:
+        action = ("Open Portal", _url("/portal"))
+
+    clean_paragraphs = [escape(p).replace("\n", "<br>") for p in message_body.split("\n\n") if p.strip()]
+    if not clean_paragraphs:
+        clean_paragraphs = [escape(message_body).replace("\n", "<br>")]
+
+    return _send(
+        subject=subject,
+        recipients=[recipient_email],
+        greeting=greeting,
+        paragraphs=clean_paragraphs,
+        action=action,
+        wait=wait,
+        attachments=attachments,
     )
 
 
@@ -380,7 +476,7 @@ def _file_facts(application, *, include_student=False):
     return facts, current
 
 
-def send_application_status_update_email(application, notification_text, subject_override=None):
+def send_application_status_update_email(application, notification_text, subject_override=None, attachments=None):
     """Tell whoever owns this file that something moved, with the full picture.
 
     A file registered through the partner portal belongs to the agent, not the
@@ -415,6 +511,7 @@ def send_application_status_update_email(application, notification_text, subject
             facts=facts,
             items=items,
             action=("Open the student's file", _url("/agent/students")),
+            attachments=attachments,
         )
         return
 
@@ -429,6 +526,7 @@ def send_application_status_update_email(application, notification_text, subject
         facts=facts,
         items=items,
         action=("View your application", _url("/portal")),
+        attachments=attachments,
     )
     return
 

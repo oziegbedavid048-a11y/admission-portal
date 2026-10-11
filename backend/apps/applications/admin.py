@@ -377,17 +377,21 @@ class ApplicationAdmin(PlainSelectsMixin, admin.ModelAdmin):
     @admin.action(description="Email a message")
     def action_send_email_to_applicants(self, request, queryset):
         """Write to the owner of each file: the applicant, or the agent who filed it."""
+        from apps.accounts.emails import extract_attachments
+
         if request.POST.get("apply") == "send_email":
             subject = request.POST.get("subject", "").strip()
             message_body = request.POST.get("message", "").strip()
             if not subject or not message_body:
                 self.message_user(request, "Subject and message are both required.", messages.ERROR)
                 return None
+            attachments = extract_attachments(request)
             for application in queryset:
-                services.send_applicant_email_message(application, subject, message_body)
+                services.send_applicant_email_message(application, subject, message_body, attachments=attachments)
+            att_info = f" with {len(attachments)} attachment(s)" if attachments else ""
             self.message_user(
                 request,
-                f"Message sent for {plural(queryset.count(), 'application')}. Files filed by an "
+                f"Message{att_info} sent for {plural(queryset.count(), 'application')}. Files filed by an "
                 "agent were written to the agent, not the student.",
                 messages.SUCCESS,
             )

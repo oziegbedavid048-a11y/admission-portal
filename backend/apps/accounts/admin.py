@@ -12,7 +12,7 @@ class UserAdmin(BaseUserAdmin):
     ordering = ("-date_joined",)
     list_display = ("email", "full_name", "role", "email_verified", "is_active", "date_joined")
     list_filter = ("role", "email_verified", "is_active", "is_staff")
-    actions = ("action_mark_email_verified", "action_resend_verification")
+    actions = ("action_mark_email_verified", "action_resend_verification", "action_send_custom_message")
     search_fields = ("email", "full_name", "phone")
     fieldsets = (
         (None, {"fields": ("email", "password")}),
@@ -29,6 +29,146 @@ class UserAdmin(BaseUserAdmin):
             },
         ),
     )
+
+    def get_urls(self):
+        from django.urls import path
+
+        urls = super().get_urls()
+        custom_urls = [
+            path(
+                "send-message/",
+                self.admin_site.admin_view(self.send_custom_message_view),
+                name="accounts_user_send_custom_message",
+            ),
+        ]
+        return custom_urls + urls
+
+    def send_custom_message_view(self, request):
+        from .emails import extract_attachments, send_custom_message_email
+        from django.http import HttpResponseRedirect
+        from django.shortcuts import render
+        from django.urls import reverse
+
+        if request.method == "POST":
+            subject = request.POST.get("subject", "").strip()
+            message_body = request.POST.get("message", "").strip()
+            target_ids = request.POST.getlist("recipients") or request.POST.getlist("_selected_action")
+
+            if not subject or not message_body:
+                self.message_user(request, "Subject and message are both required.", messages.ERROR)
+                return HttpResponseRedirect(request.get_full_path())
+
+            users = list(User.objects.filter(pk__in=target_ids, is_active=True).exclude(email=""))
+            if not users:
+                self.message_user(request, "Please select at least one recipient.", messages.ERROR)
+                return HttpResponseRedirect(request.get_full_path())
+
+            attachments = extract_attachments(request)
+            sent_count = 0
+            failed_count = 0
+
+            for user in users:
+                if send_custom_message_email(user, subject, message_body, attachments=attachments, wait=True):
+                    sent_count += 1
+                else:
+                    failed_count += 1
+
+            att_info = f" with {len(attachments)} attachment(s)" if attachments else ""
+            if sent_count:
+                self.message_user(
+                    request,
+                    f"Custom message{att_info} emailed to {sent_count} recipient(s).",
+                    messages.SUCCESS,
+                )
+            if failed_count:
+                self.message_user(
+                    request,
+                    f"Failed to email {failed_count} recipient(s). Check mail server logs.",
+                    messages.ERROR,
+                )
+            return HttpResponseRedirect(reverse("admin:accounts_user_changelist"))
+
+        # GET request
+        user_param = request.GET.get("user")
+        preselected_users = []
+        if user_param:
+            preselected_users = list(User.objects.filter(pk=user_param, is_active=True))
+
+        all_candidates = list(
+            User.objects.filter(
+                role__in=[User.Role.APPLICANT, User.Role.AGENT, User.Role.SUPERVISOR],
+                is_active=True,
+            )
+            .exclude(email="")
+            .order_by("role", "full_name", "email")[:300]
+        )
+
+        return render(
+            request,
+            "admin/accounts/send_custom_message_intermediate.html",
+            {
+                "title": "Send custom message to applicant or agent",
+                "recipients": preselected_users,
+                "all_candidates": all_candidates,
+                "back_url": reverse("admin:accounts_user_changelist"),
+            },
+        )
+
+    @admin.action(description="Send custom message (with attachment)")
+    def action_send_custom_message(self, request, queryset):
+        """Send a custom message with optional attachments to the selected applicants or agents."""
+        from .emails import extract_attachments, send_custom_message_email
+        from django.http import HttpResponseRedirect
+        from django.shortcuts import render
+        from django.urls import reverse
+
+        users = list(queryset.filter(email__isnull=False).exclude(email=""))
+        if not users:
+            self.message_user(request, "None of the selected users have a valid email address.", messages.WARNING)
+            return None
+
+        if request.POST.get("apply") == "send_custom_message":
+            subject = request.POST.get("subject", "").strip()
+            message_body = request.POST.get("message", "").strip()
+            if not subject or not message_body:
+                self.message_user(request, "Subject and message are both required.", messages.ERROR)
+                return None
+
+            attachments = extract_attachments(request)
+            sent_count = 0
+            failed_count = 0
+
+            for user in users:
+                if send_custom_message_email(user, subject, message_body, attachments=attachments, wait=True):
+                    sent_count += 1
+                else:
+                    failed_count += 1
+
+            att_info = f" with {len(attachments)} attachment(s)" if attachments else ""
+            if sent_count:
+                self.message_user(
+                    request,
+                    f"Custom message{att_info} emailed to {sent_count} user(s).",
+                    messages.SUCCESS,
+                )
+            if failed_count:
+                self.message_user(
+                    request,
+                    f"Failed to email {failed_count} user(s). Check mail server logs.",
+                    messages.ERROR,
+                )
+            return HttpResponseRedirect(request.get_full_path())
+
+        return render(
+            request,
+            "admin/accounts/send_custom_message_intermediate.html",
+            {
+                "title": "Send custom message",
+                "recipients": users,
+                "action_name": "action_send_custom_message",
+                "back_url": reverse("admin:accounts_user_changelist"),
+            },
+        )
 
     @admin.action(description="Mark email as verified")
     def action_mark_email_verified(self, request, queryset):

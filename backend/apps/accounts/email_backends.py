@@ -236,6 +236,24 @@ class HttpEmailBackend(BaseEmailBackend):
                 payload["cc"] = list(message.cc)
             if message.reply_to:
                 payload["reply_to"] = list(message.reply_to)
+            raw_attachments = getattr(message, "attachments", None)
+            if raw_attachments:
+                import base64
+                encoded = []
+                for att in raw_attachments:
+                    if isinstance(att, tuple):
+                        att_name, att_content = att[0], att[1]
+                    else:
+                        att_name = att.get_filename() or "attachment"
+                        att_content = att.get_payload(decode=True)
+                    if isinstance(att_content, str):
+                        att_content = att_content.encode()
+                    encoded.append({
+                        "filename": att_name,
+                        "content": base64.b64encode(att_content).decode(),
+                    })
+                if encoded:
+                    payload["attachments"] = encoded
             return (
                 ENDPOINTS["resend"],
                 payload,
@@ -299,6 +317,24 @@ class HttpEmailBackend(BaseEmailBackend):
                 payload["htmlContent"] = html
             if message.cc:
                 payload["cc"] = [{"email": cc} for cc in message.cc]
+            raw_attachments = getattr(message, "attachments", None)
+            if raw_attachments:
+                import base64
+                encoded = []
+                for att in raw_attachments:
+                    if isinstance(att, tuple):
+                        att_name, att_content = att[0], att[1]
+                    else:
+                        att_name = att.get_filename() or "attachment"
+                        att_content = att.get_payload(decode=True)
+                    if isinstance(att_content, str):
+                        att_content = att_content.encode()
+                    encoded.append({
+                        "name": att_name,
+                        "content": base64.b64encode(att_content).decode(),
+                    })
+                if encoded:
+                    payload["attachment"] = encoded
             return ENDPOINTS["brevo"], payload, {"api-key": self.api_key}
 
         raise ValueError(

@@ -105,7 +105,7 @@ class AgentProfileAdmin(admin.ModelAdmin):
     autocomplete_fields = ("user", "supervisor")
     readonly_fields = ("partner_code", "certificate_link", "created_at")
     inlines = (WalletInline, CommissionInline)
-    actions = ("action_send_partnership_certificate",)
+    actions = ("action_send_partnership_certificate", "action_send_custom_message")
 
     fieldsets = (
         (None, {"fields": ("user", "partner_code", "agency_name", "supervisor", "certificate_link", "total_closed_sales", "created_at")}),
@@ -193,6 +193,62 @@ class AgentProfileAdmin(admin.ModelAdmin):
                 "The email will arrive shortly.",
                 messages.SUCCESS,
             )
+
+    @admin.action(description="Send custom message (with attachment)")
+    def action_send_custom_message(self, request, queryset):
+        """Send a custom message with optional attachments to the selected partner agents."""
+        from apps.accounts.emails import extract_attachments, send_custom_message_email
+        from django.http import HttpResponseRedirect
+        from django.shortcuts import render
+        from django.urls import reverse
+
+        users = [agent.user for agent in queryset.select_related("user") if agent.user and agent.user.email]
+        if not users:
+            self.message_user(request, "None of the selected agents have a valid email address.", messages.WARNING)
+            return None
+
+        if request.POST.get("apply") == "send_custom_message":
+            subject = request.POST.get("subject", "").strip()
+            message_body = request.POST.get("message", "").strip()
+            if not subject or not message_body:
+                self.message_user(request, "Subject and message are both required.", messages.ERROR)
+                return None
+
+            attachments = extract_attachments(request)
+            sent_count = 0
+            failed_count = 0
+
+            for user in users:
+                if send_custom_message_email(user, subject, message_body, attachments=attachments, wait=True):
+                    sent_count += 1
+                else:
+                    failed_count += 1
+
+            att_info = f" with {len(attachments)} attachment(s)" if attachments else ""
+            if sent_count:
+                self.message_user(
+                    request,
+                    f"Custom message{att_info} emailed to {sent_count} agent(s).",
+                    messages.SUCCESS,
+                )
+            if failed_count:
+                self.message_user(
+                    request,
+                    f"Failed to email {failed_count} agent(s). Check mail server logs.",
+                    messages.ERROR,
+                )
+            return HttpResponseRedirect(request.get_full_path())
+
+        return render(
+            request,
+            "admin/accounts/send_custom_message_intermediate.html",
+            {
+                "title": "Send custom message to partner agents",
+                "recipients": users,
+                "action_name": "action_send_custom_message",
+                "back_url": reverse("admin:partners_agentprofile_changelist"),
+            },
+        )
 
 
 @admin.register(Loan)

@@ -20,18 +20,23 @@
     </ul>
   </div>
 
-  <form method="post">
+  <form method="post" enctype="multipart/form-data">
     {% csrf_token %}
     {% for app in applicants %}<input type="hidden" name="_selected_action" value="{{ app.pk }}">{% endfor %}
     <input type="hidden" name="action" value="action_send_email_to_applicants">
     <input type="hidden" name="apply" value="send_email">
     <div class="gs-field">
       <label for="id_subject">Subject</label>
-      <input type="text" id="id_subject" name="subject" maxlength="150" required>
+      <input type="text" id="id_subject" name="subject" maxlength="150" required placeholder="Subject of your message">
     </div>
     <div class="gs-field">
       <label for="id_message">Message</label>
-      <textarea id="id_message" name="message" rows="7" required></textarea>
+      <textarea id="id_message" name="message" rows="7" required placeholder="Write your message here..."></textarea>
+    </div>
+    <div class="gs-field">
+      <label for="id_attachment">Attachments (optional)</label>
+      <input type="file" id="id_attachment" name="attachments" multiple style="padding: 6px 0;">
+      <p class="gs-muted" style="margin-top: 4px; font-size: 13px;">You can attach files (PDFs, documents, images) to this message.</p>
     </div>
     <div class="gs-actions">
       <button type="submit" class="gs-button gs-button--primary">Send message</button>
