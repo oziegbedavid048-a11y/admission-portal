@@ -256,6 +256,7 @@ class ApplicationAdmin(PlainSelectsMixin, admin.ModelAdmin):
         "action_send_to_institution",
         "action_mark_admitted",
         "action_mark_rejected",
+        "action_send_custom_message",
         "action_send_email_to_applicants",
     )
 
@@ -394,6 +395,102 @@ class ApplicationAdmin(PlainSelectsMixin, admin.ModelAdmin):
     def action_mark_rejected(self, request, queryset):
         self._run(request, queryset, services.mark_rejected, "declined", "already declined", messages.WARNING)
 
+    @admin.action(description="Send custom message (with attachment)")
+    def action_send_custom_message(self, request, queryset):
+        """Send a custom message with optional attachments to the selected applicants."""
+        from apps.accounts.emails import extract_attachments, send_custom_message_email
+        from apps.accounts.models import User
+        from django.http import HttpResponseRedirect
+        from django.shortcuts import render
+        from django.urls import reverse
+
+        if request.POST.get("apply") == "send_custom_message":
+            selected_pks = request.POST.getlist("_selected_action") or request.POST.getlist("recipients")
+            users = []
+            if selected_pks:
+                users = list(
+                    User.objects.filter(pk__in=selected_pks)
+                    .exclude(email="")
+                    .exclude(email__isnull=True)
+                )
+                if not users:
+                    apps = list(Application.objects.filter(pk__in=selected_pks).select_related("applicant"))
+                    users = [a.applicant for a in apps if a.applicant and a.applicant.email]
+            else:
+                users = [a.applicant for a in queryset.select_related("applicant") if a.applicant and a.applicant.email]
+
+            seen_emails = set()
+            unique_users = []
+            for u in users:
+                email = (u.email or "").strip().lower()
+                if email and email not in seen_emails:
+                    seen_emails.add(email)
+                    unique_users.append(u)
+
+            if not unique_users:
+                self.message_user(request, "No valid applicant recipients found. Please go back and try again.", messages.ERROR)
+                return HttpResponseRedirect(request.get_full_path())
+
+            subject = request.POST.get("subject", "").strip()
+            message_body = request.POST.get("message", "").strip()
+            if not subject or not message_body:
+                self.message_user(request, "Subject and message are both required.", messages.ERROR)
+                return HttpResponseRedirect(request.get_full_path())
+
+            attachments = extract_attachments(request)
+            sent_count = 0
+            failed_count = 0
+
+            for user in unique_users:
+                if send_custom_message_email(user, subject, message_body, attachments=attachments, wait=True):
+                    sent_count += 1
+                    app = Application.objects.filter(applicant=user).order_by("-submitted_at").first()
+                    if app:
+                        services.notify(app, f"Message from Gabstep: {subject}. {message_body}", send_email=False)
+                else:
+                    failed_count += 1
+
+            att_info = f" with {len(attachments)} attachment(s)" if attachments else ""
+            if sent_count:
+                self.message_user(
+                    request,
+                    f"Custom message{att_info} emailed to {sent_count} applicant(s).",
+                    messages.SUCCESS,
+                )
+            if failed_count:
+                self.message_user(
+                    request,
+                    f"Failed to email {failed_count} applicant(s). Check mail server logs.",
+                    messages.ERROR,
+                )
+            return HttpResponseRedirect(reverse("admin:applications_application_changelist"))
+
+        # Step 1: collect applicant users from selected applications
+        seen_emails = set()
+        users = []
+        for app in queryset.select_related("applicant"):
+            u = app.applicant
+            email = (u.email if u and u.email else app.email).strip().lower()
+            if email and email not in seen_emails and u:
+                seen_emails.add(email)
+                users.append(u)
+
+        if not users:
+            self.message_user(request, "None of the selected applications have a valid applicant email address.", messages.WARNING)
+            return None
+
+        return render(
+            request,
+            "admin/accounts/send_custom_message_intermediate.html",
+            {
+                "title": "Send custom message to applicants",
+                "recipients": users,
+                "action_name": "action_send_custom_message",
+                "back_url": reverse("admin:applications_application_changelist"),
+                "breadcrumb_title": "Applications",
+            },
+        )
+
     @admin.action(description="Email a message")
     def action_send_email_to_applicants(self, request, queryset):
         """Write to the owner of each file: the applicant, or the agent who filed it."""
@@ -411,8 +508,7 @@ class ApplicationAdmin(PlainSelectsMixin, admin.ModelAdmin):
             att_info = f" with {len(attachments)} attachment(s)" if attachments else ""
             self.message_user(
                 request,
-                f"Message{att_info} sent for {plural(queryset.count(), 'application')}. Files filed by an "
-                "agent were written to the agent, not the student.",
+                f"Message{att_info} sent for {plural(queryset.count(), 'application')}.",
                 messages.SUCCESS,
             )
             return None

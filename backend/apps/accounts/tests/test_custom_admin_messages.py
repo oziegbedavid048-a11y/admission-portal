@@ -218,3 +218,47 @@ class CustomAdminMessagesTest(TestCase):
         self.assertEqual(mail.outbox[0].to, ["applicant@example.com"])
         self.assertEqual(len(mail.outbox[0].attachments), 1)
         self.assertEqual(mail.outbox[0].attachments[0][0], "offer_brief.pdf")
+
+    def test_application_admin_action_send_custom_message(self):
+        from decimal import Decimal
+        origin = OriginCountry.objects.create(name="Ghana", currency="GHS", symbol="GH₵", ngn_per_unit=Decimal("100.0"))
+        destination = DestinationCountry.objects.create(name="Canada", code="CA")
+        application = Application.objects.create(
+            applicant=self.applicant,
+            origin_country=origin,
+            destination_country=destination,
+            full_name="Jane Applicant",
+            email="applicant@example.com",
+            phone="+441234567890",
+        )
+        admin = ApplicationAdmin(Application, self.site)
+        mail.outbox = []
+
+        # 1. Step 1 (GET / action trigger) -> renders intermediate form
+        get_req = self._prepare_request(self.factory.get("/admin/applications/application/"))
+        qs = Application.objects.filter(pk=application.pk)
+        get_resp = admin.action_send_custom_message(get_req, qs)
+        self.assertEqual(get_resp.status_code, 200)
+
+        # 2. Step 2 (POST / send message with attachment)
+        test_file = SimpleUploadedFile("visa_checklist.pdf", b"checklist content", content_type="application/pdf")
+        post_req = self._prepare_request(self.factory.post(
+            "/admin/applications/application/",
+            {
+                "apply": "send_custom_message",
+                "subject": "Important visa checklist",
+                "message": "Please review the attached visa checklist.",
+                "_selected_action": [self.applicant.pk],
+                "attachments": test_file,
+            },
+        ))
+        post_req.FILES["attachments"] = test_file
+
+        post_resp = admin.action_send_custom_message(post_req, qs)
+        self.assertEqual(post_resp.status_code, 302)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ["applicant@example.com"])
+        self.assertIn("Hello Jane,", mail.outbox[0].body)
+        self.assertIn("Please review the attached visa checklist.", mail.outbox[0].body)
+        self.assertEqual(len(mail.outbox[0].attachments), 1)
+        self.assertEqual(mail.outbox[0].attachments[0][0], "visa_checklist.pdf")

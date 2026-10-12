@@ -4,7 +4,11 @@
 {% block breadcrumbs %}
 <div class="breadcrumbs">
   <a href="{% url 'admin:index' %}">Home</a>
-  &rsaquo; <a href="{% url 'admin:accounts_user_changelist' %}">Users</a>
+  {% if back_url %}
+    &rsaquo; <a href="{{ back_url }}">{{ breadcrumb_title|default:'Back' }}</a>
+  {% else %}
+    &rsaquo; <a href="{% url 'admin:accounts_user_changelist' %}">Users</a>
+  {% endif %}
   &rsaquo; Send custom message
 </div>
 {% endblock %}
@@ -105,7 +109,7 @@
       <button type="submit" class="gs-button gs-button--primary" style="display: inline-flex; align-items: center; gap: 6px; padding: 8px 18px; font-size: 14px; font-weight: 600;">
         ✉ Send custom message
       </button>
-      <a class="gs-button" href="{{ back_url|default:'admin:accounts_user_changelist' }}" style="padding: 8px 16px; font-size: 14px;">
+      <a class="gs-button" href="{% if back_url %}{{ back_url }}{% else %}{% url 'admin:accounts_user_changelist' %}{% endif %}" style="padding: 8px 16px; font-size: 14px;">
         Cancel
       </a>
     </div>
