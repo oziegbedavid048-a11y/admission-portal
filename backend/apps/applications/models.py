@@ -184,6 +184,8 @@ class Application(models.Model):
             models.Index(fields=["email"], name="app_email_idx"),
             models.Index(fields=["submitted_by_agent", "-submitted_at"], name="app_agent_submitted_idx"),
         ]
+        verbose_name = "applicant application"
+        verbose_name_plural = "applicant applications"
 
     def __str__(self):
         return f"{self.reference} · {self.full_name}"
@@ -567,7 +569,18 @@ def send_notification_email_on_create(sender, instance, created, **kwargs):
 # Proxies, so the admin can list agent-filed applications apart from the
 # ones applicants made themselves, starting from the agent who filed them.
 
+from apps.accounts.models import User  # noqa: E402
 from apps.partners.models import AgentProfile  # noqa: E402
+
+
+class Applicant(User):
+    """Every applicant who registered on the portal."""
+
+    class Meta:
+        proxy = True
+        app_label = "applications"
+        verbose_name = "applicant"
+        verbose_name_plural = "applicants"
 
 
 class AgentApplications(AgentProfile):
@@ -585,5 +598,15 @@ class AgentApplication(Application):
 
     class Meta:
         proxy = True
-        verbose_name = "agent-filed application"
-        verbose_name_plural = "agent-filed applications"
+        verbose_name = "agent application"
+        verbose_name_plural = "agent applications"
+
+
+class AgentDocument(Document):
+    """Documents uploaded on agent-filed student applications."""
+
+    class Meta:
+        proxy = True
+        app_label = "applications"
+        verbose_name = "agent application document"
+        verbose_name_plural = "agent application documents"

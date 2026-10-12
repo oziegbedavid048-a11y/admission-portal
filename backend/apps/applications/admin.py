@@ -29,12 +29,15 @@ from django.shortcuts import get_object_or_404, render
 from django.urls import path, reverse
 from django.utils.html import format_html, format_html_join
 
+from apps.accounts.models import User
 from config.admin_ui import button_link, muted, pill, plural
 
 from . import services
 from .models import (
     AgentApplication,
     AgentApplications,
+    AgentDocument,
+    Applicant,
     Application,
     CorrectionRequest,
     Document,
@@ -93,13 +96,13 @@ class StageInline(ReadOnlyInline):
 
 
 class DocumentInline(ReadOnlyInline):
-    """Uploads on this file. Reviewing happens on the Documents screen."""
+    """Uploads on this file. Reviewing happens on the Applicant documents screen."""
 
     model = Document
     fields = ("name", "status_label", "review_link", "uploaded_at")
     readonly_fields = fields
     ordering = ("uploaded_at",)
-    verbose_name_plural = "Documents (review them on the Documents screen)"
+    verbose_name_plural = "Documents (review them on the Applicant documents screen)"
 
     @admin.display(description="Status")
     def status_label(self, obj):
@@ -108,6 +111,24 @@ class DocumentInline(ReadOnlyInline):
     @admin.display(description="")
     def review_link(self, obj):
         return button_link(reverse("admin:applications_document_change", args=[obj.pk]), "Review")
+
+
+class AgentDocumentInline(ReadOnlyInline):
+    """Uploads on an agent application. Reviewing happens on the Agent application documents screen."""
+
+    model = Document
+    fields = ("name", "status_label", "review_link", "uploaded_at")
+    readonly_fields = fields
+    ordering = ("uploaded_at",)
+    verbose_name_plural = "Documents (review them on the Agent application documents screen)"
+
+    @admin.display(description="Status")
+    def status_label(self, obj):
+        return pill(obj.get_status_display(), DOCUMENT_TONE.get(obj.status, "wait"))
+
+    @admin.display(description="")
+    def review_link(self, obj):
+        return button_link(reverse("admin:applications_agentdocument_change", args=[obj.pk]), "Review")
 
 
 class LetterInline(ReadOnlyInline):
@@ -187,6 +208,160 @@ class PlainSelectsMixin:
         return field
 
 
+# ── Applicants (Every applicant who registered) ───────────────────────
+
+
+@admin.register(Applicant)
+class ApplicantAdmin(admin.ModelAdmin):
+    """Every applicant who registered on the portal.
+
+    Provides admissions desk with a complete view of registered applicants,
+    their current application state, and direct access to verify their uploaded documents.
+    """
+
+    list_display = (
+        "applicant_name",
+        "email",
+        "phone",
+        "application_link",
+        "document_button",
+        "date_joined",
+    )
+    search_fields = ("full_name", "email", "phone")
+    list_filter = ("email_verified", "is_active", "date_joined")
+    ordering = ("-date_joined",)
+    list_per_page = 40
+    date_hierarchy = "date_joined"
+    actions = ("action_send_custom_message",)
+
+    def has_add_permission(self, request):
+        return False
+
+    def get_queryset(self, request):
+        return (
+            super()
+            .get_queryset(request)
+            .filter(role=User.Role.APPLICANT)
+            .prefetch_related("applications__documents", "draft__files")
+            .order_by("-date_joined")
+        )
+
+    @admin.display(description="Applicant", ordering="full_name")
+    def applicant_name(self, obj):
+        return format_html("<strong>{}</strong>", obj.full_name or obj.email)
+
+    @admin.display(description="Application")
+    def application_link(self, obj):
+        app = obj.applications.first()
+        if app:
+            return format_html(
+                '<a href="{}">{} · {}</a>',
+                reverse("admin:applications_application_change", args=[app.pk]),
+                app.reference,
+                pill(app.get_status_display(), STATUS_TONE.get(app.status, "wait")),
+            )
+        if hasattr(obj, "draft") and obj.draft:
+            return pill(f"Draft (step {obj.draft.current_step})", "info")
+        return muted("No application yet")
+
+    @admin.display(description="Application Document")
+    def document_button(self, obj):
+        app = obj.applications.first()
+        if app:
+            docs = list(app.documents.all())
+            if docs:
+                pending = sum(1 for d in docs if d.status == Document.Status.PENDING)
+                total = len(docs)
+                url = reverse("admin:applications_document_changelist") + f"?application={app.pk}"
+                label = f"Application Document ({pending} to review)" if pending else f"Application Document ({total})"
+                return button_link(url, label, primary=bool(pending))
+            return muted("No documents uploaded")
+        if hasattr(obj, "draft") and obj.draft:
+            count = obj.draft.files.count()
+            if count:
+                return muted(f"In draft ({count} files)")
+        return muted("No documents")
+
+    @admin.action(description="Send custom message (with attachment)")
+    def action_send_custom_message(self, request, queryset):
+        """Send a custom message with optional attachments to the selected applicants."""
+        from apps.accounts.emails import extract_attachments, send_custom_message_email
+
+        if request.POST.get("apply") == "send_custom_message":
+            selected_pks = request.POST.getlist("_selected_action") or request.POST.getlist("recipients")
+            users = []
+            if selected_pks:
+                users = list(
+                    User.objects.filter(pk__in=selected_pks)
+                    .exclude(email="")
+                    .exclude(email__isnull=True)
+                )
+            else:
+                users = [u for u in queryset if u.email]
+
+            if not users:
+                self.message_user(request, "No valid applicant recipients found.", messages.ERROR)
+                return HttpResponseRedirect(request.get_full_path())
+
+            subject = request.POST.get("subject", "").strip()
+            message_body = request.POST.get("message", "").strip()
+            if not subject or not message_body:
+                self.message_user(request, "Subject and message are both required.", messages.ERROR)
+                return HttpResponseRedirect(request.get_full_path())
+
+            attachments = extract_attachments(request)
+            sent_count = 0
+            failed_count = 0
+
+            for user in users:
+                if send_custom_message_email(user, subject, message_body, attachments=attachments, wait=True):
+                    sent_count += 1
+                    app = Application.objects.filter(applicant=user).order_by("-submitted_at").first()
+                    if app:
+                        services.notify(app, f"Message from Gabstep: {subject}. {message_body}", send_email=False)
+                else:
+                    failed_count += 1
+
+            att_info = f" with {len(attachments)} attachment(s)" if attachments else ""
+            if sent_count:
+                self.message_user(
+                    request,
+                    f"Custom message{att_info} emailed to {sent_count} applicant(s).",
+                    messages.SUCCESS,
+                )
+            if failed_count:
+                self.message_user(
+                    request,
+                    f"Failed to email {failed_count} applicant(s). Check mail server logs.",
+                    messages.ERROR,
+                )
+            return HttpResponseRedirect(reverse("admin:applications_applicant_changelist"))
+
+        seen_emails = set()
+        users = []
+        for u in queryset:
+            email = (u.email or "").strip().lower()
+            if email and email not in seen_emails:
+                seen_emails.add(email)
+                users.append(u)
+
+        if not users:
+            self.message_user(request, "None of the selected applicants have a valid email address.", messages.WARNING)
+            return None
+
+        return render(
+            request,
+            "admin/accounts/send_custom_message_intermediate.html",
+            {
+                "title": "Send custom message to applicants",
+                "recipients": users,
+                "action_name": "action_send_custom_message",
+                "back_url": reverse("admin:applications_applicant_changelist"),
+                "breadcrumb_title": "Applicants",
+            },
+        )
+
+
 # ── Applications ────────────────────────────────────────────────────────
 
 
@@ -197,7 +372,7 @@ class ApplicationAdmin(PlainSelectsMixin, admin.ModelAdmin):
         "full_name",
         "university",
         "verification",
-        "documents_state",
+        "application_document_button",
         "stage",
         "status_label",
         "submitted_at",
@@ -313,6 +488,14 @@ class ApplicationAdmin(PlainSelectsMixin, admin.ModelAdmin):
     @admin.display(description="Verification", ordering="verification_status")
     def verification(self, obj):
         return verification_pill(obj)
+
+    @admin.display(description="Application Document")
+    def application_document_button(self, obj):
+        if not obj.total_docs:
+            return muted("No documents")
+        url = reverse("admin:applications_document_changelist") + f"?application={obj.pk}"
+        count_label = f" ({obj.pending_docs} to review)" if obj.pending_docs else f" ({obj.total_docs})"
+        return button_link(url, f"Application Document{count_label}", primary=bool(obj.pending_docs))
 
     @admin.display(description="Documents")
     def documents_state(self, obj):
@@ -463,7 +646,12 @@ class ApplicationAdmin(PlainSelectsMixin, admin.ModelAdmin):
                     f"Failed to email {failed_count} applicant(s). Check mail server logs.",
                     messages.ERROR,
                 )
-            return HttpResponseRedirect(reverse("admin:applications_application_changelist"))
+            changelist_url = reverse(
+                "admin:applications_agentapplication_changelist"
+                if self.filed_by_agent
+                else "admin:applications_application_changelist"
+            )
+            return HttpResponseRedirect(changelist_url)
 
         # Step 1: collect applicant users from selected applications
         seen_emails = set()
@@ -479,6 +667,11 @@ class ApplicationAdmin(PlainSelectsMixin, admin.ModelAdmin):
             self.message_user(request, "None of the selected applications have a valid applicant email address.", messages.WARNING)
             return None
 
+        back_url = reverse(
+            "admin:applications_agentapplication_changelist"
+            if self.filed_by_agent
+            else "admin:applications_application_changelist"
+        )
         return render(
             request,
             "admin/accounts/send_custom_message_intermediate.html",
@@ -486,8 +679,8 @@ class ApplicationAdmin(PlainSelectsMixin, admin.ModelAdmin):
                 "title": "Send custom message to applicants",
                 "recipients": users,
                 "action_name": "action_send_custom_message",
-                "back_url": reverse("admin:applications_application_changelist"),
-                "breadcrumb_title": "Applications",
+                "back_url": back_url,
+                "breadcrumb_title": "Agent applications" if self.filed_by_agent else "Applicant applications",
             },
         )
 
@@ -551,7 +744,34 @@ class DocumentAdmin(admin.ModelAdmin):
     def get_queryset(self, request):
         # Waiting for review first, then the rest.
         waiting_first = Case(When(status=Document.Status.PENDING, then=0), default=1, output_field=IntegerField())
-        return super().get_queryset(request).order_by(waiting_first, "-uploaded_at")
+        qs = (
+            super()
+            .get_queryset(request)
+            .filter(application__submitted_by_agent__isnull=True)
+            .order_by(waiting_first, "-uploaded_at")
+        )
+        app_id = request.GET.get("application") or request.GET.get("application_id")
+        if app_id:
+            qs = qs.filter(application_id=app_id)
+        applicant_id = request.GET.get("applicant") or request.GET.get("applicant_id")
+        if applicant_id:
+            qs = qs.filter(application__applicant_id=applicant_id)
+        return qs
+
+    def changelist_view(self, request, extra_context=None):
+        extra = {**(extra_context or {})}
+        if "title" not in extra:
+            app_id = request.GET.get("application") or request.GET.get("application_id")
+            applicant_id = request.GET.get("applicant") or request.GET.get("applicant_id")
+            if app_id:
+                app = Application.objects.filter(pk=app_id).select_related("applicant").first()
+                if app:
+                    extra["title"] = f"Application documents for {app.full_name} ({app.reference})"
+            elif applicant_id:
+                user = User.objects.filter(pk=applicant_id).first()
+                if user:
+                    extra["title"] = f"Application documents for {user.full_name or user.email}"
+        return super().changelist_view(request, extra)
 
     @admin.display(description="Applicant", ordering="application__full_name")
     def applicant(self, obj):
@@ -576,28 +796,34 @@ class DocumentAdmin(admin.ModelAdmin):
 
     @admin.display(description="")
     def open_link(self, obj):
-        return button_link(reverse("admin:applications_document_change", args=[obj.pk]), "Review")
+        info = self.opts.app_label, self.opts.model_name
+        return button_link(reverse(f"admin:{info[0]}_{info[1]}_change", args=[obj.pk]), "Review")
 
     # One page per decision.
     def get_urls(self):
+        info = self.opts.app_label, self.opts.model_name
         return [
-            path("<int:pk>/verify/", self.admin_site.admin_view(self.verify_view), name="applications_document_verify"),
-            path("<int:pk>/reject/", self.admin_site.admin_view(self.reject_view), name="applications_document_reject"),
+            path("<int:pk>/verify/", self.admin_site.admin_view(self.verify_view), name=f"{info[0]}_{info[1]}_verify"),
+            path("<int:pk>/reject/", self.admin_site.admin_view(self.reject_view), name=f"{info[0]}_{info[1]}_reject"),
         ] + super().get_urls()
 
     def change_view(self, request, object_id, form_url="", extra_context=None):
-        document = get_object_or_404(Document, pk=object_id)
+        document = get_object_or_404(self.get_queryset(request), pk=object_id)
         url = document.file.url if document.file else ""
         name = (document.original_filename or document.file.name if document.file else "").lower()
+        info = self.opts.app_label, self.opts.model_name
+        agent = getattr(document.application, "submitted_by_agent", None)
+        agent_name = (agent.user.full_name or agent.user.email) if agent else None
         extra_context = {
             **(extra_context or {}),
-            "title": "Review document",
+            "title": f"Review {self.opts.verbose_name}",
             "doc": document,
+            "agent_name": agent_name,
             "file_url": url,
             "is_pdf": name.endswith(".pdf"),
             "is_image": name.endswith((".jpg", ".jpeg", ".png", ".webp")),
-            "verify_url": reverse("admin:applications_document_verify", args=[document.pk]),
-            "reject_url": reverse("admin:applications_document_reject", args=[document.pk]),
+            "verify_url": reverse(f"admin:{info[0]}_{info[1]}_verify", args=[document.pk]),
+            "reject_url": reverse(f"admin:{info[0]}_{info[1]}_reject", args=[document.pk]),
             "show_save": False,
             "show_save_and_continue": False,
             "show_save_and_add_another": False,
@@ -605,14 +831,20 @@ class DocumentAdmin(admin.ModelAdmin):
         return super().change_view(request, object_id, form_url, extra_context)
 
     def verify_view(self, request, pk):
-        document = get_object_or_404(Document, pk=pk)
+        document = get_object_or_404(self.get_queryset(request), pk=pk)
+        info = self.opts.app_label, self.opts.model_name
         if request.method == "POST":
             services.verify_documents([document], reviewed_by=request.user)
             self.message_user(request, f"{document.name} verified. The applicant has been told.", messages.SUCCESS)
-        return HttpResponseRedirect(reverse("admin:applications_document_changelist"))
+        return HttpResponseRedirect(
+            reverse(f"admin:{info[0]}_{info[1]}_changelist") + f"?application={document.application_id}"
+        )
 
     def reject_view(self, request, pk):
-        document = get_object_or_404(Document, pk=pk)
+        document = get_object_or_404(self.get_queryset(request), pk=pk)
+        info = self.opts.app_label, self.opts.model_name
+        changelist_url = reverse(f"admin:{info[0]}_{info[1]}_changelist") + f"?application={document.application_id}"
+        change_url = reverse(f"admin:{info[0]}_{info[1]}_change", args=[document.pk])
         form = RejectDocumentForm(request.POST or None, initial={"note": document.review_note})
         if request.method == "POST" and form.is_valid():
             services.reject_document(document, form.cleaned_data["note"], reviewed_by=request.user)
@@ -621,7 +853,7 @@ class DocumentAdmin(admin.ModelAdmin):
                 f"{document.name} rejected. Your comment was emailed and is shown in their dashboard.",
                 messages.WARNING,
             )
-            return HttpResponseRedirect(reverse("admin:applications_document_changelist"))
+            return HttpResponseRedirect(changelist_url)
         return render(
             request,
             "admin/applications/document/reject.html",
@@ -631,7 +863,9 @@ class DocumentAdmin(admin.ModelAdmin):
                 "doc": document,
                 "form": form,
                 "opts": self.model._meta,
-                "back_url": reverse("admin:applications_document_change", args=[document.pk]),
+                "back_url": change_url,
+                "changelist_url": changelist_url,
+                "changelist_title": self.model._meta.verbose_name_plural.title(),
             },
         )
 
@@ -983,25 +1217,104 @@ class AgentApplicationsAdmin(admin.ModelAdmin):
         )
 
 
+class DocumentAgentFilter(admin.SimpleListFilter):
+    title = "agent"
+    parameter_name = "agent"
+
+    def lookups(self, request, model_admin):
+        from apps.partners.models import AgentProfile
+
+        return [
+            (agent.pk, agent.user.full_name or agent.user.email)
+            for agent in AgentProfile.objects.select_related("user").order_by("user__full_name")
+        ]
+
+    def queryset(self, request, queryset):
+        if self.value():
+            return queryset.filter(application__submitted_by_agent_id=self.value())
+        return queryset
+
+
+@admin.register(AgentDocument)
+class AgentDocumentAdmin(DocumentAdmin):
+    """Review documents uploaded on agent-filed student applications."""
+
+    list_display = ("name", "applicant", "agent", "status_label", "uploaded_at", "open_link")
+    list_filter = (DocumentAgentFilter, "status", "kind", "uploaded_at")
+    search_fields = (
+        "name",
+        "original_filename",
+        "application__reference",
+        "application__full_name",
+        "application__submitted_by_agent__user__full_name",
+        "application__submitted_by_agent__user__email",
+    )
+    list_select_related = ("application", "application__submitted_by_agent__user")
+
+    def get_queryset(self, request):
+        waiting_first = Case(When(status=Document.Status.PENDING, then=0), default=1, output_field=IntegerField())
+        qs = (
+            super(DocumentAdmin, self)
+            .get_queryset(request)
+            .filter(application__submitted_by_agent__isnull=False)
+            .order_by(waiting_first, "-uploaded_at")
+        )
+        app_id = request.GET.get("application") or request.GET.get("application_id")
+        if app_id:
+            qs = qs.filter(application_id=app_id)
+        return qs
+
+    def changelist_view(self, request, extra_context=None):
+        extra = {**(extra_context or {})}
+        app_id = request.GET.get("application") or request.GET.get("application_id")
+        if app_id:
+            app = Application.objects.filter(pk=app_id).first()
+            if app:
+                extra["title"] = f"Agent application documents for {app.full_name} ({app.reference})"
+        return super().changelist_view(request, extra)
+
+    @admin.display(description="Agent", ordering="application__submitted_by_agent__user__full_name")
+    def agent(self, obj):
+        agent = obj.application.submitted_by_agent
+        if not agent:
+            return muted("—")
+        name = agent.user.full_name or agent.user.email
+        return format_html(
+            '<a href="{}"><strong>{}</strong></a>',
+            reverse("admin:partners_agentprofile_change", args=[agent.pk]),
+            name,
+        )
+
+
 @admin.register(AgentApplication)
 class AgentApplicationAdmin(ApplicationAdmin):
-    """The students one agent registered. Reached from Agent applications."""
+    """Applications filed by partner agents."""
 
     filed_by_agent = True
+    inlines = (AgentDocumentInline, LetterInline, CorrectionInline, StageInline, NotificationInline)
     list_display = (
         "reference",
         "full_name",
+        "agent",
         "university",
+        "application_document_button",
         "payment_state",
+        "verification",
         "status_label",
         "submitted_at",
         "download",
     )
     list_filter = (AgentFilter, "status", "verification_status", DocumentsToReviewFilter, "destination_country")
-
-    def get_model_perms(self, request):
-        # Reached through Agent applications, so it is kept out of the menu.
-        return {}
+    search_fields = (
+        "reference",
+        "full_name",
+        "email",
+        "institution__name",
+        "custom_course_name",
+        "submitted_by_agent__user__full_name",
+        "submitted_by_agent__user__email",
+        "submitted_by_agent__agency_name",
+    )
 
     def has_add_permission(self, request):
         return False
@@ -1013,9 +1326,31 @@ class AgentApplicationAdmin(ApplicationAdmin):
         title = (
             f"Students registered by {agent.user.full_name or agent.user.email}"
             if agent
-            else "Students registered by agents"
+            else "Agent applications"
         )
         return super().changelist_view(request, {**(extra_context or {}), "title": title})
+
+    @admin.display(description="Agent", ordering="submitted_by_agent__user__full_name")
+    def agent(self, obj):
+        agent = obj.submitted_by_agent
+        if not agent:
+            return muted("—")
+        name = agent.user.full_name or agent.user.email
+        return format_html(
+            '<a href="{}"><strong>{}</strong></a>',
+            reverse("admin:partners_agentprofile_change", args=[agent.pk]),
+            name,
+        )
+
+    @admin.display(description="Application Document")
+    def application_document_button(self, obj):
+        total = obj.documents.count()
+        pending = obj.documents.filter(status=Document.Status.PENDING).count()
+        if not total:
+            return muted("No documents")
+        url = reverse("admin:applications_agentdocument_changelist") + f"?application={obj.pk}"
+        count_label = f" ({pending} to review)" if pending else f" ({total})"
+        return button_link(url, f"Application Document{count_label}", primary=bool(pending))
 
     @admin.display(description="Payment")
     def payment_state(self, obj):

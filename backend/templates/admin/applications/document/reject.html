@@ -3,7 +3,7 @@
 {% block breadcrumbs %}
 <div class="breadcrumbs">
   <a href="{% url 'admin:index' %}">Home</a>
-  &rsaquo; <a href="{% url 'admin:applications_document_changelist' %}">Documents</a>
+  &rsaquo; <a href="{{ changelist_url|default:'admin:applications_document_changelist' }}">{{ changelist_title|default:'Documents' }}</a>
   &rsaquo; <a href="{{ back_url }}">{{ doc.name }}</a>
   &rsaquo; Reject
 </div>

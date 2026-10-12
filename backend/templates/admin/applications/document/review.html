@@ -16,7 +16,7 @@
 
   <aside class="gs-card gs-review__decide">
     <h2>{{ doc.name }}</h2>
-    <p class="gs-muted">{{ doc.application.full_name }} · {{ doc.application.reference }}</p>
+    <p class="gs-muted">{{ doc.application.full_name }} · {{ doc.application.reference }}{% if agent_name %} · Agent: {{ agent_name }}{% endif %}</p>
     {% if file_url %}<p><a class="gs-button" href="{{ file_url }}" target="_blank" rel="noopener">Open in a new tab</a></p>{% endif %}
 
     {% if doc.status == "Rejected" and doc.review_note %}
