@@ -19,10 +19,7 @@ LAYOUT = [
         "applications",
         [
             "Applicant",
-            "Application",
-            "Document",
             "AgentApplication",
-            "AgentDocument",
             "VisaSupportApplication",
             "Letter",
             "CorrectionRequest",

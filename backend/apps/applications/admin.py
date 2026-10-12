@@ -390,6 +390,10 @@ class ApplicationAdmin(PlainSelectsMixin, admin.ModelAdmin):
     list_per_page = 40
     inlines = (DocumentInline, LetterInline, CorrectionInline, StageInline, NotificationInline)
 
+    def get_model_perms(self, request):
+        # Managed directly via Applicants, so kept out of the main menu.
+        return {}
+
     readonly_fields = (
         "reference",
         "applicant",
@@ -740,6 +744,10 @@ class DocumentAdmin(admin.ModelAdmin):
 
     def has_add_permission(self, request):
         return False
+
+    def get_model_perms(self, request):
+        # Managed directly via the Application Document button, so kept out of the main menu.
+        return {}
 
     def get_queryset(self, request):
         # Waiting for review first, then the rest.
@@ -1318,6 +1326,9 @@ class AgentApplicationAdmin(ApplicationAdmin):
 
     def has_add_permission(self, request):
         return False
+
+    def get_model_perms(self, request):
+        return admin.ModelAdmin.get_model_perms(self, request)
 
     def changelist_view(self, request, extra_context=None):
         from apps.partners.models import AgentProfile
