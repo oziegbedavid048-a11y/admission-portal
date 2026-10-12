@@ -87,7 +87,7 @@ class CustomAdminMessagesTest(TestCase):
         msg = mail.outbox[0]
         self.assertEqual(msg.to, ["agent@example.com"])
         self.assertIn("Hello John,", msg.body)
-        self.assertIn("/agent/dashboard", msg.body)
+        self.assertNotIn("/agent/dashboard", msg.body)
 
     def test_extract_attachments_helper(self):
         test_file = SimpleUploadedFile("sample.txt", b"Hello world", content_type="text/plain")

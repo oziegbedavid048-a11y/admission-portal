@@ -269,7 +269,27 @@ class ApplicationAdmin(PlainSelectsMixin, admin.ModelAdmin):
         # The letter form's application picker searches every file, so it
         # must not be limited to one screen's half.
         if not (match and match.url_name == "autocomplete"):
-            queryset = queryset.filter(submitted_by_agent__isnull=not self.filed_by_agent)
+            if not self.filed_by_agent:
+                from apps.accounts.models import User
+                from apps.partners.models import AgentProfile
+
+                agent_emails = AgentProfile.objects.values_list("user__email", flat=True)
+                agent_phones = AgentProfile.objects.exclude(user__phone="").values_list("user__phone", flat=True)
+                agent_names = AgentProfile.objects.exclude(user__full_name="").values_list("user__full_name", flat=True)
+                agent_user_ids = AgentProfile.objects.values_list("user_id", flat=True)
+
+                queryset = (
+                    queryset
+                    .filter(submitted_by_agent__isnull=True)
+                    .filter(applicant__role=User.Role.APPLICANT)
+                    .filter(applicant__agent_profile__isnull=True)
+                    .exclude(applicant_id__in=agent_user_ids)
+                    .exclude(email__in=agent_emails)
+                    .exclude(phone__in=agent_phones)
+                    .exclude(full_name__in=agent_names)
+                )
+            else:
+                queryset = queryset.filter(submitted_by_agent__isnull=False)
         return (
             queryset
             .select_related("institution", "destination_country", "submitted_by_agent", "payment")
@@ -809,6 +829,10 @@ class AgentApplicationsAdmin(admin.ModelAdmin):
     search_fields = ("user__full_name", "user__email", "agency_name")
     list_display_links = None
     list_per_page = 50
+
+    def get_model_perms(self, request):
+        # Kept out of the Applications admin menu so the section is strictly applicant-focused.
+        return {}
 
     def has_add_permission(self, request):
         return False

@@ -123,15 +123,16 @@ class UserAdmin(BaseUserAdmin):
         from django.urls import reverse
 
         if request.POST.get("apply") == "send_custom_message":
-            # On the second POST the queryset is empty because Django's action
-            # machinery doesn't carry it through the intermediate form. Read
-            # the PKs that the template embedded as hidden fields instead.
+            # Read PKs embedded by intermediate template, or fallback to queryset
             selected_pks = request.POST.getlist("_selected_action")
-            users = list(
-                User.objects.filter(pk__in=selected_pks)
-                .exclude(email="")
-                .exclude(email__isnull=True)
-            )
+            if selected_pks:
+                users = list(
+                    User.objects.filter(pk__in=selected_pks)
+                    .exclude(email="")
+                    .exclude(email__isnull=True)
+                )
+            else:
+                users = list(queryset.filter(email__isnull=False).exclude(email=""))
             if not users:
                 self.message_user(request, "No valid recipients found. Please go back and try again.", messages.ERROR)
                 return HttpResponseRedirect(request.get_full_path())

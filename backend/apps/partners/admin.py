@@ -154,7 +154,12 @@ class AgentProfileAdmin(admin.ModelAdmin):
 
     @admin.display(description="Students")
     def students(self, obj):
-        return obj.applications.count()
+        count = obj.applications.count()
+        if not count:
+            return "0"
+        from django.urls import reverse
+        url = reverse("admin:applications_agentapplication_changelist") + f"?agent={obj.pk}"
+        return format_html('<a href="{}"><strong>{}</strong></a>', url, count)
 
     @admin.display(description="Earned")
     def earned(self, obj):
@@ -203,16 +208,17 @@ class AgentProfileAdmin(admin.ModelAdmin):
         from django.urls import reverse
 
         if request.POST.get("apply") == "send_custom_message":
-            # On the second POST the queryset is empty because Django's action
-            # machinery doesn't carry it through the intermediate form. Read
-            # the PKs that the template embedded as hidden fields instead.
+            # Read PKs embedded by intermediate template, or fallback to queryset
             from apps.accounts.models import User
             selected_pks = request.POST.getlist("_selected_action")
-            users = list(
-                User.objects.filter(pk__in=selected_pks)
-                .exclude(email="")
-                .exclude(email__isnull=True)
-            )
+            if selected_pks:
+                users = list(
+                    User.objects.filter(pk__in=selected_pks)
+                    .exclude(email="")
+                    .exclude(email__isnull=True)
+                )
+            else:
+                users = [agent.user for agent in queryset.select_related("user") if agent.user and agent.user.email]
             if not users:
                 self.message_user(request, "No valid recipients found. Please go back and try again.", messages.ERROR)
                 return HttpResponseRedirect(request.get_full_path())
