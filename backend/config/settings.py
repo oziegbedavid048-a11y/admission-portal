@@ -363,8 +363,17 @@ USE_X_FORWARDED_HOST = True
 # File upload ceilings. The wizard accepts PDFs and scans; anything larger than
 # this is refused before it reaches a serializer.
 MAX_UPLOAD_SIZE_MB = int(env("MAX_UPLOAD_SIZE_MB", "10"))
-DATA_UPLOAD_MAX_MEMORY_SIZE = MAX_UPLOAD_SIZE_MB * 1024 * 1024
-FILE_UPLOAD_MAX_MEMORY_SIZE = DATA_UPLOAD_MAX_MEMORY_SIZE
+# FILE_UPLOAD_MAX_MEMORY_SIZE caps individual uploaded files.
+FILE_UPLOAD_MAX_MEMORY_SIZE = MAX_UPLOAD_SIZE_MB * 1024 * 1024
+# DATA_UPLOAD_MAX_MEMORY_SIZE caps the total POST body (all text fields combined,
+# not just file uploads). The admin custom-message form can carry a very long
+# pasted message plus many hidden _selected_action fields, so this is set high.
+# 100 MB is well above any realistic message body; file data is not counted here
+# because Django buffers small files in memory and large ones on disk.
+DATA_UPLOAD_MAX_MEMORY_SIZE = int(env("DATA_UPLOAD_MAX_MEMORY_SIZE", str(100 * 1024 * 1024)))
+# Raise the POST field-count ceiling too. With many recipients selected the
+# form emits one hidden input per person; 10 000 covers even the largest lists.
+DATA_UPLOAD_MAX_NUMBER_FIELDS = int(env("DATA_UPLOAD_MAX_NUMBER_FIELDS", "10000"))
 
 if not DEBUG:
     SECURE_SSL_REDIRECT = env_bool("SECURE_SSL_REDIRECT", True)

@@ -81,17 +81,22 @@
       <label for="id_subject" style="display: flex; align-items: center; justify-content: space-between;">
         <span>Subject <span style="color:#ef4444;">*</span></span>
       </label>
-      <input type="text" id="id_subject" name="subject" maxlength="180" required placeholder="e.g. Important update regarding your application file" style="width: 100%; box-sizing: border-box;">
+      <input type="text" id="id_subject" name="subject" maxlength="500" required placeholder="e.g. Important update regarding your application file" style="width: 100%; box-sizing: border-box;">
     </div>
 
     <div class="gs-field">
-      <label for="id_message">
+      <label for="id_message" style="display: flex; align-items: center; justify-content: space-between;">
         <span>Message <span style="color:#ef4444;">*</span></span>
       </label>
-      <textarea id="id_message" name="message" rows="8" required placeholder="Write your message to the applicant or agent here...&#10;&#10;Separate paragraphs with an empty line." style="width: 100%; box-sizing: border-box;"></textarea>
-      <p class="gs-muted" style="margin-top: 4px; font-size: 12px;">
-        The recipient will receive this message formatted as an official Gabstep notification email with direct links to their portal.
-      </p>
+      <textarea id="id_message" name="message" rows="12" required placeholder="Write your message to the applicant or agent here...&#10;&#10;Separate paragraphs with an empty line." style="width: 100%; box-sizing: border-box; resize: vertical;"></textarea>
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 5px;">
+        <p class="gs-muted" style="margin: 0; font-size: 12px;">
+          The recipient will receive this message formatted as an official Gabstep notification email with direct links to their portal.
+        </p>
+        <span id="msg-char-count" style="font-size: 12px; font-weight: 600; white-space: nowrap; margin-left: 12px; padding: 2px 8px; border-radius: 4px; background: var(--gs-card-bg, #f1f5f9); border: 1px solid var(--border-color, #e2e8f0); color: var(--body-quiet-color, #64748b); transition: color 0.2s, background 0.2s;">
+          0 characters
+        </span>
+      </div>
     </div>
 
     <div class="gs-field" style="margin: 20px 0;">
@@ -117,6 +122,45 @@
 </div>
 
 <script>
+  // ── Live character counter for the message textarea ──────────────────
+  (function () {
+    var ta = document.getElementById('id_message');
+    var counter = document.getElementById('msg-char-count');
+    if (!ta || !counter) return;
+
+    function formatNum(n) {
+      return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    }
+
+    function update() {
+      var len = ta.value.length;
+      var label = len === 1 ? '1 character' : formatNum(len) + ' characters';
+      counter.textContent = label;
+
+      // Colour feedback: normal → info (50 k+) → vivid (200 k+)
+      if (len >= 200000) {
+        counter.style.color = '#7c3aed';
+        counter.style.background = '#f5f3ff';
+        counter.style.borderColor = '#c4b5fd';
+      } else if (len >= 50000) {
+        counter.style.color = '#2563eb';
+        counter.style.background = '#eff6ff';
+        counter.style.borderColor = '#bfdbfe';
+      } else {
+        counter.style.color = 'var(--body-quiet-color, #64748b)';
+        counter.style.background = 'var(--gs-card-bg, #f1f5f9)';
+        counter.style.borderColor = 'var(--border-color, #e2e8f0)';
+      }
+    }
+
+    ta.addEventListener('input', update);
+    ta.addEventListener('paste', function () {
+      // 'paste' fires before the value updates, so defer by one tick
+      setTimeout(update, 0);
+    });
+    update(); // initialise on load
+  })();
+
   (function() {
     var fileInput = document.getElementById('id_attachments');
     var filePreview = document.getElementById('file-preview');
