@@ -533,3 +533,39 @@ a.ag-text-btn { text-decoration: none; }
 .nf-tip { margin: 2px 0 0; font-size: 13px; line-height: 1.5; color: var(--g-ink-3); }
 .nf-tip a { color: var(--g-accent); font-weight: 600; text-decoration: underline; text-underline-offset: 2px; }
 .nf-tip a:hover { color: var(--g-accent-hover); }
+
+/* ── Certificate ──────────────────────────────────────────────────── */
+.ag-cert-actions { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
+.ag-cert-actions .agent-btn { min-width: 140px; }
+.ag-cert-card { padding: clamp(12px, 2.4vw, 22px); }
+/* The top half of the certificate (A4 landscape, 297 × 210 mm), fading out at
+   the bottom edge. The whole page opens in View. */
+.ag-cert-preview {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 297 / 105;
+  overflow: hidden;
+  border-radius: var(--g-r-md);
+  background: var(--g-surface-2);
+}
+.ag-cert-hit {
+  position: absolute;
+  inset: 0;
+  padding: 0;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  cursor: zoom-in;
+}
+.ag-cert-hit:disabled { cursor: default; }
+.ag-cert-hit:focus-visible { outline: 2px solid var(--g-accent); outline-offset: -2px; }
+.ag-cert-preview .pdf-viewer-pages { gap: 0; }
+.ag-cert-preview .pdf-viewer-pages .pdf-page { border-radius: 0; box-shadow: none; }
+.ag-cert-fade {
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 38%;
+  background: linear-gradient(to bottom, transparent, var(--g-surface));
+  pointer-events: none;
+}

@@ -316,6 +316,29 @@ class AgentStudentViewSet(AgentScopedMixin, viewsets.ModelViewSet):
         return response
 
 
+class AgentCertificateView(AgentScopedMixin, APIView):
+    """The agent's partnership certificate, as a PDF.
+
+    Not found until six hours after the account was set up: before then the
+    certificate does not exist as far as the portal is concerned.
+    """
+
+    def get(self, request):
+        from django.http import Http404, HttpResponse
+
+        from .certificate import build_partnership_certificate
+
+        agent = self.agent
+        if not agent.certificate_ready:
+            raise Http404
+        response = HttpResponse(build_partnership_certificate(agent), content_type="application/pdf")
+        response["Content-Disposition"] = (
+            f'inline; filename="Apply-Gabstep-Partner-Certificate-{agent.partner_code}.pdf"'
+        )
+        response["Cache-Control"] = "private, no-store"
+        return response
+
+
 class AgentLettersView(AgentScopedMixin, APIView):
     """Every letter issued to any of this agent's students, newest first."""
 

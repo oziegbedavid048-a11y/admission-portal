@@ -80,6 +80,9 @@ class AgentProfileSerializer(serializers.ModelSerializer):
     avatar = serializers.ImageField(source="user.avatar", read_only=True)
     initials = serializers.CharField(source="user.initials", read_only=True)
     partner_code = serializers.CharField(read_only=True)
+    # False until six hours after sign-up. The portal shows the Certificate
+    # page only once this is true, and says nothing about it before.
+    certificate_ready = serializers.BooleanField(read_only=True)
     wallet = WalletSerializer(read_only=True)
     # Needed only when the bank details change. See payout_account.py.
     current_password = serializers.CharField(
@@ -97,6 +100,7 @@ class AgentProfileSerializer(serializers.ModelSerializer):
             "avatar",
             "initials",
             "partner_code",
+            "certificate_ready",
             "agency_name",
             "bank_name",
             "account_number",

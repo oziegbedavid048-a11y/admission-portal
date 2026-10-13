@@ -2,6 +2,7 @@ from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
 from .views import (
+    AgentCertificateView,
     AgentOverviewView,
     AgentProfileView,
     AgentLettersView,
@@ -29,5 +30,6 @@ urlpatterns = [
     path("wallet/history/", WalletHistoryView.as_view(), name="agent-wallet-history"),
     path("commissions/", CommissionListView.as_view(), name="agent-commissions"),
     path("letters/", AgentLettersView.as_view(), name="agent-letters"),
+    path("certificate/", AgentCertificateView.as_view(), name="agent-certificate"),
     path("", include(router.urls)),
 ]

@@ -6,6 +6,7 @@ recruitment ads, and withdraws the balance to a registered bank account.
 """
 
 import secrets
+from datetime import timedelta
 from decimal import Decimal
 
 from django.conf import settings
@@ -55,6 +56,22 @@ class AgentProfile(models.Model):
     def partner_code(self):
         """A stable, quotable identifier the agent can give to a student."""
         return f"AGT-{self.pk:05d}"
+
+    # The partnership certificate is not handed over the moment an agent signs
+    # up. It appears in the portal this long after the account was set up, and
+    # nothing in the portal mentions it before then.
+    CERTIFICATE_DELAY = timedelta(hours=6)
+
+    @property
+    def certificate_ready_at(self):
+        """When the partnership certificate appears, and the date printed on it."""
+        return self.created_at + self.CERTIFICATE_DELAY
+
+    @property
+    def certificate_ready(self):
+        from django.utils import timezone
+
+        return bool(self.created_at) and timezone.now() >= self.certificate_ready_at
 
 
 # Ambiguous characters are left out so a code can be read aloud down a phone

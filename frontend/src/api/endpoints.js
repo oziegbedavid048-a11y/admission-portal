@@ -186,6 +186,8 @@ export const partners = {
   commissions: () => api.get('/partners/commissions/'),
   // Every letter issued to any of this agent's students.
   letters: () => api.get('/partners/letters/'),
+  // The partnership certificate PDF. Not found until it is ready.
+  certificate: () => api.get('/partners/certificate/', { responseType: 'blob' }),
 };
 
 export const supervisors = {

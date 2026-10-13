@@ -20,6 +20,8 @@ import os
 from datetime import date
 from typing import Optional
 
+from django.utils import timezone
+
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.pdfgen import canvas as rl_canvas
@@ -580,6 +582,10 @@ def build_partnership_certificate(
         or user.email
     )
     partner_code = getattr(agent_profile, "partner_code", "")
+    # Dated the day it was issued to the agent, so every copy downloaded later
+    # carries the same date.
+    ready_at = getattr(agent_profile, "certificate_ready_at", None)
+    issue_date = timezone.localdate(ready_at) if ready_at else date.today()
 
     return build_partnership_certificate_raw(
         agent_name=agent_name,
@@ -587,6 +593,6 @@ def build_partnership_certificate(
         org_name=org_name,
         signatory_name=signatory_name,
         signatory_title=signatory_title,
-        issue_date=date.today(),
+        issue_date=issue_date,
     )
 
