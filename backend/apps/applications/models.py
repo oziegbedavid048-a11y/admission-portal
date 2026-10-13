@@ -367,7 +367,7 @@ class Notification(models.Model):
     application = models.ForeignKey(
         Application, on_delete=models.CASCADE, related_name="notifications"
     )
-    text = models.CharField(max_length=300)
+    text = models.TextField()
     is_read = models.BooleanField(default=False)
     send_email = models.BooleanField(
         default=True,

@@ -312,6 +312,7 @@ def send_custom_message_email(
 ):
     """Send a custom message from admin to an applicant, partner agent, or any user.
 
+    Accepts any character: plain text, emojis, symbols, pasted rich text.
     Supports attaching files (list of (name, bytes, mime_type) tuples or UploadedFile instances).
     """
     from .models import User
@@ -320,27 +321,58 @@ def send_custom_message_email(
         user = user_or_email
         recipient_email = user.email
         name = user.full_name or ""
-        user_role = user.role
     else:
         recipient_email = str(user_or_email).strip()
         name = full_name or ""
-        user_role = role or ""
 
     if not recipient_email:
         return False
 
-    greeting = f"Hello {_first_name(name, 'there')},"
+    first = _first_name(name, "there")
+    greeting_text = f"Hello {first},"
 
-    clean_paragraphs = [escape(p).replace("\n", "<br>") for p in message_body.split("\n\n") if p.strip()]
-    if not clean_paragraphs:
-        clean_paragraphs = [escape(message_body).replace("\n", "<br>")]
+    # ── Plain-text version ──────────────────────────────────────────────
+    # Use the raw message_body as-is; no HTML escaping needed for plain text.
+    plain = "\n".join([
+        greeting_text,
+        "",
+        message_body,
+        "",
+        _footer_plain(),
+    ])
 
-    return _send(
-        subject=subject,
-        recipients=[recipient_email],
-        greeting=greeting,
-        paragraphs=clean_paragraphs,
-        action=None,
+    # ── HTML version ────────────────────────────────────────────────────
+    # escape() each paragraph so user-supplied text can never inject HTML,
+    # then convert newlines to <br> tags so line breaks are preserved.
+    # We do this ourselves rather than going through _render() to avoid the
+    # second escape() pass that _render() applies, which would turn e.g.
+    # &amp; → &amp;amp; and corrupt emojis stored as numeric entities.
+    safe_greeting = escape(greeting_text)
+
+    # Split on double-newlines for paragraphs, then escape and convert \n → <br>
+    raw_paragraphs = [p for p in message_body.split("\n\n") if p.strip()]
+    if not raw_paragraphs:
+        raw_paragraphs = [message_body]
+    html_paragraphs = "".join(
+        f'<p style="{P}">{escape(p).replace(chr(10), "<br>")}</p>'
+        for p in raw_paragraphs
+    )
+
+    html_body = (
+        f'<!DOCTYPE html><html><head><meta charset="utf-8">'
+        f'<meta name="viewport" content="width=device-width,initial-scale=1"></head>'
+        f'<body style="{BODY}"><div style="{WRAP}">'
+        f'<p style="{P}">{safe_greeting}</p>'
+        f"{html_paragraphs}"
+        f"{_footer_html()}"
+        f"</div></body></html>"
+    )
+
+    return send_async_email(
+        subject,
+        plain,
+        html_body,
+        [recipient_email],
         wait=wait,
         attachments=attachments,
     )

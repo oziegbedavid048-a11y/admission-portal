@@ -318,7 +318,7 @@ class ApplicantAdmin(admin.ModelAdmin):
                     sent_count += 1
                     app = Application.objects.filter(applicant=user).order_by("-submitted_at").first()
                     if app:
-                        services.notify(app, f"Message from Gabstep: {subject}. {message_body}", send_email=False)
+                        services.notify(app, f"Custom message sent: {subject}", send_email=False)
                 else:
                     failed_count += 1
 
