@@ -81,6 +81,8 @@ INSTALLED_APPS = [
     "apps.partners",
     "apps.payments",
     "apps.filestore",
+    # Admin screens for test and mock-up accounts. Proxies only, no tables.
+    "apps.testaccounts",
 ]
 
 MIDDLEWARE = [

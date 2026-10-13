@@ -83,6 +83,18 @@ class User(AbstractUser):
         default=True,
         help_text="Whether the person has confirmed this email address.",
     )
+    # A test or mock-up account, such as the one `seed_test_agent` builds. Its
+    # applications, payments, letters and money are kept off every working
+    # admin screen and shown only under "Test accounts", and no email is sent
+    # to it. See apps/accounts/testdata.py.
+    is_test_account = models.BooleanField(
+        default=False,
+        db_index=True,
+        help_text=(
+            "Test or mock-up account. Everything it owns is hidden from the real "
+            "admin screens and listed under Test accounts instead. No email is sent to it."
+        ),
+    )
 
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = []

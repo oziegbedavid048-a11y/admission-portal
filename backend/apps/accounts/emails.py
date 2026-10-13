@@ -94,7 +94,11 @@ def send_async_email(subject, text_content, html_content, recipient_list, wait=F
 
     `wait=True` sends on this thread and returns True or False.
     """
-    recipients = [address for address in dict.fromkeys(recipient_list) if address]
+    from apps.accounts.testdata import without_test_addresses
+
+    # Test and mock-up accounts carry made-up addresses that may belong to real
+    # people, so nothing is ever sent to them.
+    recipients = without_test_addresses(list(dict.fromkeys(recipient_list)))
     if not recipients:
         return False
     if wait:
@@ -964,6 +968,8 @@ def send_support_reply_email(reply):
 
     ticket = reply.ticket
     user = ticket.user
+    if user.is_test_account:
+        return False
     paragraphs = [escape(reply.body).replace("\n", "<br>")]
     try:
         message = EmailMultiAlternatives(
@@ -1279,6 +1285,9 @@ def send_partnership_certificate_email(agent_profile):
     the admin action never holds up the HTTP response.
     """
     from apps.partners.certificate import build_partnership_certificate
+
+    if agent_profile.user.is_test_account:
+        return
 
     def _worker():
         agent = agent_profile

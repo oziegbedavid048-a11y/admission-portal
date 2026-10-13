@@ -5,10 +5,13 @@ from django.utils.html import format_html
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 
 from .models import SupportReply, SupportTicket, User
+from .testdata import RealDataOnlyAdmin
 
 
 @admin.register(User)
-class UserAdmin(BaseUserAdmin):
+class UserAdmin(RealDataOnlyAdmin, BaseUserAdmin):
+    test_user_paths = ("",)
+
     ordering = ("-date_joined",)
     list_display = ("email", "full_name", "role", "email_verified", "is_active", "date_joined")
     list_filter = ("role", "email_verified", "is_active", "is_staff")
@@ -16,7 +19,7 @@ class UserAdmin(BaseUserAdmin):
     search_fields = ("email", "full_name", "phone")
     fieldsets = (
         (None, {"fields": ("email", "password")}),
-        ("Profile", {"fields": ("full_name", "phone", "country", "avatar", "role", "email_verified")}),
+        ("Profile", {"fields": ("full_name", "phone", "country", "avatar", "role", "email_verified", "is_test_account")}),
         ("Permissions", {"fields": ("is_active", "is_staff", "is_superuser", "groups", "user_permissions")}),
         ("Dates", {"fields": ("last_login", "date_joined")}),
     )
@@ -234,13 +237,15 @@ class SupportReplyInline(admin.TabularInline):
 
 
 @admin.register(SupportTicket)
-class SupportTicketAdmin(admin.ModelAdmin):
+class SupportTicketAdmin(RealDataOnlyAdmin, admin.ModelAdmin):
     """Messages sent from the Support page in any portal.
 
     Each one is emailed to the support inbox as it arrives. Answer it here: type
     in Reply and save, and the answer is emailed to the sender and appears under
     their message on their Support page.
     """
+
+    test_user_paths = ("user",)
 
     form = SupportTicketForm
     inlines = (SupportReplyInline,)

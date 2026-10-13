@@ -30,6 +30,7 @@ from django.urls import path, reverse
 from django.utils.html import format_html, format_html_join
 
 from apps.accounts.models import User
+from apps.accounts.testdata import RealDataOnlyAdmin
 from config.admin_ui import button_link, muted, pill, plural
 
 from . import services
@@ -212,12 +213,14 @@ class PlainSelectsMixin:
 
 
 @admin.register(Applicant)
-class ApplicantAdmin(admin.ModelAdmin):
+class ApplicantAdmin(RealDataOnlyAdmin, admin.ModelAdmin):
     """Every applicant who registered on the portal.
 
     Provides admissions desk with a complete view of registered applicants,
     their current application state, and direct access to verify their uploaded documents.
     """
+
+    test_user_paths = ("",)
 
     list_display = (
         "applicant_name",
@@ -366,7 +369,9 @@ class ApplicantAdmin(admin.ModelAdmin):
 
 
 @admin.register(Application)
-class ApplicationAdmin(PlainSelectsMixin, admin.ModelAdmin):
+class ApplicationAdmin(RealDataOnlyAdmin, PlainSelectsMixin, admin.ModelAdmin):
+    test_user_paths = ("applicant", "submitted_by_agent__user")
+
     list_display = (
         "reference",
         "full_name",
@@ -440,7 +445,8 @@ class ApplicationAdmin(PlainSelectsMixin, admin.ModelAdmin):
     )
 
     # Applications applicants made themselves. Agent-filed files have their
-    # own screen, AgentApplicationAdmin, which flips this.
+    # own screen, AgentApplicationAdmin, which flips this. None lists both, for
+    # the Test accounts screen.
     filed_by_agent = False
 
     def get_queryset(self, request):
@@ -448,7 +454,7 @@ class ApplicationAdmin(PlainSelectsMixin, admin.ModelAdmin):
         match = getattr(request, "resolver_match", None)
         # The letter form's application picker searches every file, so it
         # must not be limited to one screen's half.
-        if not (match and match.url_name == "autocomplete"):
+        if not (match and match.url_name == "autocomplete") and self.filed_by_agent is not None:
             if not self.filed_by_agent:
                 from apps.accounts.models import User
                 from apps.partners.models import AgentProfile
@@ -725,8 +731,10 @@ class RejectDocumentForm(forms.Form):
 
 
 @admin.register(Document)
-class DocumentAdmin(admin.ModelAdmin):
+class DocumentAdmin(RealDataOnlyAdmin, admin.ModelAdmin):
     """Open a document, look at it, then Verify it or Reject it with a comment."""
+
+    test_user_paths = ("application__applicant", "application__submitted_by_agent__user")
 
     list_display = ("name", "applicant", "status_label", "uploaded_at", "open_link")
     list_filter = ("status", "kind", "uploaded_at")
@@ -891,13 +899,15 @@ class DocumentAdmin(admin.ModelAdmin):
 
 
 @admin.register(Letter)
-class LetterAdmin(PlainSelectsMixin, admin.ModelAdmin):
+class LetterAdmin(RealDataOnlyAdmin, PlainSelectsMixin, admin.ModelAdmin):
     """Issue a letter: choose the application, upload the file, save.
 
     Saving a new letter publishes it straight away and emails the owner of the
     file (the agent, for a student an agent registered). Unpublish hides one;
     Publish shows it again.
     """
+
+    test_user_paths = ("application__applicant", "application__submitted_by_agent__user")
 
     list_display = ("title", "application", "kind", "published", "issued_at")
     list_filter = ("kind", "is_published", "issued_at")
@@ -960,8 +970,10 @@ class LetterAdmin(PlainSelectsMixin, admin.ModelAdmin):
 
 
 @admin.register(CorrectionRequest)
-class CorrectionRequestAdmin(admin.ModelAdmin):
+class CorrectionRequestAdmin(RealDataOnlyAdmin, admin.ModelAdmin):
     """Approve a requested change (written to the file where possible) or decline it."""
+
+    test_user_paths = ("application__applicant", "application__submitted_by_agent__user")
 
     list_display = ("ticket", "application", "field", "current_value", "corrected_value", "status_label", "created_at")
     list_filter = ("status", "field", "created_at")
@@ -1008,8 +1020,10 @@ class CorrectionRequestAdmin(admin.ModelAdmin):
 
 
 @admin.register(VisaSupportApplication)
-class VisaSupportApplicationAdmin(admin.ModelAdmin):
+class VisaSupportApplicationAdmin(RealDataOnlyAdmin, admin.ModelAdmin):
     """Admitted students, and anyone who sent their letter to the visa desk."""
+
+    test_user_paths = ("applicant", "submitted_by_agent__user")
 
     list_display = ("reference", "full_name", "filed_by", "institution", "sent_by_applicant", "visa_label", "confirm_link")
     list_filter = ("visa_status", "transferred_to_visa_support", "destination_country")
@@ -1145,9 +1159,12 @@ class AgentFilter(admin.SimpleListFilter):
     def lookups(self, request, model_admin):
         from apps.partners.models import AgentProfile
 
+        # Real agents on the working screen, test agents under Test accounts.
+        is_test = getattr(model_admin, "test_data_only", False)
+        agents = AgentProfile.objects.filter(user__is_test_account=is_test)
         return [
             (agent.pk, agent.user.full_name or agent.user.email)
-            for agent in AgentProfile.objects.select_related("user").order_by("user__full_name")
+            for agent in agents.select_related("user").order_by("user__full_name")
         ]
 
     def queryset(self, request, queryset):
@@ -1160,8 +1177,10 @@ PAYMENT_TONE = {"paid": "ok", "waived": "info", "review": "wait", "failed": "bad
 
 
 @admin.register(AgentApplications)
-class AgentApplicationsAdmin(admin.ModelAdmin):
+class AgentApplicationsAdmin(RealDataOnlyAdmin, admin.ModelAdmin):
     """Every partner agent. Click an agent to see the students they registered."""
+
+    test_user_paths = ("user",)
 
     list_display = ("agent", "email", "code", "students", "awaiting_payment", "open_link")
     search_fields = ("user__full_name", "user__email", "agency_name")
@@ -1232,9 +1251,10 @@ class DocumentAgentFilter(admin.SimpleListFilter):
     def lookups(self, request, model_admin):
         from apps.partners.models import AgentProfile
 
+        agents = AgentProfile.objects.filter(user__is_test_account=False)
         return [
             (agent.pk, agent.user.full_name or agent.user.email)
-            for agent in AgentProfile.objects.select_related("user").order_by("user__full_name")
+            for agent in agents.select_related("user").order_by("user__full_name")
         ]
 
     def queryset(self, request, queryset):

@@ -29,6 +29,8 @@ LAYOUT = [
     ("payments", ["Payment"]),
     ("catalog", ["Program", "Institution", "DestinationCountry", "CourseImport"]),
     ("accounts", ["SupportTicket", "User"]),
+    # Test and mock-up data, kept apart from everything above.
+    ("testaccounts", ["TestAgent", "TestApplication", "TestUser"]),
 ]
 
 SECTION_ORDER = {label: index for index, (label, _) in enumerate(LAYOUT)}

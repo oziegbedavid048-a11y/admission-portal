@@ -13,6 +13,7 @@ from django.db.models import F
 from django.utils import timezone
 from django.utils.html import format_html
 
+from apps.accounts.testdata import RealDataOnlyAdmin
 from config.admin_ui import pill
 
 from apps.accounts.emails import (
@@ -87,7 +88,9 @@ class CommissionInline(admin.TabularInline):
 
 
 @admin.register(AgentProfile)
-class AgentProfileAdmin(admin.ModelAdmin):
+class AgentProfileAdmin(RealDataOnlyAdmin, admin.ModelAdmin):
+    test_user_paths = ("user",)
+
     list_display = (
         "partner_code",
         "user",
@@ -273,8 +276,10 @@ class AgentProfileAdmin(admin.ModelAdmin):
 
 
 @admin.register(Loan)
-class LoanAdmin(admin.ModelAdmin):
+class LoanAdmin(RealDataOnlyAdmin, admin.ModelAdmin):
     """Ads funding requests waiting on a decision."""
+
+    test_user_paths = ("agent__user",)
 
     list_display = ("reference", "agent", "requested", "purpose", "campaign", "status_badge", "requested_at")
     list_filter = ("status", "purpose", "requested_at")
@@ -405,8 +410,10 @@ class LoanAdmin(admin.ModelAdmin):
 
 
 @admin.register(Withdrawal)
-class WithdrawalAdmin(admin.ModelAdmin):
+class WithdrawalAdmin(RealDataOnlyAdmin, admin.ModelAdmin):
     """Payouts waiting to be sent to an agent's bank account."""
+
+    test_user_paths = ("agent__user",)
 
     list_display = (
         "reference",

@@ -8,6 +8,10 @@ Earning rules:
 - Loans: Ads funding history with 2 repaid loans (N150,000 total repaid) and 1 declined loan
 - Withdrawals: 2 completed payouts (N500,000 total)
 - Active debt: N0.00
+
+Every account it creates is marked as a test account, so none of it shows on the
+real admin screens. It is listed under "Test accounts" in the admin instead, and
+no email is sent to any of it.
 """
 
 from datetime import timedelta
@@ -171,6 +175,7 @@ class Command(BaseCommand):
                 "country": "Nigeria",
                 "email_verified": True,
                 "is_active": True,
+                "is_test_account": True,
             },
         )
         user.full_name = full_name
@@ -179,6 +184,8 @@ class Command(BaseCommand):
         user.country = "Nigeria"
         user.email_verified = True
         user.is_active = True
+        # Keeps this account and everything it owns off the real admin screens.
+        user.is_test_account = True
         user.set_password(password)
         user.save()
 
@@ -251,9 +258,11 @@ class Command(BaseCommand):
                     "country": "Nigeria",
                     "email_verified": True,
                     "is_active": True,
+                    "is_test_account": True,
                 },
             )
             applicant_user.full_name = s_name
+            applicant_user.is_test_account = True
             applicant_user.set_password("StudentPass2026!")
             applicant_user.save()
 

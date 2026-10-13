@@ -5,6 +5,7 @@ from django.shortcuts import get_object_or_404, render
 from django.urls import path, reverse
 from django.utils.html import format_html
 
+from apps.accounts.testdata import RealDataOnlyAdmin
 from config.admin_ui import button_link, pill, plural
 
 from apps.applications import services
@@ -14,9 +15,11 @@ from .settlement import settle
 
 
 @admin.register(Payment)
-class PaymentAdmin(admin.ModelAdmin):
+class PaymentAdmin(RealDataOnlyAdmin, admin.ModelAdmin):
     """Application fees, and the two manual overrides staff occasionally need:
     confirming a transfer that arrived off-platform, and waiving a fee."""
+
+    test_user_paths = ("application__applicant", "application__submitted_by_agent__user")
 
     list_display = (
         "reference",
@@ -117,12 +120,14 @@ class RejectReceiptForm(forms.Form):
 
 
 @admin.register(PaymentToConfirm)
-class PaymentToConfirmAdmin(admin.ModelAdmin):
+class PaymentToConfirmAdmin(RealDataOnlyAdmin, admin.ModelAdmin):
     """Bank transfers waiting for the money to be checked.
 
     Confirm pays the agent's commission. Reject sends the payer your reason and
     lets them upload a new receipt.
     """
+
+    test_user_paths = ("application__applicant", "application__submitted_by_agent__user")
 
     list_display = ("reference", "student", "filed_by", "amount_due", "transfer_bank", "submitted", "open_link")
     search_fields = ("reference", "application__reference", "application__full_name")
