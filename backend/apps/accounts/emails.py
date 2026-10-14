@@ -1275,6 +1275,34 @@ def send_commission_credited_email(agent, application, kind, amount):
     )
 
 
+# ── Partnership Contract ──────────────────────────────────────────────────────
+
+def send_contract_signed_email(contract, pdf_bytes):
+    """The agent's own copy of the contract they have just signed."""
+    user = contract.agent.user
+    if not user.email:
+        return None
+    signed_on = contract.signed_on.strftime("%d %B %Y") if contract.signed_on else ""
+    return _send(
+        subject="Your signed Apply Gabstep Sales Partnership Contract",
+        recipients=[user.email],
+        greeting=f"Hello {_first_name(user.full_name, 'there')},",
+        paragraphs=[
+            "Thank you for signing the Apply Gabstep Sales Partnership Contract. "
+            "Your signed copy is attached to this email.",
+            "You can view and download it at any time from the Contract page in your partner portal.",
+        ],
+        facts=[
+            ("Sales Partner", contract.signer_name),
+            ("Partner code", contract.agent.partner_code),
+            ("Signed on", signed_on),
+        ],
+        action=("Open your contract", _url("/agent/contract")),
+        wait=True,
+        attachments=[(contract.filename, pdf_bytes, "application/pdf")],
+    )
+
+
 # ── Partnership Certificate ───────────────────────────────────────────────────
 
 def send_partnership_certificate_email(agent_profile):

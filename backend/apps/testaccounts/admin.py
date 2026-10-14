@@ -9,6 +9,7 @@ from django.contrib import admin
 from django.urls import reverse
 
 from apps.accounts.admin import UserAdmin
+from apps.accounts.deletion import AccountDeleteMixin
 from apps.applications.admin import AgentApplicationAdmin, AgentApplicationsAdmin
 from config.admin_ui import button_link
 
@@ -16,10 +17,14 @@ from .models import TestAgent, TestApplication, TestUser
 
 
 @admin.register(TestAgent)
-class TestAgentAdmin(AgentApplicationsAdmin):
-    """Test agents. Click one to see the students it registered."""
+class TestAgentAdmin(AccountDeleteMixin, AgentApplicationsAdmin):
+    """Test agents. Click one to see the students it registered. Test data is
+    disposable, so a test agent can be deleted here, with everything under it."""
 
     test_data_only = True
+
+    def has_delete_permission(self, request, obj=None):
+        return admin.ModelAdmin.has_delete_permission(self, request, obj)
 
     def get_model_perms(self, request):
         return admin.ModelAdmin.get_model_perms(self, request)

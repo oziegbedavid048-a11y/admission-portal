@@ -30,6 +30,7 @@ from django.urls import path, reverse
 from django.utils.html import format_html, format_html_join
 
 from apps.accounts.models import User
+from apps.accounts.deletion import AccountDeleteMixin
 from apps.accounts.testdata import RealDataOnlyAdmin
 from config.admin_ui import button_link, muted, pill, plural
 
@@ -213,7 +214,7 @@ class PlainSelectsMixin:
 
 
 @admin.register(Applicant)
-class ApplicantAdmin(RealDataOnlyAdmin, admin.ModelAdmin):
+class ApplicantAdmin(AccountDeleteMixin, RealDataOnlyAdmin, admin.ModelAdmin):
     """Every applicant who registered on the portal.
 
     Provides admissions desk with a complete view of registered applicants,

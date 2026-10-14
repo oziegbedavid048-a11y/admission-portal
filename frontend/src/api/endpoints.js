@@ -188,6 +188,11 @@ export const partners = {
   letters: () => api.get('/partners/letters/'),
   // The partnership certificate PDF. Not found until it is ready.
   certificate: () => api.get('/partners/certificate/', { responseType: 'blob' }),
+  // The partnership contract a new agent signs before using the portal.
+  contract: () => api.get('/partners/contract/'),
+  contractPreview: () => api.get('/partners/contract/preview/', { responseType: 'blob' }),
+  signContract: (payload) => api.post('/partners/contract/sign/', payload),
+  contractFile: () => api.get('/partners/contract/file/', { responseType: 'blob' }),
 };
 
 export const supervisors = {

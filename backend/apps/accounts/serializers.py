@@ -103,6 +103,8 @@ class AgentRegistrationSerializer(serializers.Serializer):
     account_name = serializers.CharField(max_length=120)
     agency_name = serializers.CharField(max_length=160, required=False, allow_blank=True)
     country = serializers.CharField(max_length=80, required=False, allow_blank=True)
+    # Printed on the partnership contract the agent signs on first sign-in.
+    address = serializers.CharField(max_length=255)
     agent_code = serializers.CharField(
         max_length=12,
         required=False,
@@ -123,6 +125,12 @@ class AgentRegistrationSerializer(serializers.Serializer):
 
     def validate_password(self, value):
         password_validation.validate_password(value)
+        return value
+
+    def validate_address(self, value):
+        value = " ".join((value or "").split())
+        if len(value) < 5:
+            raise serializers.ValidationError("Enter your full address.")
         return value
 
     def validate_agent_code(self, value):
@@ -163,6 +171,9 @@ class AgentRegistrationSerializer(serializers.Serializer):
             account_number=validated_data["account_number"],
             account_name=validated_data["account_name"],
             agency_name=validated_data.get("agency_name", ""),
+            address=validated_data["address"],
+            # Opens the portal on the partnership contract until it is signed.
+            contract_required=True,
             supervisor=validated_data.get("agent_code"),
         )
         from apps.partners.currency import currency_for_country

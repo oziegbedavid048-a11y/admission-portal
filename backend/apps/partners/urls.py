@@ -2,6 +2,10 @@ from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
 from .views import (
+    AgentContractFileView,
+    AgentContractPreviewView,
+    AgentContractSignView,
+    AgentContractView,
     AgentCertificateView,
     AgentOverviewView,
     AgentProfileView,
@@ -31,5 +35,9 @@ urlpatterns = [
     path("commissions/", CommissionListView.as_view(), name="agent-commissions"),
     path("letters/", AgentLettersView.as_view(), name="agent-letters"),
     path("certificate/", AgentCertificateView.as_view(), name="agent-certificate"),
+    path("contract/", AgentContractView.as_view(), name="agent-contract"),
+    path("contract/preview/", AgentContractPreviewView.as_view(), name="agent-contract-preview"),
+    path("contract/sign/", AgentContractSignView.as_view(), name="agent-contract-sign"),
+    path("contract/file/", AgentContractFileView.as_view(), name="agent-contract-file"),
     path("", include(router.urls)),
 ]

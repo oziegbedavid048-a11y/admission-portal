@@ -42,6 +42,16 @@ class AgentProfile(models.Model):
         related_name="agents",
         help_text="The sales manager whose code this agent used at sign-up.",
     )
+    # Given at sign-up, and printed on the partnership contract.
+    address = models.CharField(max_length=255, blank=True)
+    # Whether this agent must sign the partnership contract in the portal before
+    # using it. Set by agent sign-up, so everyone who registers from now on is
+    # asked; agents who joined before the contract page existed are not (staff
+    # upload their paper contract instead, see AgentContract).
+    contract_required = models.BooleanField(
+        default=False,
+        help_text="Must sign the partnership contract in the portal before using it.",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -66,6 +76,14 @@ class AgentProfile(models.Model):
     def certificate_ready_at(self):
         """When the partnership certificate appears, and the date printed on it."""
         return self.created_at + self.CERTIFICATE_DELAY
+
+    @property
+    def contract_status(self):
+        """"signed", "pending" (must sign before using the portal) or "none"."""
+        contract = getattr(self, "contract", None)
+        if contract is not None and contract.file:
+            return "signed"
+        return "pending" if self.contract_required else "none"
 
     @property
     def certificate_ready(self):
@@ -741,3 +759,76 @@ class StudentDraftFile(models.Model):
         constraints = [
             models.UniqueConstraint(fields=["draft", "slot"], name="one_file_per_draft_slot"),
         ]
+
+
+def contract_upload_path(instance, filename):
+    from apps.applications.uploads import _stored_name
+
+    return _stored_name("contracts", filename)
+
+
+class AgentContract(models.Model):
+    """An agent's signed Sales Partnership Contract.
+
+    Either signed in the portal (the PDF is built from the company's template
+    with the agent's details and signature on it, see contract_pdf.py), or a
+    paper contract signed before the portal had a contract page, uploaded by
+    staff. Once there is a file, the agent can view and download it.
+    """
+
+    class Source(models.TextChoices):
+        PORTAL = "portal", "Signed in the portal"
+        UPLOADED = "uploaded", "Uploaded by staff"
+
+    class Method(models.TextChoices):
+        DRAWN = "drawn", "Drawn"
+        TYPED = "typed", "Typed name"
+
+    agent = models.OneToOneField(AgentProfile, on_delete=models.CASCADE, related_name="contract")
+    file = models.FileField(upload_to=contract_upload_path, blank=True)
+    source = models.CharField(max_length=10, choices=Source.choices, default=Source.UPLOADED)
+    signed_on = models.DateField(null=True, blank=True, help_text="The date on the contract.")
+    signed_at = models.DateTimeField(null=True, blank=True)
+    # What was written on the contract, kept as it was on the day.
+    signer_name = models.CharField(max_length=180, blank=True)
+    signer_email = models.EmailField(blank=True)
+    signer_phone = models.CharField(max_length=40, blank=True)
+    signer_address = models.CharField(max_length=255, blank=True)
+    signature_method = models.CharField(max_length=8, choices=Method.choices, blank=True)
+    currency = models.CharField(max_length=3, blank=True)
+    ngn_per_unit = models.DecimalField(max_digits=14, decimal_places=6, null=True, blank=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.CharField(max_length=255, blank=True)
+    emailed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "partnership contract"
+        verbose_name_plural = "partnership contracts"
+
+    def __str__(self):
+        return f"Contract: {self.agent}"
+
+    @property
+    def filename(self):
+        import os
+
+        extension = os.path.splitext(self.file.name or "")[1].lower() or ".pdf"
+        return f"Apply-Gabstep-Sales-Partnership-Contract-{self.agent.partner_code}{extension}"
+
+    CONTENT_TYPES = {
+        ".pdf": "application/pdf",
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".webp": "image/webp",
+        ".heic": "image/heic",
+        ".heif": "image/heif",
+    }
+
+    @property
+    def content_type(self):
+        import os
+
+        extension = os.path.splitext(self.file.name or "")[1].lower()
+        return self.CONTENT_TYPES.get(extension, "application/octet-stream")

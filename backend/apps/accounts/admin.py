@@ -5,11 +5,12 @@ from django.utils.html import format_html
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 
 from .models import SupportReply, SupportTicket, User
+from .deletion import AccountDeleteMixin
 from .testdata import RealDataOnlyAdmin
 
 
 @admin.register(User)
-class UserAdmin(RealDataOnlyAdmin, BaseUserAdmin):
+class UserAdmin(AccountDeleteMixin, RealDataOnlyAdmin, BaseUserAdmin):
     test_user_paths = ("",)
 
     ordering = ("-date_joined",)

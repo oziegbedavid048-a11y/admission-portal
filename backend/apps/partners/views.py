@@ -2,6 +2,7 @@ from decimal import Decimal
 
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
+from django.utils import timezone
 from rest_framework import serializers as drf_serializers, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.generics import RetrieveUpdateAPIView
@@ -12,7 +13,7 @@ from rest_framework.views import APIView
 from apps.applications import services
 from apps.applications.constants import AGENT_REGISTRATION_COMMISSION_NGN, AGENT_VISA_COMMISSION_NGN
 from apps.applications.models import Application
-from config.throttles import MoneyThrottle, UploadThrottle, UserThrottle
+from config.throttles import MoneyThrottle, UploadThrottle, UserThrottle, edge_ip
 
 from .currency import money
 from .models import (
@@ -25,7 +26,7 @@ from .models import (
     Withdrawal,
     loan_block_reason,
 )
-from .permissions import IsAgent
+from .permissions import ContractSigned, IsAgent
 from .serializers import (
     AgentProfileSerializer,
     AgentStudentCreateSerializer,
@@ -45,7 +46,9 @@ from .serializers import (
 
 
 class AgentScopedMixin:
-    permission_classes = (IsAgent,)
+    permission_classes = (IsAgent, ContractSigned)
+    # True on the views an agent who has not signed the contract yet may use.
+    contract_exempt = False
 
     @property
     def agent(self):
@@ -54,6 +57,7 @@ class AgentScopedMixin:
 
 class AgentProfileView(AgentScopedMixin, RetrieveUpdateAPIView):
     serializer_class = AgentProfileSerializer
+    contract_exempt = True
     parser_classes = (JSONParser, MultiPartParser, FormParser)
 
     def get_object(self):
@@ -61,6 +65,8 @@ class AgentProfileView(AgentScopedMixin, RetrieveUpdateAPIView):
 
 
 class WalletView(AgentScopedMixin, APIView):
+    contract_exempt = True
+
     def get(self, request):
         return Response(WalletSerializer(self.agent.wallet).data)
 
@@ -335,6 +341,121 @@ class AgentCertificateView(AgentScopedMixin, APIView):
         response["Content-Disposition"] = (
             f'inline; filename="Apply-Gabstep-Partner-Certificate-{agent.partner_code}.pdf"'
         )
+        response["Cache-Control"] = "private, no-store"
+        return response
+
+
+class AgentContractView(AgentScopedMixin, APIView):
+    """Where the agent stands with the contract, and what goes on it.
+
+    GET answers with the status ("pending", "signed" or "none"), the details
+    printed on the contract and, once signed, when and how.
+    """
+
+    contract_exempt = True
+
+    def get(self, request):
+        from .contract import details_for
+
+        agent = self.agent
+        contract = getattr(agent, "contract", None)
+        signed = agent.contract_status == "signed"
+        return Response(
+            {
+                "status": agent.contract_status,
+                "details": details_for(agent),
+                "today": timezone.localdate(),
+                "signed_on": contract.signed_on if signed else None,
+                "source": contract.source if signed else None,
+                "filename": contract.filename if signed else None,
+                "content_type": contract.content_type if signed else None,
+            }
+        )
+
+
+class AgentContractPreviewView(AgentScopedMixin, APIView):
+    """The contract with the agent's details on it, to read before signing."""
+
+    contract_exempt = True
+
+    def get(self, request):
+        from django.http import HttpResponse
+
+        from .contract import preview_pdf
+
+        agent = self.agent
+        if agent.contract_status == "signed":
+            return Response({"detail": "Your contract is already signed."}, status=status.HTTP_409_CONFLICT)
+        response = HttpResponse(preview_pdf(agent), content_type="application/pdf")
+        response["Content-Disposition"] = 'inline; filename="Apply-Gabstep-Sales-Partnership-Contract.pdf"'
+        response["Cache-Control"] = "private, no-store"
+        return response
+
+
+class AgentContractSignView(AgentScopedMixin, APIView):
+    """Sign the contract: a PNG signature, how it was made, and the address if
+    sign-up did not have one."""
+
+    contract_exempt = True
+    throttle_classes = (UploadThrottle,)
+
+    def post(self, request):
+        from .contract import ContractError, decode_signature, sign
+
+        if request.data.get("agree") not in (True, "true", "1", 1):
+            return Response(
+                {"detail": "Tick the box to confirm you have read and agree to the contract."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        try:
+            contract = sign(
+                self.agent,
+                signature_png=decode_signature(request.data.get("signature")),
+                method=request.data.get("method", ""),
+                address=request.data.get("address"),
+                ip_address=_signing_ip(request),
+                user_agent=request.META.get("HTTP_USER_AGENT", ""),
+            )
+        except ContractError as error:
+            return Response({"detail": str(error)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(
+            {
+                "status": "signed",
+                "signed_on": contract.signed_on,
+                "source": contract.source,
+                "filename": contract.filename,
+                "content_type": contract.content_type,
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+
+def _signing_ip(request):
+    """The address the contract was signed from, or None if it is not one."""
+    import ipaddress
+
+    address = edge_ip(request)
+    try:
+        return str(ipaddress.ip_address(address))
+    except ValueError:
+        return None
+
+
+class AgentContractFileView(AgentScopedMixin, APIView):
+    """The signed contract PDF (or the paper contract staff uploaded)."""
+
+    contract_exempt = True
+
+    def get(self, request):
+        from django.http import Http404, HttpResponse
+
+        contract = getattr(self.agent, "contract", None)
+        if contract is None or not contract.file:
+            raise Http404
+        with contract.file.open("rb") as handle:
+            data = handle.read()
+        response = HttpResponse(data, content_type=contract.content_type)
+        response["Content-Disposition"] = f'inline; filename="{contract.filename}"'
         response["Cache-Control"] = "private, no-store"
         return response
 

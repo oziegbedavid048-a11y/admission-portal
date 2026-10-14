@@ -6,6 +6,7 @@ import { useLiveChatBubble } from '../../lib/liveChat';
 import { useToast } from '../../context/ToastContext';
 import SupportPage from '../support/SupportPage';
 import AgentCertificate from './AgentCertificate';
+import AgentContract from './contract/AgentContract';
 import AgentCourses from './AgentCourses';
 import AgentLetters from './AgentLetters';
 import AgentLoans from './AgentLoans';
@@ -27,6 +28,8 @@ const NAV = [
   { to: '/agent/loans', label: 'Ads funding', icon: 'adsFunding' },
   // Shown only once the certificate is ready. See PortalRoutes.
   { to: '/agent/certificate', label: 'Certificate', icon: 'medal', certificate: true },
+  // Shown once there is a contract on file, or while it waits to be signed.
+  { to: '/agent/contract', label: 'Contract', icon: 'fileText', contract: true },
   { to: '/agent/support', label: 'Support', icon: 'headset', divider: true },
 ];
 
@@ -44,7 +47,15 @@ function PortalRoutes() {
   // The certificate page appears six hours after sign-up. Until then there is
   // no link to it and nothing mentions it.
   const certificateReady = Boolean(profile.certificate_ready);
-  const nav = NAV.filter((item) => !item.certificate || certificateReady);
+  // A new agent signs the partnership contract before anything else: until
+  // then the portal is the Contract page and Support, nothing more.
+  const contractStatus = profile.contract_status || 'none';
+  const mustSign = contractStatus === 'pending';
+  const nav = mustSign
+    ? NAV.filter((item) => item.contract || item.to === '/agent/support')
+    : NAV.filter(
+        (item) => (!item.certificate || certificateReady) && (!item.contract || contractStatus === 'signed'),
+      );
 
   return (
     <PortalShell
@@ -60,18 +71,29 @@ function PortalRoutes() {
       }}
     >
       <Routes>
-        <Route index element={<AgentOverview />} />
-        <Route path="students" element={<AgentStudents />} />
-        <Route path="students/new" element={<AgentNewStudent />} />
-        <Route path="payment/:reference" element={<AgentPaymentReturn />} />
-        <Route path="letters" element={<AgentLetters />} />
-        <Route path="wallet" element={<AgentWallet />} />
-        <Route path="courses" element={<AgentCourses />} />
-        <Route path="loans" element={<AgentLoans />} />
-        {certificateReady ? <Route path="certificate" element={<AgentCertificate />} /> : null}
-        <Route path="support" element={<SupportPage />} />
-        <Route path="profile" element={<AgentProfile />} />
-        <Route path="*" element={<Navigate to="/agent" replace />} />
+        {mustSign ? (
+          <>
+            <Route path="contract" element={<AgentContract />} />
+            <Route path="support" element={<SupportPage />} />
+            <Route path="*" element={<Navigate to="/agent/contract" replace />} />
+          </>
+        ) : (
+          <>
+            <Route index element={<AgentOverview />} />
+            <Route path="students" element={<AgentStudents />} />
+            <Route path="students/new" element={<AgentNewStudent />} />
+            <Route path="payment/:reference" element={<AgentPaymentReturn />} />
+            <Route path="letters" element={<AgentLetters />} />
+            <Route path="wallet" element={<AgentWallet />} />
+            <Route path="courses" element={<AgentCourses />} />
+            <Route path="loans" element={<AgentLoans />} />
+            {certificateReady ? <Route path="certificate" element={<AgentCertificate />} /> : null}
+            {contractStatus === 'signed' ? <Route path="contract" element={<AgentContract />} /> : null}
+            <Route path="support" element={<SupportPage />} />
+            <Route path="profile" element={<AgentProfile />} />
+            <Route path="*" element={<Navigate to="/agent" replace />} />
+          </>
+        )}
       </Routes>
     </PortalShell>
   );

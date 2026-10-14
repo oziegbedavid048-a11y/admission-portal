@@ -7,12 +7,14 @@ withdrawal is only marked paid once it has actually left the account.
 
 from decimal import Decimal
 
+from django import forms
 from django.contrib import admin, messages
 from django.db import transaction
 from django.db.models import F
 from django.utils import timezone
 from django.utils.html import format_html
 
+from apps.accounts.deletion import AccountDeleteMixin
 from apps.accounts.testdata import RealDataOnlyAdmin
 from config.admin_ui import pill
 
@@ -24,7 +26,7 @@ from apps.accounts.emails import (
     send_partnership_certificate_email,
 )
 
-from .models import AgentProfile, Commission, Loan, Wallet, Withdrawal
+from .models import AgentContract, AgentProfile, Commission, Loan, Wallet, Withdrawal
 
 
 def _plural(count, noun):
@@ -87,8 +89,64 @@ class CommissionInline(admin.TabularInline):
     ordering = ("-earned_at",)
 
 
+class AgentContractForm(forms.ModelForm):
+    """Upload a paper contract the agent signed before the portal had one."""
+
+    class Meta:
+        model = AgentContract
+        fields = ("file", "signed_on")
+
+    def clean_file(self):
+        from rest_framework.exceptions import ValidationError as UploadRejected
+
+        from apps.applications.uploads import validate_upload
+
+        upload = self.cleaned_data.get("file")
+        if upload and hasattr(upload, "content_type"):
+            try:
+                validate_upload(upload, max_mb=15)
+            except UploadRejected as error:
+                raise forms.ValidationError(" ".join(str(item) for item in error.detail))
+        return upload
+
+    def save(self, commit=True):
+        contract = super().save(commit=False)
+        if "file" in self.changed_data and contract.file:
+            contract.source = AgentContract.Source.UPLOADED
+        if commit:
+            contract.save()
+        return contract
+
+
+class AgentContractInline(admin.StackedInline):
+    """The agent's partnership contract.
+
+    A contract signed in the portal is read-only here. For an agent who signed
+    on paper before the portal had a contract page, upload the signed copy
+    (PDF or image) and its date; it then appears on their Contract page.
+    """
+
+    model = AgentContract
+    form = AgentContractForm
+    can_delete = False
+    extra = 0
+    max_num = 1
+    verbose_name = "partnership contract"
+    verbose_name_plural = "partnership contract"
+    readonly_fields = ("source", "signer_name", "signature_method", "signed_at", "emailed_at")
+
+    def get_fields(self, request, obj=None):
+        return ("file", "signed_on") + self.readonly_fields
+
+    def get_readonly_fields(self, request, obj=None):
+        contract = getattr(obj, "contract", None) if obj else None
+        if contract is not None and contract.source == AgentContract.Source.PORTAL and contract.file:
+            return ("file", "signed_on") + self.readonly_fields
+        return self.readonly_fields
+
+
 @admin.register(AgentProfile)
-class AgentProfileAdmin(RealDataOnlyAdmin, admin.ModelAdmin):
+class AgentProfileAdmin(AccountDeleteMixin, RealDataOnlyAdmin, admin.ModelAdmin):
     test_user_paths = ("user",)
 
     list_display = (
@@ -101,17 +159,18 @@ class AgentProfileAdmin(RealDataOnlyAdmin, admin.ModelAdmin):
         "owing",
         "bank_name",
         "certificate_link",
+        "contract_link",
         "created_at",
     )
     search_fields = ("user__full_name", "user__email", "agency_name", "account_number")
     list_filter = ("supervisor",)
     autocomplete_fields = ("user", "supervisor")
-    readonly_fields = ("partner_code", "certificate_link", "created_at")
-    inlines = (WalletInline, CommissionInline)
+    readonly_fields = ("partner_code", "certificate_link", "contract_link", "created_at")
+    inlines = (AgentContractInline, WalletInline, CommissionInline)
     actions = ("action_send_partnership_certificate", "action_send_custom_message")
 
     fieldsets = (
-        (None, {"fields": ("user", "partner_code", "agency_name", "supervisor", "certificate_link", "total_closed_sales", "created_at")}),
+        (None, {"fields": ("user", "partner_code", "agency_name", "address", "supervisor", "certificate_link", "contract_link", "contract_required", "total_closed_sales", "created_at")}),
         ("Payout account", {"fields": ("bank_name", "account_number", "account_name")}),
     )
 
@@ -126,6 +185,11 @@ class AgentProfileAdmin(RealDataOnlyAdmin, admin.ModelAdmin):
                 "<int:agent_id>/certificate/",
                 self.admin_site.admin_view(self.download_certificate_view),
                 name="agent-certificate-download",
+            ),
+            path(
+                "<int:agent_id>/contract/",
+                self.admin_site.admin_view(self.download_contract_view),
+                name="agent-contract-download",
             ),
         ]
         return custom_urls + urls
@@ -143,6 +207,35 @@ class AgentProfileAdmin(RealDataOnlyAdmin, admin.ModelAdmin):
         response = HttpResponse(pdf_bytes, content_type="application/pdf")
         response["Content-Disposition"] = f'inline; filename="Apply_Gabstep_Certificate_{safe_name}.pdf"'
         return response
+
+    def download_contract_view(self, request, agent_id):
+        from django.http import Http404, HttpResponse
+
+        contract = AgentContract.objects.select_related("agent").filter(agent_id=agent_id).first()
+        if contract is None or not contract.file:
+            raise Http404("This agent has no contract on file.")
+        with contract.file.open("rb") as handle:
+            data = handle.read()
+        response = HttpResponse(data, content_type=contract.content_type)
+        response["Content-Disposition"] = f'inline; filename="{contract.filename}"'
+        return response
+
+    @admin.display(description="Contract")
+    def contract_link(self, obj):
+        from django.urls import reverse
+
+        if not obj or not obj.pk:
+            return "—"
+        status = obj.contract_status
+        if status == "signed":
+            url = reverse("admin:agent-contract-download", args=[obj.pk])
+            return format_html(
+                '<a class="button" href="{}" target="_blank" rel="noopener noreferrer" style="white-space:nowrap; padding: 3px 8px; font-size: 11px;">View PDF</a>',
+                url,
+            )
+        if status == "pending":
+            return _pill("Not signed yet", "wait")
+        return "—"
 
     @admin.display(description="Certificate")
     def certificate_link(self, obj):

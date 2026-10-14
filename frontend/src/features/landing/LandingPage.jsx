@@ -28,7 +28,7 @@ const STEPS = [
   { title: 'Create an account', text: 'Sign up and confirm your email.' },
   { title: 'Pick a course', text: 'Choose a country, a university and a course.' },
   { title: 'Upload and pay', text: 'Add your documents and pay the fee in your own currency.' },
-  { title: 'Track to your visa', text: 'Follow every stage and receive your letters.' },
+  { title: 'Track your application', text: 'Follow every stage and receive your letters.' },
 ];
 
 const AGENT_POINTS = [

@@ -24,6 +24,7 @@ const BLANK = {
   email: '',
   phone: '',
   country: 'Nigeria',
+  address: '',
   agency_name: '',
   password: '',
   bank_name: '',
@@ -65,6 +66,7 @@ export default function AgentRegisterPage() {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) found.email = 'Enter a valid email address.';
     if (form.phone.replace(/\D/g, '').length < 7) found.phone = 'Enter a phone number we can reach you on.';
     if (!form.country) found.country = 'Choose the country you work in.';
+    if (form.address.trim().length < 5) found.address = 'Enter your full address.';
     if (!passwordChecks(form.password).every((check) => check.met)) found.password = 'Choose a stronger password.';
     if (!form.bank_name.trim()) found.bank_name = 'Enter your bank.';
     if (!/^\d{10}$/.test(form.account_number)) found.account_number = 'Enter the 10-digit account number.';
@@ -88,6 +90,7 @@ export default function AgentRegisterPage() {
         full_name: form.full_name.trim(),
         email: form.email.trim().toLowerCase(),
         phone: form.phone.trim(),
+        address: form.address.trim(),
         agency_name: form.agency_name.trim(),
         bank_name: form.bank_name.trim(),
         account_name: form.account_name.trim(),
@@ -170,6 +173,7 @@ export default function AgentRegisterPage() {
                   {errors.country ? <span className="gx-error">{String(errors.country)}</span> : null}
                 </div>
               </div>
+              {input('address', 'Address', { autoComplete: 'street-address' }, 'Your home or office address.')}
               {input('agency_name', 'Agency name (optional)', { autoComplete: 'organization' })}
             </fieldset>
 

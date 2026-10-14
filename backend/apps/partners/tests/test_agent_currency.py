@@ -90,6 +90,7 @@ class AgentCurrencyTests(TestCase):
             "email": "new.kenyan@example.com", "full_name": "Wanjiku Kamau", "phone": "+254700000000",
             "country": "Kenya", "password": "Strong-pass-123", "bank_name": "KCB",
             "account_number": "0123456789", "account_name": "Wanjiku Kamau",
+            "address": "12 Moi Avenue, Nairobi",
         })
         self.assertTrue(serializer.is_valid(), serializer.errors)
         user = serializer.save()
