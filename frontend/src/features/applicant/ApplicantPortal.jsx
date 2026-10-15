@@ -3,7 +3,8 @@ import { Navigate, Route, Routes, useNavigate } from 'react-router-dom';
 import PortalShell from '../../components/layout/PortalShell';
 import Loading from '../../components/ui/Loading';
 import { useAuth } from '../../context/AuthContext';
-import { useLiveChatBubble } from '../../lib/liveChat';
+import SupportLauncher from '../../components/ui/SupportLauncher';
+import { useLiveChat } from '../../lib/liveChat';
 import { useToast } from '../../context/ToastContext';
 import SupportPage from '../support/SupportPage';
 import { ApplicationProvider, useApplication } from './ApplicationContext';
@@ -27,8 +28,8 @@ function PortalRoutes() {
   const { loading, application } = useApplication();
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
-  // The live chat bubble sits on every dashboard page.
-  useLiveChatBubble({ name: user?.full_name, email: user?.email });
+  // Live chat loads in the background; the Support button opens it.
+  useLiveChat({ name: user?.full_name, email: user?.email });
   const toast = useToast();
   const [celebrationLetter, setCelebrationLetter] = useState(null);
 
@@ -103,6 +104,7 @@ function PortalRoutes() {
         <Route path="correction" element={<Navigate to="/portal/details" replace />} />
         <Route path="*" element={<Navigate to="/portal" replace />} />
       </Routes>
+      <SupportLauncher visitor={{ name: user?.full_name, email: user?.email }} />
     </PortalShell>
   );
 }

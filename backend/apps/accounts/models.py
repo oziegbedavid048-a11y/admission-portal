@@ -201,3 +201,39 @@ class SupportReply(models.Model):
 
     def __str__(self):
         return f"Reply to {self.ticket.reference}"
+
+
+class WhatsAppContact(models.Model):
+    """A WhatsApp number people can reach support on, one per country.
+
+    Shown in the applicant and agent portals under Support > WhatsApp, one
+    icon per active number. Add a country here and its icon appears; switch
+    one off and it disappears. No code change either way.
+    """
+
+    country = models.CharField(max_length=80, unique=True, help_text="Shown under the icon, e.g. Nigeria.")
+    phone = models.CharField(
+        max_length=20,
+        help_text="International format with the country code, e.g. +234 805 900 0074.",
+    )
+    is_active = models.BooleanField(default=True, help_text="Untick to hide this number in the portals.")
+    display_order = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        ordering = ("display_order", "country")
+        verbose_name = "WhatsApp number"
+        verbose_name_plural = "WhatsApp numbers"
+
+    def __str__(self):
+        return f"{self.country} · {self.phone}"
+
+    @property
+    def digits(self):
+        """The number as WhatsApp links want it: digits only, country code first."""
+        return "".join(ch for ch in self.phone if ch.isdigit())
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+
+        if not 8 <= len(self.digits) <= 15:
+            raise ValidationError({"phone": "Enter the full number with its country code, e.g. +234 805 900 0074."})

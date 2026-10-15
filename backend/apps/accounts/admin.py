@@ -4,7 +4,7 @@ from django.utils import timezone
 from django.utils.html import format_html
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 
-from .models import SupportReply, SupportTicket, User
+from .models import SupportReply, SupportTicket, User, WhatsAppContact
 from .deletion import AccountDeleteMixin
 from .testdata import RealDataOnlyAdmin
 
@@ -345,3 +345,22 @@ class SupportTicketAdmin(RealDataOnlyAdmin, admin.ModelAdmin):
                 f"{failed} could not be sent. Run `manage.py mail_check` on the server to see why.",
                 messages.ERROR,
             )
+
+
+@admin.register(WhatsAppContact)
+class WhatsAppContactAdmin(admin.ModelAdmin):
+    """Support WhatsApp numbers. Each active one is an icon in the portals'
+    Support menu, labelled with its country. Add Ghana or Gambia here and its
+    icon appears; untick Active to hide one."""
+
+    list_display = ("country", "phone", "is_active", "display_order", "open_link")
+    list_editable = ("is_active", "display_order")
+    search_fields = ("country", "phone")
+
+    @admin.display(description="")
+    def open_link(self, obj):
+        if not obj.digits:
+            return ""
+        return format_html(
+            '<a href="https://wa.me/{}" target="_blank" rel="noopener noreferrer">Open in WhatsApp</a>', obj.digits
+        )

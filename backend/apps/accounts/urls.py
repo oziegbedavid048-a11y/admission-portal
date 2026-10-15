@@ -16,6 +16,7 @@ from .views import (
     PasswordResetValidateView,
     SessionRefreshView,
     SupportTicketView,
+    WhatsAppContactsView,
 )
 
 urlpatterns = [
@@ -36,4 +37,5 @@ urlpatterns = [
     path("verify-email/resend/", ResendVerificationView.as_view(), name="verify-email-resend"),
     path("email-available/", EmailAvailabilityView.as_view(), name="email-available"),
     path("support/", SupportTicketView.as_view(), name="support"),
+    path("support/whatsapp/", WhatsAppContactsView.as_view(), name="support-whatsapp"),
 ]

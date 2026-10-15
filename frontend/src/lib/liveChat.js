@@ -12,8 +12,11 @@ import { useEffect } from 'react';
  *   VITE_TAWK_PROPERTY_ID=<property id>
  *   VITE_TAWK_WIDGET_ID=<widget id>
  *
- * The chat bubble shows at the bottom left of the applicant and agent
- * dashboards (`useLiveChatBubble`) and nowhere else.
+ * In the applicant and agent dashboards it is reached from the Support button
+ * (components/ui/SupportLauncher.jsx): the widget is loaded in the background
+ * but kept out of sight (`useLiveChat`), and opens only when someone picks
+ * Live chat from the Support menu (`openLiveChat`). Closing it puts it away
+ * again, so the Support button is the one way in.
  */
 
 const DEFAULT_PROPERTY_ID = '6abe5477d9e778343f63237e';
@@ -31,11 +34,11 @@ function pick(value, pattern, fallback) {
 const PROPERTY_ID = pick(import.meta.env.VITE_TAWK_PROPERTY_ID, /^[a-f0-9]{24}$/i, DEFAULT_PROPERTY_ID);
 const WIDGET_ID = pick(import.meta.env.VITE_TAWK_WIDGET_ID, /^[a-z0-9]{6,20}$/i, DEFAULT_WIDGET_ID);
 
-// Bottom left on every screen size, clear of the page's own controls.
+// Bottom right, where the Support button is, so the chat opens beside it.
 const POSITION = {
   visibility: {
-    desktop: { position: 'bl', xOffset: 24, yOffset: 24 },
-    mobile: { position: 'bl', xOffset: 12, yOffset: 12 },
+    desktop: { position: 'br', xOffset: 24, yOffset: 24 },
+    mobile: { position: 'br', xOffset: 12, yOffset: 12 },
     bubble: { rotate: '0deg', xOffset: 0, yOffset: 0 },
   },
 };
@@ -84,25 +87,36 @@ function load(visitor) {
 }
 
 /**
- * Show the chat bubble while the calling page is open, and put it away when
- * it closes. Used by the applicant and agent dashboards.
+ * Load the live chat in the background while the calling page is open, kept
+ * out of sight until `openLiveChat` is called. Used by the applicant and agent
+ * dashboards, which reach it from the Support button.
  */
-export function useLiveChatBubble(visitor) {
+export function useLiveChat(visitor) {
   const name = visitor?.name || '';
   const email = visitor?.email || '';
 
   useEffect(() => {
     if (!isLiveChatConfigured()) return undefined;
-    bubbleWanted = true;
+    bubbleWanted = false;
     load({ name, email })
-      .then((api) => {
-        if (bubbleWanted) api.showWidget?.();
-      })
+      .then((api) => api.hideWidget?.())
       .catch(() => {});
     return () => {
-      bubbleWanted = false;
       window.Tawk_API?.minimize?.();
       window.Tawk_API?.hideWidget?.();
     };
   }, [name, email]);
+}
+
+/** Open the chat window. Resolves false if the chat could not be loaded. */
+export async function openLiveChat(visitor) {
+  if (!isLiveChatConfigured()) return false;
+  try {
+    const api = await load(visitor);
+    api.showWidget?.();
+    api.maximize?.();
+    return true;
+  } catch {
+    return false;
+  }
 }

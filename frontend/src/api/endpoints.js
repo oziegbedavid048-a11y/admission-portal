@@ -46,6 +46,8 @@ export const support = {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
   },
+  // Support WhatsApp numbers, one per country, set in the admin.
+  whatsapp: () => api.get('/auth/support/whatsapp/'),
 };
 
 export const catalog = {

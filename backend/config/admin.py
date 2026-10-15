@@ -28,7 +28,7 @@ LAYOUT = [
     ("partners", ["AgentProfile", "SupervisorProfile", "Loan", "Withdrawal", "SupervisorWithdrawal"]),
     ("payments", ["Payment"]),
     ("catalog", ["Program", "Institution", "DestinationCountry", "CourseImport"]),
-    ("accounts", ["SupportTicket", "User"]),
+    ("accounts", ["SupportTicket", "WhatsAppContact", "User"]),
     # Test and mock-up data, kept apart from everything above.
     ("testaccounts", ["TestAgent", "TestApplication", "TestUser"]),
 ]

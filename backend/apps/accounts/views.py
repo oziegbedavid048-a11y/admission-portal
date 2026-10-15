@@ -10,7 +10,7 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 from config.throttles import AnonThrottle, EdgeThrottle, ScopedThrottle
 
 from .cookies import clear_refresh_cookie, read_refresh_token, set_refresh_cookie
-from .models import User
+from .models import User, WhatsAppContact
 from .sessions import stamp, token_matches
 from .serializers import (
     AgentRegistrationSerializer,
@@ -534,4 +534,23 @@ class ResendVerificationView(APIView):
             send_verification(user)
         return Response(
             {"detail": "If that address is waiting to be confirmed, a new link is on its way."}
+        )
+
+
+class WhatsAppContactsView(APIView):
+    """The support WhatsApp numbers, one per country, for the Support menu.
+
+    Edited in the admin under WhatsApp numbers: each active row is one icon in
+    the portals, and adding a country adds an icon.
+    """
+
+    permission_classes = (permissions.IsAuthenticated,)
+
+    def get(self, request):
+        return Response(
+            [
+                {"country": contact.country, "phone": contact.phone, "link": f"https://wa.me/{contact.digits}"}
+                for contact in WhatsAppContact.objects.filter(is_active=True)
+                if contact.digits
+            ]
         )
