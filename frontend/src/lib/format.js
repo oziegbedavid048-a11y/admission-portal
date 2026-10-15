@@ -94,26 +94,36 @@ export function tuitionText(summary, currency, symbol = '') {
 }
 
 /**
- * A school's tuition deposit as an amount, from what is set in the admin.
+ * A school's tuition deposit, always as an amount.
  *
- * A flat deposit is shown as it is ("€1,000"). A percentage is worked out on
- * the school's tuition: 50% of €5,000 shows "€2,500", and 50% of a range
- * "€4,900 - €11,900" shows "€2,450 - €5,950". Only when the tuition has no
- * figure to work from does it say "50% of tuition". "None" when neither is set.
+ * A flat deposit set in the admin is shown as it is ("€1,000"). Otherwise the
+ * admin's percentage, or 50% when none is set, is worked out on the tuition:
+ * 50% of €5,000 shows "€2,500", and 50% of a range "€4,900 - €11,900" shows
+ * "€2,450 - €5,950". The figures come from the school's tuition line, or from
+ * its courses' tuition when that line has none. Only a school with no tuition
+ * figure anywhere shows "Varies by course", as its tuition does.
  */
+export const DEFAULT_DEPOSIT_PERCENT = 50;
+
 export function depositText(school) {
-  if (!school) return 'None';
+  if (!school) return 'Varies by course';
   const sign = currencySign(school.currency, school.tuition_symbol);
   const amount = Number(school.tuition_deposit_amount || 0);
   if (amount > 0) return formatFee(amount, school.currency, school.tuition_symbol);
-  const percent = Number(school.tuition_deposit_percent || 0);
-  if (percent <= 0) return 'None';
-  const figures = (String(school.tuition_summary || '').match(/\d[\d,]*(\.\d+)?/g) || [])
+  const percent = Number(school.tuition_deposit_percent || 0) || DEFAULT_DEPOSIT_PERCENT;
+
+  let figures = (String(school.tuition_summary || '').match(/\d[\d,]*(\.\d+)?/g) || [])
     .map((match) => Number(match.replace(/,/g, '')))
     .filter((number) => number > 0);
   if (!figures.length) {
-    return `${percent.toLocaleString('en-US', { maximumFractionDigits: 2 })}% of tuition`;
+    const courses = (school.programs || []).map((course) => Number(course.tuition || 0)).filter((n) => n > 0);
+    if (courses.length) {
+      const low = Math.min(...courses);
+      const high = Math.max(...courses);
+      figures = low === high ? [low] : [low, high];
+    }
   }
+  if (!figures.length) return 'Varies by course';
   return figures
     .map((number) => `${sign}${Math.round((number * percent) / 100).toLocaleString('en-US')}`)
     .join(' - ');

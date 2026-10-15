@@ -87,7 +87,7 @@ export default function ProgrammePanel() {
               application.institution.tuition_symbol,
             )}
             .
-            {depositText(application.institution) !== 'None'
+            {depositText(application.institution) !== 'Varies by course'
               ? ` It asks for a tuition deposit of ${depositText(application.institution)}.`
               : ''}{' '}
             Tuition is paid to the institution after your offer letter is issued and is
