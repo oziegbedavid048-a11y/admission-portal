@@ -72,6 +72,9 @@ class InstitutionSerializer(serializers.ModelSerializer):
         max_digits=12, decimal_places=2, read_only=True
     )
     deposit_note = serializers.CharField(read_only=True)
+    # The signs to write the fee and tuition with: €, C$.
+    fee_symbol = serializers.CharField(read_only=True)
+    tuition_symbol = serializers.CharField(read_only=True)
 
     class Meta:
         model = Institution
@@ -92,6 +95,8 @@ class InstitutionSerializer(serializers.ModelSerializer):
             "application_fee_currency",
             "application_fee",
             "application_fee_ngn",
+            "fee_symbol",
+            "tuition_symbol",
             "is_fee_free",
             "tuition_deposit_percent",
             "tuition_deposit_amount",

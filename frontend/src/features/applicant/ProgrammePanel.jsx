@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import Modal from '../../components/ui/Modal';
 import Icon from '../../lib/icons';
-import { formatLongDate } from '../../lib/format';
+import { depositText, formatLongDate, tuitionText } from '../../lib/format';
 import { useApplication } from './ApplicationContext';
 
 export default function ProgrammePanel() {
@@ -80,7 +80,16 @@ export default function ProgrammePanel() {
             <h2>Tuition</h2>
           </div>
           <p className="card-body-text">
-            {application.institution.name} lists {application.institution.tuition_summary}.
+            {application.institution.name} lists{' '}
+            {tuitionText(
+              application.institution.tuition_summary,
+              application.institution.currency,
+              application.institution.tuition_symbol,
+            )}
+            .
+            {depositText(application.institution) !== 'None'
+              ? ` It asks for a tuition deposit of ${depositText(application.institution)}.`
+              : ''}{' '}
             Tuition is paid to the institution after your offer letter is issued and is
             separate from the application fee.
           </p>

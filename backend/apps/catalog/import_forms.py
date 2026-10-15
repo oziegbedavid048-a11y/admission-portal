@@ -86,12 +86,11 @@ class DestinationForm(forms.Form):
     application_fee_currency = forms.CharField(
         max_length=8,
         required=False,
-        initial="NGN",
         label="Fee currency",
         help_text=(
-            "What the application fee is quoted in. Usually NGN, even for a "
-            "school that teaches in euros. A fee in another currency is "
-            "converted at the rate on file when the applicant is shown it."
+            "What the application fee is quoted in. Leave blank for the school's "
+            "own currency, which is how fees are shown to applicants. The card is "
+            "charged the Naira equivalent at the rate of the moment."
         ),
     )
     tuition_deposit_percent = forms.DecimalField(
@@ -215,7 +214,10 @@ class DestinationForm(forms.Form):
                         badge=data.get("badge") or "Partner School",
                         currency=(data.get("currency") or country.currency or "EUR").upper(),
                         application_fee_currency=(
-                            data.get("application_fee_currency") or "NGN"
+                            data.get("application_fee_currency")
+                            or data.get("currency")
+                            or country.currency
+                            or "EUR"
                         ).upper(),
                         application_fee=data["application_fee"],
                         tuition_deposit_percent=data.get("tuition_deposit_percent") or 0,

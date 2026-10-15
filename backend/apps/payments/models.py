@@ -128,6 +128,10 @@ class Payment(models.Model):
 
     @property
     def display_total(self):
+        """"€120.00", or "GMD 1,650.00" for a currency with no sign on file."""
+        sign = (self.symbol or "").strip()
+        if sign and sign.upper() != (self.currency or "").upper():
+            return f"{sign}{self.total:,.2f}"
         return f"{self.currency} {self.total:,.2f}"
 
     def mark_paid(self, gateway=None):

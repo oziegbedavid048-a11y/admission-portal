@@ -69,6 +69,7 @@ class InstitutionAdmin(admin.ModelAdmin):
                 "fields": (
                     "currency",
                     ("application_fee_currency", "application_fee"),
+                    "minimum_fee_ngn",
                     ("tuition_deposit_percent", "tuition_deposit_amount"),
                     "tuition_summary",
                 ),
@@ -110,8 +111,8 @@ class InstitutionAdmin(admin.ModelAdmin):
         """
         if obj.is_fee_free:
             return pill("Fee-free", "ok")
-        own = f"{obj.application_fee_currency} {obj.application_fee:,.2f}"
-        if obj.application_fee_currency.upper() == "NGN":
+        own = f"{obj.fee_symbol}{obj.application_fee:,.2f}"
+        if (obj.application_fee_currency or "").upper() == "NGN":
             return own
         return format_html(
             "{}<br>{}",

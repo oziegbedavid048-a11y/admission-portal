@@ -9,7 +9,7 @@ import { useToast } from '../../context/ToastContext';
 import { useCatalog, useInstitutions } from '../../hooks/useCatalog';
 import Icon from '../../lib/icons';
 import { compressImageFile } from '../../lib/compress';
-import { formatMoney, formatTuition } from '../../lib/format';
+import { formatFee, formatTuition } from '../../lib/format';
 import EuropeanCvTip from '../../components/ui/EuropeanCvTip';
 import ProgramPicker from '../wizard/ProgramPicker';
 import { rememberSelectedApplication, useApplication } from './ApplicationContext';
@@ -738,7 +738,7 @@ export default function ApplyPanel() {
                   {feeFree
                     ? 'No fee'
                     : quoteState === 'ready' && quote
-                      ? formatMoney(quote.amount + (quote.processing_fee || 0), quote.currency)
+                      ? formatFee(Number(quote.amount) + Number(quote.processing_fee || 0), quote.currency, quote.symbol)
                       : quoteState === 'failed'
                         ? (
                           <button type="button" className="nf-link-btn" onClick={loadQuote}>
@@ -751,7 +751,7 @@ export default function ApplyPanel() {
               {!feeFree && quoteState === 'ready' && quote?.processing_fee ? (
                 <div className="nf-fee-row">
                   <span>Includes card processing</span>
-                  <span>{formatMoney(quote.processing_fee, quote.currency)}</span>
+                  <span>{formatFee(quote.processing_fee, quote.currency, quote.symbol)}</span>
                 </div>
               ) : null}
             </div>

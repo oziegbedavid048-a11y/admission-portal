@@ -7,7 +7,7 @@ import { useAuth } from '../../context/AuthContext';
 import useLiveRefresh from '../../hooks/useLiveRefresh';
 import Icon from '../../lib/icons';
 import { ALL_WORLD_COUNTRIES } from '../../lib/countries';
-import { formatMoney, formatTuition, resolveMediaUrl } from '../../lib/format';
+import { depositText, formatFee, formatTuition, resolveMediaUrl, tuitionText } from '../../lib/format';
 import { useApplication } from './ApplicationContext';
 
 /**
@@ -40,11 +40,18 @@ const LEVEL_NAMES = {
   other: 'Programme',
 };
 
+function quoteKey(school) {
+  return [school.slug, school.application_fee, school.application_fee_currency].join('|');
+}
+
 function feeText(quote, school) {
   if (school?.is_fee_free) return 'No application fee';
   if (quote === undefined) return 'Application fee: checking';
-  if (!quote) return `Application fee: ${formatMoney(school.application_fee, school.application_fee_currency)}`;
-  return `Application fee: ${formatMoney(quote.amount, quote.currency)}`;
+  // Always in the school's own currency.
+  if (!quote) {
+    return `Application fee: ${formatFee(school.application_fee, school.application_fee_currency || school.currency, school.fee_symbol)}`;
+  }
+  return `Application fee: ${formatFee(quote.amount, quote.currency, quote.symbol)}`;
 }
 
 export function CourseBrowser({
@@ -102,15 +109,18 @@ export function CourseBrowser({
     loadSchools();
   }, { intervalMs: 30000 });
 
-  // One fee quote per school in the chosen country.
+  // One fee quote per school in the chosen country. Keyed by the fee as well
+  // as the school, so a fee changed in the admin is quoted again on the next
+  // refresh instead of the old quote staying on screen.
   useEffect(() => {
     (schools || []).forEach((school) => {
-      if (school.slug in quotes || school.is_fee_free) return;
-      setQuotes((current) => ({ ...current, [school.slug]: undefined }));
+      const key = quoteKey(school);
+      if (key in quotes || school.is_fee_free) return;
+      setQuotes((current) => ({ ...current, [key]: undefined }));
       catalog
         .feeQuote(feeOrigin || user?.country || 'Nigeria', school.slug)
-        .then(({ data }) => setQuotes((current) => ({ ...current, [school.slug]: data })))
-        .catch(() => setQuotes((current) => ({ ...current, [school.slug]: null })));
+        .then(({ data }) => setQuotes((current) => ({ ...current, [key]: data })))
+        .catch(() => setQuotes((current) => ({ ...current, [key]: null })));
     });
   }, [schools]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -267,11 +277,15 @@ export function CourseBrowser({
                 <dl className="gx-school-hero-facts">
                   <div>
                     <dt>Tuition</dt>
-                    <dd>{school.tuition_summary || 'Varies by course'}</dd>
+                    <dd>{tuitionText(school.tuition_summary, school.currency, school.tuition_symbol)}</dd>
+                  </div>
+                  <div>
+                    <dt>Tuition deposit</dt>
+                    <dd>{depositText(school)}</dd>
                   </div>
                   <div>
                     <dt>Application fee</dt>
-                    <dd>{feeText(quotes[school.slug], school).replace('Application fee: ', '')}</dd>
+                    <dd>{feeText(quotes[quoteKey(school)], school).replace('Application fee: ', '')}</dd>
                   </div>
                   <div>
                     <dt>Courses</dt>

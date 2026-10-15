@@ -85,7 +85,7 @@ class AddCourseForm(forms.ModelForm):
         required=False,
         label="Application fee",
         help_text=(
-            "Charged once per school, never per course. Leave at 0 for a "
+            "In the school's own currency. Charged once per school, never per course. Leave at 0 for a "
             "fee-free partner: the applicant then pays nothing and no "
             "registration commission is earned on their file."
         ),
@@ -251,6 +251,8 @@ class AddCourseForm(forms.ModelForm):
                     tagline=data.get("tagline", ""),
                     badge=data.get("badge") or "Partner School",
                     currency=(data.get("currency") or country.currency or "EUR").upper(),
+                    # Quoted in the school's own currency.
+                    application_fee_currency=(data.get("currency") or country.currency or "EUR").upper(),
                     application_fee=data.get("application_fee") or 0,
                     tuition_summary=data.get("tuition_summary", ""),
                     display_order=Institution.objects.filter(country=country).count(),

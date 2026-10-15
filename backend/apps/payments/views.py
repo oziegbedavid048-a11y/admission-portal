@@ -1,5 +1,6 @@
 import json
 import logging
+import math
 from decimal import Decimal
 
 from django.conf import settings
@@ -16,6 +17,7 @@ from apps.applications.models import Application
 from apps.applications.serializers import ApplicationSerializer
 from apps.applications.uploads import validate_upload
 from apps.applications.views import visible_applications
+from apps.catalog.models import currency_symbol
 from config.throttles import CheckoutThrottle, EdgeThrottle, PaymentStatusThrottle, UserThrottle, edge_ip
 
 from . import gateway
@@ -75,56 +77,70 @@ ALREADY_CONFIRMED = (
 
 
 def quote_for(application):
-    """What this applicant owes, in their own currency and in Naira.
+    """What this application fee is, in the school's currency and in Naira.
 
-    **The fee belongs to the school they chose, not to the platform.** It used to
-    be one flat APPLICATION_FEE_NGN for everybody, so an applicant to UCAM, whose
-    fee is 150 EUR, would have been charged the 200,000 NGN another school
-    charges. The amount now comes from the institution row on this application
-    and from nowhere else, which is what stops one school's fee reaching another
-    school's applicant.
+    **The fee belongs to the school applied to, and is shown in that school's
+    currency**: a French school's fee in euros, a Canadian one's in Canadian
+    dollars, whatever country the applicant is from. It comes from the
+    institution row on this application and from nowhere else, which is what
+    stops one school's fee reaching another school's applicant.
 
-    Everything is computed in Naira first and converted for display, never the
-    other way round, because Naira is what the card is debited.
+    The card is debited in Naira, so the fee is converted at the rate of the
+    moment and Paystack's own cut is worked out on that Naira figure; Paystack's
+    checkout shows the Naira total. A bank transfer, open only to payers in
+    Nigeria, is sent in Naira too: the amount to send is the fee in Naira
+    rounded up to the next 100.
     """
-    origin = application.origin_country
     institution = application.institution
+    fee_currency = (
+        (institution.application_fee_currency or institution.currency) if institution is not None else "NGN"
+    ).upper()
+    symbol = currency_symbol(fee_currency)
 
-    fee_ngn = institution.application_fee_ngn if institution is not None else Decimal("0.00")
-
-    if fee_ngn <= 0:
+    if institution is None or institution.application_fee <= 0:
         return {
-            "currency": origin.currency,
-            "symbol": origin.symbol,
+            "currency": fee_currency,
+            "symbol": symbol,
             "amount": Decimal("0.00"),
             "processing_fee": Decimal("0.00"),
             "amount_ngn": Decimal("0.00"),
             "processing_fee_ngn": Decimal("0.00"),
             "total_ngn": Decimal("0.00"),
-            "fx_rate": origin.ngn_per_unit,
+            "transfer_amount_ngn": Decimal("0.00"),
+            "fx_rate": Decimal("1"),
             "institution": institution.name if institution else "",
             "institution_fee": Decimal("0.00"),
-            "institution_fee_currency": institution.application_fee_currency if institution else "",
+            "institution_fee_currency": fee_currency,
             "waived": True,
         }
 
+    rate, fee_ngn = institution.application_fee_in_naira()
     gateway_fee_ngn = processing_fee_ngn(fee_ngn)
     return {
-        "currency": origin.currency,
-        "symbol": origin.symbol,
-        "amount": origin.convert_from_ngn(fee_ngn),
-        "processing_fee": origin.convert_from_ngn(gateway_fee_ngn),
+        "currency": fee_currency,
+        "symbol": symbol,
+        "amount": Decimal(institution.application_fee).quantize(Decimal("0.01")),
+        # Paystack's cut, worked out in Naira and stated in the school's
+        # currency at the same rate, so the two totals describe one charge.
+        "processing_fee": (gateway_fee_ngn / rate).quantize(Decimal("0.01")),
         "amount_ngn": fee_ngn,
         "processing_fee_ngn": gateway_fee_ngn,
         "total_ngn": fee_ngn + gateway_fee_ngn,
-        "fx_rate": origin.ngn_per_unit,
-        # Stated so the applicant can see whose fee this is and what the school
-        # itself calls it, rather than only the converted number.
+        "transfer_amount_ngn": transfer_amount_ngn(fee_ngn),
+        "fx_rate": rate,
         "institution": institution.name,
         "institution_fee": institution.application_fee,
-        "institution_fee_currency": institution.application_fee_currency,
+        "institution_fee_currency": fee_currency,
         "waived": False,
     }
+
+
+def transfer_amount_ngn(fee_ngn):
+    """The Naira to send by bank transfer: the fee, rounded up to the next 100.
+
+    Never short of the fee, and a round figure to type into a banking app.
+    """
+    return Decimal(math.ceil(Decimal(fee_ngn) / 100) * 100).quantize(Decimal("0.01"))
 
 
 def _price(payment, quote):
@@ -411,9 +427,11 @@ class TransferReceiptView(APIView):
 
         payment = existing or Payment(application=application)
         _price(payment, quote)
-        # A transfer carries no gateway fee.
+        # A transfer carries no gateway fee, and what is expected in the account
+        # is the rounded Naira figure the payer was told to send.
         payment.processing_fee = Decimal("0.00")
         payment.processing_fee_ngn = Decimal("0.00")
+        payment.amount_ngn = quote["transfer_amount_ngn"]
         payment.gateway = Payment.Gateway.TRANSFER
         payment.status = Payment.Status.REVIEW
         payment.receipt = receipt

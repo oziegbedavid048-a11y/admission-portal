@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { errorMessage } from '../../api/client';
 import { payments } from '../../api/endpoints';
 import { compressImageFile } from '../../lib/compress';
-import { formatMoney, formatNaira } from '../../lib/format';
+import { formatFee, formatNaira } from '../../lib/format';
 
 /**
  * Paying one student's application fee.
@@ -81,8 +81,11 @@ export default function FeePayment({ reference, rejectedNote = '', onTransferSen
   const accounts = quote.transfer_accounts || [];
   const canTransfer = Boolean(quote.transfer_allowed && accounts.length);
   const bank = accounts.find((account) => account.id === bankId) || null;
-  const cardTotal = formatMoney(quote.total, quote.currency);
-  const transferTotal = formatNaira(quote.amount_ngn);
+  // The application fee in the university's own currency. Paystack's checkout
+  // shows the Naira charge, so it is not converted here.
+  const applicationFee = formatFee(quote.amount, quote.currency, quote.symbol);
+  // A transfer is sent in Naira: the fee at today's rate, rounded up to ₦100.
+  const transferTotal = formatNaira(quote.transfer_amount_ngn ?? quote.amount_ngn);
 
   const payWithPaystack = async () => {
     setBusy(true);
@@ -173,9 +176,10 @@ export default function FeePayment({ reference, rejectedNote = '', onTransferSen
       {method === 'paystack' || !canTransfer ? (
         <div className="pay-panel">
           <div className="pay-amount">
-            <span>Amount</span>
-            <strong>{cardTotal}</strong>
+            <span>Application fee</span>
+            <strong>{applicationFee}</strong>
           </div>
+          <p className="pay-hint">Paystack shows the amount in Naira, with its card processing fee.</p>
           <button
             type="button"
             className="agent-btn agent-btn-primary agent-btn-block"
@@ -229,7 +233,10 @@ export default function FeePayment({ reference, rejectedNote = '', onTransferSen
                 </div>
                 <div>
                   <dt>Amount to send</dt>
-                  <dd className="pay-account-amount">{transferTotal}</dd>
+                  <dd className="pay-account-amount">
+                    {transferTotal}
+                    <small className="pay-account-note">Application fee {applicationFee} at today&apos;s rate</small>
+                  </dd>
                 </div>
               </dl>
 
@@ -269,7 +276,7 @@ export default function FeePayment({ reference, rejectedNote = '', onTransferSen
                 disabled={busy || !receipt}
               >
                 {busy ? <span className="spinner-sm" aria-hidden="true" /> : null}
-                {busy ? 'Sending' : 'I have sent it'}
+                {busy ? 'Sending' : `I have sent ${transferTotal}`}
               </button>
             </>
           ) : null}

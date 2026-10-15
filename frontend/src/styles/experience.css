@@ -1309,7 +1309,7 @@ button,
 
 .gx-school-hero-facts {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, auto));
+  grid-template-columns: repeat(4, minmax(0, auto));
   justify-content: start;
   gap: 12px 36px;
   margin: 16px 0 0;
@@ -1334,8 +1334,8 @@ button,
 
 @media (max-width: 560px) {
   .gx-school-hero-inner { min-height: 200px; }
+  /* Tuition beside its deposit, then the fee beside the course count. */
   .gx-school-hero-facts { grid-template-columns: 1fr 1fr; gap: 12px 20px; }
-  .gx-school-hero-facts > div:first-child { grid-column: 1 / -1; }
 }
 
 /* The course table scrolls as one piece: the course column moves with the rest. */

@@ -10,7 +10,7 @@ from rest_framework.response import Response
 from apps.applications.constants import APPLICATION_FEE_NGN
 from apps.payments.fees import processing_fee_ngn
 
-from .models import DestinationCountry, FaqItem, Institution, OriginCountry, Program
+from .models import DestinationCountry, FaqItem, Institution, OriginCountry, Program, currency_symbol
 from .fx import get_rates
 from .serializers import (
     DestinationCountrySerializer,
@@ -75,14 +75,13 @@ class FaqViewSet(ReadOnlyPublicViewSet):
 @api_view(["GET"])
 @permission_classes([AllowAny])
 def fee_quote(request):
-    """The application fee for one school, in the applicant's own currency.
+    """The application fee for one school, in that school's own currency.
 
-    **The fee belongs to the school.** It used to be one flat Naira figure for
-    every partner, which would have charged an applicant to UCAM, whose fee is
-    150 EUR, the 200,000 NGN a different school asks for. `institution` is the
-    slug of the school being applied to, and the amount comes from that row.
+    **The fee belongs to the school.** `institution` is the slug of the school
+    being applied to, and the amount comes from that row, in its currency (a
+    French school's fee in euros), whatever country the applicant is from.
 
-    Without a slug it answers with the typical fee across the active partners,
+    Without a slug it answers with the standard fee in the applicant's currency,
     which is what the marketing pages want; that answer is marked `indicative`
     so nothing mistakes it for a quote.
     """
@@ -99,18 +98,22 @@ def fee_quote(request):
         fee_ngn = institution.application_fee_ngn
         indicative = False
     else:
-        # The commonest fee among active partners, so the figure on a page that
-        # has not asked about a school is one a real applicant would see.
-        fees = [
-            i.application_fee_ngn
-            for i in Institution.objects.filter(is_active=True).exclude(application_fee=0)
-        ]
-        fee_ngn = max(set(fees), key=fees.count) if fees else APPLICATION_FEE_NGN
+        # Fees are quoted in each school's own currency now, so a page that has
+        # not named a school is given the standard fee they were set from.
+        fee_ngn = APPLICATION_FEE_NGN
         indicative = True
 
     gateway_fee_ngn = processing_fee_ngn(fee_ngn)
 
-    if origin is None:
+    if institution is not None and not institution.is_fee_free:
+        # A named school's fee is shown in that school's own currency.
+        rate, fee_ngn = institution.application_fee_in_naira()
+        gateway_fee_ngn = processing_fee_ngn(fee_ngn)
+        currency = (institution.application_fee_currency or institution.currency).upper()
+        symbol = currency_symbol(currency)
+        amount = Decimal(institution.application_fee)
+        processing = (gateway_fee_ngn / rate).quantize(Decimal("0.01"))
+    elif origin is None:
         currency, symbol, rate = "NGN", "₦", Decimal("1")
         amount, processing = fee_ngn, gateway_fee_ngn
     else:
@@ -219,24 +222,28 @@ def exchange_rates(request):
 #
 # The catalogue changes a few times a week and is read on every visit, so its
 # answers are cached for a few minutes. Any save or delete of a country, school
-# or course bumps the version, so the next request after an edit is fresh.
+# or course bumps the version (kept in the database, see CatalogVersion), so the
+# next request after an edit is fresh on every server process.
 
 CATALOG_TTL = 300
 
 
 def catalog_version():
-    from django.core.cache import cache
+    """The catalogue's current version, read from the database so every server
+    process agrees on it."""
+    from .models import CatalogVersion
 
-    return cache.get_or_set("catalog:version", 1, None)
+    value = CatalogVersion.objects.filter(pk=1).values_list("value", flat=True).first()
+    return value or 1
 
 
 def bump_catalog_version(**kwargs):
-    from django.core.cache import cache
+    from django.db.models import F
 
-    try:
-        cache.incr("catalog:version")
-    except ValueError:
-        cache.set("catalog:version", 2, None)
+    from .models import CatalogVersion
+
+    if not CatalogVersion.objects.filter(pk=1).update(value=F("value") + 1):
+        CatalogVersion.objects.get_or_create(pk=1, defaults={"value": 2})
 
 
 def cached_catalog(view_func):
@@ -256,7 +263,9 @@ def cached_catalog(view_func):
             response = view_func(request, *args, **kwargs)
             if getattr(response, "status_code", 500) == 200:
                 cache.set(key, response.data, CATALOG_TTL)
-        response["Cache-Control"] = "public, max-age=60"
+        # The browser asks again every time, so a change saved in the admin
+        # shows on the next load rather than a minute later.
+        response["Cache-Control"] = "no-cache"
         return response
 
     return wrapper

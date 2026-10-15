@@ -43,6 +43,82 @@ export function formatTuition(amount, currency) {
   return `${symbol}${Number(amount).toLocaleString('en-US')} / year`;
 }
 
+const SIGNS = { NGN: '₦', EUR: '€', GBP: '£', USD: '$', CAD: 'C$', AUD: 'A$' };
+
+/** The sign a currency is written with, or its code: "€", "C$", "GMD ". */
+export function currencySign(currency, symbol = '') {
+  const code = (currency || '').toUpperCase();
+  const sign = symbol || SIGNS[code];
+  return sign || (code ? `${code} ` : '');
+}
+
+/**
+ * An application fee in the school's currency: "€120", "C$179", "€150.50".
+ * Whole amounts show no decimals.
+ */
+export function formatFee(amount, currency, symbol = '') {
+  const number = Number(amount || 0);
+  const whole = Math.round(number * 100) % 100 === 0;
+  const text = number.toLocaleString('en-US', {
+    minimumFractionDigits: whole ? 0 : 2,
+    maximumFractionDigits: whole ? 0 : 2,
+  });
+  return `${currencySign(currency, symbol)}${text}`;
+}
+
+/**
+ * A school's tuition summary with its currency on it. Staff sometimes type
+ * only a number ("8400"), which read as a bare figure; it is shown as
+ * "€8,400". A summary that already names its currency is left as written.
+ */
+export function tuitionText(summary, currency, symbol = '') {
+  const text = String(summary || '').trim();
+  if (!text) return 'Varies by course';
+  if (/^[\d.,\s]+$/.test(text)) {
+    const number = Number(text.replace(/[,\s]/g, ''));
+    if (!number) return 'Varies by course';
+    return `${currencySign(currency, symbol)}${number.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
+  }
+  const sign = currencySign(currency, symbol).trim();
+  const code = (currency || '').toUpperCase();
+  const named = (sign && text.includes(sign)) || (code && text.toUpperCase().includes(code));
+  if (!named && /\d/.test(text)) {
+    // Each bare number gets the sign: "6000 - 7500" becomes "€6,000 - €7,500".
+    return text.replace(/\d[\d,]*(\.\d+)?/g, (match) => {
+      const number = Number(match.replace(/,/g, ''));
+      return `${currencySign(currency, symbol)}${number.toLocaleString('en-US', { maximumFractionDigits: 2 })}`;
+    });
+  }
+  // Thousands separators on any large number typed without them: "€6000" reads "€6,000".
+  return text.replace(/(?<![\d,.])\d{4,}(?![\d,.])/g, (match) => Number(match).toLocaleString('en-US'));
+}
+
+/**
+ * A school's tuition deposit as an amount, from what is set in the admin.
+ *
+ * A flat deposit is shown as it is ("€1,000"). A percentage is worked out on
+ * the school's tuition: 50% of €5,000 shows "€2,500", and 50% of a range
+ * "€4,900 - €11,900" shows "€2,450 - €5,950". Only when the tuition has no
+ * figure to work from does it say "50% of tuition". "None" when neither is set.
+ */
+export function depositText(school) {
+  if (!school) return 'None';
+  const sign = currencySign(school.currency, school.tuition_symbol);
+  const amount = Number(school.tuition_deposit_amount || 0);
+  if (amount > 0) return formatFee(amount, school.currency, school.tuition_symbol);
+  const percent = Number(school.tuition_deposit_percent || 0);
+  if (percent <= 0) return 'None';
+  const figures = (String(school.tuition_summary || '').match(/\d[\d,]*(\.\d+)?/g) || [])
+    .map((match) => Number(match.replace(/,/g, '')))
+    .filter((number) => number > 0);
+  if (!figures.length) {
+    return `${percent.toLocaleString('en-US', { maximumFractionDigits: 2 })}% of tuition`;
+  }
+  return figures
+    .map((number) => `${sign}${Math.round((number * percent) / 100).toLocaleString('en-US')}`)
+    .join(' - ');
+}
+
 export function formatDate(value) {
   if (!value) return 'Not set';
   return new Date(value).toLocaleDateString('en-GB', {

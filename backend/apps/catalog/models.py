@@ -68,6 +68,22 @@ def ngn_per_unit(currency):
     return row.ngn_per_unit
 
 
+# Signs for the currencies schools quote in, for when the tables have none.
+CURRENCY_SYMBOLS = {"NGN": "₦", "EUR": "€", "GBP": "£", "USD": "$", "CAD": "C$", "AUD": "A$"}
+
+
+def currency_symbol(code):
+    """The sign a currency is written with: €, C$, ₦. Falls back to the code."""
+    code = (code or "").upper()
+    if code in CURRENCY_SYMBOLS:
+        return CURRENCY_SYMBOLS[code]
+    found = (
+        DestinationCountry.objects.filter(currency__iexact=code).exclude(currency_symbol="").values_list("currency_symbol", flat=True).first()
+        or OriginCountry.objects.filter(currency__iexact=code).exclude(symbol="").values_list("symbol", flat=True).first()
+    )
+    return found or code
+
+
 class DestinationCountry(models.Model):
     """A study destination, which decides which institutions show in step 3."""
 
@@ -111,17 +127,31 @@ class Institution(models.Model):
     tagline = models.CharField(max_length=400, blank=True)
     badge = models.CharField(max_length=80, blank=True, default="Partner School")
     currency = models.CharField(max_length=8, default="EUR")
-    # The currency the APPLICATION FEE is quoted in, which is not always the
-    # school's own. Most partners set their fee in Naira; UCAM sets it at 150
-    # EUR. Kept apart from `currency` above, which is what the school quotes its
-    # tuition and its deposit in, because conflating the two made every euro
-    # tuition figure render as Naira.
-    application_fee_currency = models.CharField(max_length=8, default="NGN")
+    # The currency the APPLICATION FEE is quoted in: the school's own currency
+    # (a French school's fee in euros, a Canadian one's in Canadian dollars),
+    # filled in from `currency` when left blank. Kept as its own field so staff
+    # can still quote a fee in another currency, and because tuition and the
+    # fee are different figures that must never be confused.
+    application_fee_currency = models.CharField(max_length=8, blank=True, default="")
     application_fee = models.DecimalField(
         max_digits=10,
         decimal_places=2,
         default=Decimal("0.00"),
         help_text="Charged once per institution, never per course. 0 means fee-free.",
+    )
+    # The least the fee is ever charged in Naira. The fee is quoted in the
+    # school's currency and converted at the rate of the moment, so a weaker
+    # euro would otherwise charge less than the 200,000 Naira the fees were
+    # set from.
+    minimum_fee_ngn = models.DecimalField(
+        "minimum fee in Naira",
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal("200000.00"),
+        help_text=(
+            "The application fee is never charged below this many Naira, whatever "
+            "the exchange rate does. 0 for no minimum."
+        ),
     )
     tuition_summary = models.CharField(max_length=200, blank=True)
 
@@ -158,6 +188,10 @@ class Institution(models.Model):
         return self.name
 
     def save(self, *args, **kwargs):
+        # The application fee is quoted in the school's own currency unless
+        # staff deliberately set another.
+        if not self.application_fee_currency:
+            self.application_fee_currency = self.currency
         if not self.slug:
             from django.utils.text import slugify
             base_slug = slugify(self.name) or "school"
@@ -174,17 +208,38 @@ class Institution(models.Model):
         return self.application_fee == 0
 
     @property
-    def application_fee_ngn(self):
-        """This school's application fee in Naira, which is what is charged.
+    def fee_symbol(self):
+        return currency_symbol(self.application_fee_currency)
 
-        Every school sets its own. Quoting one school's fee against another is
-        the mistake this property exists to make impossible: there is one place
-        the number comes from, and it is the row for the school being applied to.
+    @property
+    def tuition_symbol(self):
+        return currency_symbol(self.currency)
+
+    def application_fee_in_naira(self):
+        """(Naira per unit of the fee currency, the fee in Naira).
+
+        The fee is quoted in the school's own currency and shown that way; the
+        card is debited in Naira, so it is converted at the rate of the moment
+        (the live rate, or the Exchange rates table when the provider is down),
+        and never below the school's minimum in Naira.
+        Every school sets its own fee. Quoting one school's fee against another
+        is the mistake this exists to make impossible: there is one place the
+        number comes from, and it is the row for the school being applied to.
         """
+        from apps.partners.currency import naira_per_unit
+
         if self.application_fee == 0:
-            return Decimal("0.00")
-        rate = ngn_per_unit(self.application_fee_currency)
-        return (Decimal(self.application_fee) * rate).quantize(Decimal("0.01"))
+            return Decimal("1"), Decimal("0.00")
+        code = (self.application_fee_currency or "NGN").upper()
+        rate = Decimal("1") if code == "NGN" else Decimal(naira_per_unit(code))
+        converted = (Decimal(self.application_fee) * rate).quantize(Decimal("0.01"))
+        # Never below the school's Naira minimum, whatever the rate does.
+        return rate, max(converted, Decimal(self.minimum_fee_ngn or 0))
+
+    @property
+    def application_fee_ngn(self):
+        """This school's application fee in Naira, which is what is charged."""
+        return self.application_fee_in_naira()[1]
 
     @property
     def deposit_note(self):
@@ -194,7 +249,7 @@ class Institution(models.Model):
         not in whatever the application fee happens to be denominated in.
         """
         if self.tuition_deposit_amount:
-            return f"{self.currency} {self.tuition_deposit_amount:,.0f} tuition deposit"
+            return f"{self.tuition_symbol}{self.tuition_deposit_amount:,.0f} tuition deposit"
         if self.tuition_deposit_percent:
             percent = self.tuition_deposit_percent.normalize()
             return f"{percent:f}% of total tuition as a deposit"
@@ -272,3 +327,18 @@ class CourseImport(Program):
         proxy = True
         verbose_name = "Add course"
         verbose_name_plural = "Add course"
+
+
+class CatalogVersion(models.Model):
+    """A counter that moves on every change to the catalogue.
+
+    The catalogue's API answers are cached, and the cache key includes this
+    number. It lives in the database, not in a server's memory, so a change
+    saved in the admin (a tuition deposit, a fee, a new course) reaches every
+    server process at once rather than whichever one handled the save.
+    """
+
+    value = models.PositiveBigIntegerField(default=1)
+
+    class Meta:
+        verbose_name = "catalogue version"

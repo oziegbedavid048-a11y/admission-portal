@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import SearchableSelect from '../../components/ui/SearchableSelect';
 import Icon from '../../lib/icons';
-import { formatMoney } from '../../lib/format';
+import { formatFee } from '../../lib/format';
 import { compressImageFile } from '../../lib/compress';
 import { errorMessage } from '../../api/client';
 import { applications, catalog, partners, payments } from '../../api/endpoints';
@@ -763,20 +763,15 @@ export default function AgentNewStudent() {
             </dl>
 
             <div className="nf-fee">
-              <div className="nf-fee-row">
-                <span>Application fee</span>
-                <span>{quote ? formatMoney(quote.amount, quote.currency) : 'Calculating'}</span>
-              </div>
-              {quote && !quote.waived && Number(quote.processing_fee) > 0 ? (
-                <div className="nf-fee-row">
-                  <span>Card processing (Paystack only)</span>
-                  <span>{formatMoney(quote.processing_fee, quote.currency)}</span>
-                </div>
-              ) : null}
+              {/* The fee in the school's own currency. Paystack shows the
+                  Naira charge, and a bank transfer shows the Naira to send. */}
               <div className="nf-fee-row nf-fee-total">
-                <span>{quote?.waived ? 'No fee for this university' : 'Paid on the next step'}</span>
-                <span>{quote ? formatMoney(quote.total, quote.currency) : ''}</span>
+                <span>{quote?.waived ? 'No fee for this university' : 'Application fee'}</span>
+                <span>
+                  {!quote ? 'Calculating' : quote.waived ? '' : formatFee(quote.amount, quote.currency, quote.symbol)}
+                </span>
               </div>
+              {quote && !quote.waived ? <p className="nf-fee-note">Paid on the next step.</p> : null}
             </div>
 
             {footer(
