@@ -33,6 +33,13 @@ class AgentProfile(models.Model):
     bank_name = models.CharField(max_length=120)
     account_number = models.CharField(max_length=10)
     account_name = models.CharField(max_length=120)
+    # Set when the bank is picked from Paystack's list and Paystack confirms the
+    # account name. Only a verified account is paid automatically.
+    bank_code = models.CharField(max_length=12, blank=True)
+    account_verified_at = models.DateTimeField(null=True, blank=True)
+    # Paystack's handle for this account, made on the first automatic payout
+    # and cleared whenever the bank details change.
+    paystack_recipient_code = models.CharField(max_length=40, blank=True)
     total_closed_sales = models.PositiveIntegerField(default=0)
     supervisor = models.ForeignKey(
         "partners.SupervisorProfile",
@@ -132,6 +139,11 @@ class SupervisorProfile(models.Model):
     bank_name = models.CharField(max_length=120, blank=True)
     account_number = models.CharField(max_length=10, blank=True)
     account_name = models.CharField(max_length=120, blank=True)
+    # As on AgentProfile: set when Paystack confirms the account, and used to
+    # pay withdrawals automatically.
+    bank_code = models.CharField(max_length=12, blank=True)
+    account_verified_at = models.DateTimeField(null=True, blank=True)
+    paystack_recipient_code = models.CharField(max_length=40, blank=True)
 
     bonus_total = models.DecimalField(
         max_digits=12, decimal_places=2, default=Decimal("0.00")
@@ -552,8 +564,14 @@ class Withdrawal(models.Model):
 
     class Status(models.TextChoices):
         PENDING = "pending", "In review"
+        # Handed to Paystack; waiting for Paystack to say it landed.
+        SENDING = "sending", "Sending"
         PAID = "completed", "Paid out"
         FAILED = "rejected", "Failed"
+
+    class Method(models.TextChoices):
+        PAYSTACK = "paystack", "Paystack transfer"
+        MANUAL = "manual", "Paid by staff"
 
     MIN_AMOUNT = MIN_WITHDRAWAL_NGN
 
@@ -573,6 +591,24 @@ class Withdrawal(models.Model):
     # The bank account on file when the payout was requested. A later change
     # to the profile does not move a payout already asked for.
     paid_to = models.CharField(max_length=200, blank=True)
+    # How it is paid: automatically through Paystack (Nigerian agents with a
+    # verified account), or by staff (everyone else, and the fallback).
+    method = models.CharField(max_length=10, choices=Method.choices, default=Method.MANUAL)
+    # The account the payout goes to, kept as it was when requested.
+    bank_code = models.CharField(max_length=12, blank=True)
+    account_number = models.CharField(max_length=10, blank=True)
+    # Our reference for the Paystack transfer, unique, so Paystack never pays
+    # the same payout twice; and Paystack's own transfer code.
+    paystack_reference = models.CharField(max_length=40, unique=True, null=True, blank=True)
+    transfer_code = models.CharField(max_length=40, blank=True)
+    # Why it is waiting for staff, or why Paystack did not send it.
+    review_reason = models.CharField(max_length=200, blank=True)
+    failure_reason = models.CharField(max_length=300, blank=True)
+    approved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    sent_at = models.DateTimeField(null=True, blank=True)
+    paid_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -589,6 +625,28 @@ class Withdrawal(models.Model):
     @property
     def reference(self):
         return f"WD-{self.pk:05d}"
+
+    @transaction.atomic
+    def refund(self, reason=""):
+        """Mark this payout failed and give the money back to the agent's wallet.
+
+        Locked and re-read, so a payout already failed (by staff, or by a
+        repeated Paystack notice) is never refunded twice. Returns whether it
+        was refunded now.
+        """
+        locked = Withdrawal.objects.select_for_update().get(pk=self.pk)
+        if locked.status == Withdrawal.Status.FAILED:
+            return False
+        locked.status = Withdrawal.Status.FAILED
+        if reason:
+            locked.failure_reason = reason[:300]
+        locked.save(update_fields=["status", "failure_reason"])
+        wallet = Wallet.objects.select_for_update().get(agent_id=locked.agent_id)
+        wallet.total_withdrawn = max(Decimal("0.00"), wallet.total_withdrawn - locked.amount_requested)
+        wallet.loan_balance += locked.loan_deduction
+        wallet.save(update_fields=["total_withdrawn", "loan_balance"])
+        self.status, self.failure_reason = locked.status, locked.failure_reason
+        return True
 
     @classmethod
     @transaction.atomic
@@ -637,10 +695,10 @@ class SupervisorWithdrawal(models.Model):
     while the first payout is still being processed.
     """
 
-    class Status(models.TextChoices):
-        PENDING = "pending", "In review"
-        PAID = "completed", "Paid out"
-        FAILED = "rejected", "Failed"
+    # The same statuses and methods as an agent payout (Withdrawal), so one
+    # set of payout rules serves both (see payouts.py).
+    Status = Withdrawal.Status
+    Method = Withdrawal.Method
 
     MIN_AMOUNT = MIN_SUPERVISOR_WITHDRAWAL_NGN
 
@@ -653,8 +711,29 @@ class SupervisorWithdrawal(models.Model):
     )
     # See Withdrawal.paid_to.
     paid_to = models.CharField(max_length=200, blank=True)
+    # See the matching fields on Withdrawal.
+    method = models.CharField(max_length=10, choices=Method.choices, default=Method.MANUAL)
+    bank_code = models.CharField(max_length=12, blank=True)
+    account_number = models.CharField(max_length=10, blank=True)
+    paystack_reference = models.CharField(max_length=40, unique=True, null=True, blank=True)
+    transfer_code = models.CharField(max_length=40, blank=True)
+    review_reason = models.CharField(max_length=200, blank=True)
+    failure_reason = models.CharField(max_length=300, blank=True)
+    approved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    sent_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     paid_at = models.DateTimeField(null=True, blank=True)
+
+    # The amount sent: a sales manager receives exactly what they asked for.
+    @property
+    def net_amount(self):
+        return self.amount
+
+    @property
+    def amount_requested(self):
+        return self.amount
 
     class Meta:
         ordering = ("-created_at",)
@@ -697,19 +776,30 @@ class SupervisorWithdrawal(models.Model):
     def mark_failed(self):
         """Give the money back. A payout that never left has to be returned.
 
-        Only a pending payout can fail, and the row is locked and re-read first,
-        so two clicks, or a payout already marked paid, never refund twice.
+        Only a pending payout can be failed by staff, and the row is locked and
+        re-read first, so two clicks, or a payout already marked paid, never
+        refund twice.
         """
         locked = type(self).objects.select_for_update().get(pk=self.pk)
         if locked.status != self.Status.PENDING:
             return False
+        return self.refund("Marked as failed by staff.")
+
+    @transaction.atomic
+    def refund(self, reason=""):
+        """Mark failed and return the money, once (see Withdrawal.refund)."""
+        locked = type(self).objects.select_for_update().get(pk=self.pk)
+        if locked.status == self.Status.FAILED:
+            return False
         locked.status = self.Status.FAILED
-        locked.save(update_fields=["status"])
-        self.status = locked.status
+        if reason:
+            locked.failure_reason = reason[:300]
+        locked.save(update_fields=["status", "failure_reason"])
+        self.status, self.failure_reason = locked.status, locked.failure_reason
 
         supervisor = SupervisorProfile.objects.select_for_update().get(pk=self.supervisor_id)
         supervisor.total_withdrawn = max(
-            Decimal("0.00"), supervisor.total_withdrawn - self.amount
+            Decimal("0.00"), supervisor.total_withdrawn - locked.amount
         )
         supervisor.save(update_fields=["total_withdrawn"])
         return True

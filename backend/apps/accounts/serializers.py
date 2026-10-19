@@ -170,10 +170,6 @@ class AgentRegistrationSerializer(serializers.Serializer):
             bank_name=validated_data["bank_name"],
             account_number=validated_data["account_number"],
             account_name=validated_data["account_name"],
-            # bank_code is filled in later when the agent verifies their payout
-            # account via Paystack; supply an explicit empty string here so the
-            # NOT NULL DB constraint is never violated on registration.
-            bank_code="",
             agency_name=validated_data.get("agency_name", ""),
             address=validated_data["address"],
             # Opens the portal on the partnership contract until it is signed.
