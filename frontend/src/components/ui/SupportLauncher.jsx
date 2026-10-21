@@ -12,7 +12,43 @@ import { openLiveChat } from '../../lib/liveChat';
  * (Nigeria now; Ghana and Gambia appear as soon as their numbers are added),
  * and tapping one opens WhatsApp with that number. Live chat opens the chat
  * window.
+ *
+ * The button can be dragged anywhere on the screen, so it never has to sit on
+ * top of text or another button. Where it was left is remembered on this
+ * device. A short tap still opens the menu; only a real drag moves it.
  */
+
+const POSITION_KEY = 'gabstep_support_position';
+const EDGE = 8; // never closer than this to the edge of the screen
+const DRAG_THRESHOLD = 6; // pixels a finger may wander and still count as a tap
+
+function readPosition() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(POSITION_KEY) || 'null');
+    if (saved && Number.isFinite(saved.right) && Number.isFinite(saved.bottom)) return saved;
+  } catch {
+    // Storage blocked or unreadable: the button starts in its corner.
+  }
+  return null;
+}
+
+function savePosition(position) {
+  try {
+    localStorage.setItem(POSITION_KEY, JSON.stringify(position));
+  } catch {
+    // Not remembered this time; it still moves.
+  }
+}
+
+/** Keep the button whole and on screen, whatever the window size. */
+function clamp(position, size) {
+  const maxRight = Math.max(EDGE, window.innerWidth - size.width - EDGE);
+  const maxBottom = Math.max(EDGE, window.innerHeight - size.height - EDGE);
+  return {
+    right: Math.min(Math.max(position.right, EDGE), maxRight),
+    bottom: Math.min(Math.max(position.bottom, EDGE), maxBottom),
+  };
+}
 export default function SupportLauncher({ visitor }) {
   const [open, setOpen] = useState(false);
   const [view, setView] = useState('menu');
@@ -20,6 +56,109 @@ export default function SupportLauncher({ visitor }) {
   const [chatFailed, setChatFailed] = useState(false);
   const panel = useRef(null);
   const button = useRef(null);
+  const [position, setPosition] = useState(readPosition);
+  const drag = useRef(null);
+  const justDragged = useRef(false);
+
+  // The closed button's size. It narrows to a round close button when open,
+  // and that must not move it.
+  const closedSize = useRef({ width: 120, height: 52 });
+  const buttonSize = () => {
+    const rect = button.current?.getBoundingClientRect();
+    if (rect && rect.width && !open) closedSize.current = { width: rect.width, height: rect.height };
+    return closedSize.current;
+  };
+
+  // A smaller window (a phone turned, a browser resized) never leaves the
+  // button off screen.
+  useEffect(() => {
+    if (!position) return undefined;
+    const keepOnScreen = () => setPosition((current) => (current ? clamp(current, buttonSize()) : current));
+    keepOnScreen();
+    window.addEventListener('resize', keepOnScreen);
+    return () => window.removeEventListener('resize', keepOnScreen);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [Boolean(position)]);
+
+  const onPointerDown = (event) => {
+    if (event.button !== undefined && event.button !== 0) return;
+    const rect = button.current.getBoundingClientRect();
+    drag.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      // Where the button's bottom-right corner sits, measured from the
+      // screen's bottom-right corner.
+      right: position ? position.right : window.innerWidth - rect.right,
+      bottom: position ? position.bottom : window.innerHeight - rect.bottom,
+      moved: false,
+    };
+  };
+
+  const onPointerMove = (event) => {
+    const state = drag.current;
+    if (!state || state.pointerId !== event.pointerId) return;
+    const dx = event.clientX - state.startX;
+    const dy = event.clientY - state.startY;
+    if (!state.moved) {
+      if (Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
+      state.moved = true;
+      try {
+        // Keeps the drag going when the finger outruns the button.
+        button.current.setPointerCapture?.(event.pointerId);
+      } catch {
+        // Not every pointer can be captured; the drag still works without it.
+      }
+      if (open) close();
+    }
+    event.preventDefault();
+    setPosition(clamp({ right: state.right - dx, bottom: state.bottom - dy }, buttonSize()));
+  };
+
+  const onPointerUp = (event) => {
+    const state = drag.current;
+    if (!state || state.pointerId !== event.pointerId) return;
+    drag.current = null;
+    if (state.moved) {
+      // The click that follows a drag is not a tap.
+      justDragged.current = true;
+      setPosition((current) => {
+        if (current) savePosition(current);
+        return current;
+      });
+    }
+  };
+
+  const onButtonClick = () => {
+    if (justDragged.current) {
+      justDragged.current = false;
+      return;
+    }
+    if (open) close();
+    else setOpen(true);
+  };
+
+  // The menu opens towards the middle of the screen: above the button when it
+  // sits low, below it when it sits high, and lined up with whichever side it
+  // is nearer.
+  const nearTop = position ? position.bottom > window.innerHeight / 2 : false;
+  const nearLeft = position ? position.right > window.innerWidth / 2 : false;
+  const placement = `${nearTop ? ' is-top' : ''}${nearLeft ? ' is-left' : ''}${drag.current?.moved ? ' is-dragging' : ''}`;
+  // Anchored on the side the menu opens away from, so opening it never
+  // pushes the button out of the place it was left.
+  let style;
+  if (position) {
+    const size = closedSize.current;
+    style = nearTop
+      ? { top: `${window.innerHeight - position.bottom - size.height}px`, bottom: 'auto' }
+      : { bottom: `${position.bottom}px` };
+    Object.assign(
+      style,
+      nearLeft
+        ? { left: `${window.innerWidth - position.right - size.width}px`, right: 'auto' }
+        : { right: `${position.right}px` },
+    );
+  }
 
   // The numbers are fetched each time WhatsApp is opened, so a number added in
   // the admin shows without anyone reloading the page.
@@ -69,7 +208,7 @@ export default function SupportLauncher({ visitor }) {
   };
 
   return (
-    <div className="support-launcher">
+    <div className={`support-launcher${placement}`} style={style}>
       {open ? (
         // No card: the choices stand in a column straight above the button.
         <ul className="support-stack" ref={panel} aria-label="Contact support">
@@ -127,9 +266,14 @@ export default function SupportLauncher({ visitor }) {
         ref={button}
         type="button"
         className={`support-button${open ? ' is-open' : ''}`}
-        onClick={() => (open ? close() : setOpen(true))}
+        onClick={onButtonClick}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
         aria-expanded={open}
         aria-label={open ? 'Close support' : 'Support'}
+        title={open ? undefined : 'Support. Drag to move it.'}
       >
         <Icon name={open ? 'close' : 'headset'} size={24} />
         {open ? null : <span className="support-button-label">Support</span>}

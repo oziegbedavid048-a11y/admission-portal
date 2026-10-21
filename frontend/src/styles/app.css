@@ -1390,6 +1390,16 @@ a.agent-topbar-profile-btn {
 .support-button:hover { transform: translateY(-1px); box-shadow: 0 10px 28px rgba(8, 33, 27, 0.28); }
 .support-button:focus-visible { outline: 3px solid var(--g-accent-tint); outline-offset: 3px; }
 .support-button.is-open { width: 52px; padding: 0; justify-content: center; }
+/* Dragged anywhere on the screen (SupportLauncher.jsx). A finger on the
+   button moves it rather than scrolling the page. */
+.support-button { touch-action: none; user-select: none; -webkit-user-select: none; }
+.support-launcher.is-dragging .support-button { cursor: grabbing; transform: scale(1.04); transition: none; }
+/* Near the top of the screen the choices open below the button. */
+.support-launcher.is-top { flex-direction: column-reverse; }
+/* Near the left edge they line up on the left, labels to the right. */
+.support-launcher.is-left,
+.support-launcher.is-left .support-stack { align-items: flex-start; }
+.support-launcher.is-left .support-item { flex-direction: row-reverse; }
 
 /* The choices stand in a column straight above the button, no card. */
 .support-stack {
