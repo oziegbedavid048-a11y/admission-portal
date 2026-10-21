@@ -590,7 +590,9 @@ class WithdrawalAdmin(PaystackPayoutActions, RealDataOnlyAdmin, admin.ModelAdmin
         by Paystack, so only payouts in review can be marked here."""
         from django.utils import timezone
 
-        pending = list(queryset.filter(status=Withdrawal.Status.PENDING).select_related("agent__user"))
+        pending = self.cleared_by_paystack(
+            request, queryset.filter(status=Withdrawal.Status.PENDING).select_related("agent__user")
+        )
         # Still pending at the moment of writing: one failed by someone else in
         # between is not turned into a payout.
         count = Withdrawal.objects.filter(
@@ -609,8 +611,10 @@ class WithdrawalAdmin(PaystackPayoutActions, RealDataOnlyAdmin, admin.ModelAdmin
         """Give the money back for payouts in review. A payout that is Sending
         may already be on its way, so it is checked with Paystack instead."""
         count = 0
-        for withdrawal in queryset.filter(status=Withdrawal.Status.PENDING):
-            if withdrawal.refund("Marked as failed by staff."):
+        pending = self.cleared_by_paystack(request, queryset.filter(status=Withdrawal.Status.PENDING))
+        for withdrawal in pending:
+            # Only if still in review now: it may have been sent meanwhile.
+            if withdrawal.refund_if_pending("Marked as failed by staff."):
                 count += 1
                 transaction.on_commit(
                     lambda withdrawal=withdrawal: send_agent_payout_failed_email(withdrawal)

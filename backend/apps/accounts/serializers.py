@@ -43,6 +43,16 @@ class UserSerializer(serializers.ModelSerializer):
         # Changing it is a desk job until there is a verification flow.
         read_only_fields = ("id", "email", "role", "date_joined", "initials")
 
+    def update(self, instance, validated_data):
+        # The user was read when the request began. Saving every column wrote
+        # that old copy back, which could undo a password change, a
+        # deactivation or a verification made while the request was running.
+        for field, value in validated_data.items():
+            setattr(instance, field, value)
+        if validated_data:
+            instance.save(update_fields=list(validated_data))
+        return instance
+
 
 class ApplicantRegistrationSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=8)

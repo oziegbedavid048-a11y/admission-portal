@@ -38,6 +38,9 @@ class PayoutTests(TestCase):
         self.client = APIClient()
         self.client.force_authenticate(self.user)
         self.recipient = mock.patch(f"{P}.create_recipient", return_value="RCP_test").start()
+        # After a refusal the payout is looked up by reference; by default
+        # Paystack holds nothing under it. Tests never reach the real Paystack.
+        mock.patch(f"{P}.verify_transfer", side_effect=paystack.PaystackRejected("Transfer not found")).start()
         self.addCleanup(mock.patch.stopall)
 
     def fresh_client(self):
@@ -302,6 +305,7 @@ class SalesManagerPayoutTests(TestCase):
         self.client = APIClient()
         self.client.force_authenticate(self.user)
         mock.patch(f"{P}.create_recipient", return_value="RCP_mgr").start()
+        mock.patch(f"{P}.verify_transfer", side_effect=paystack.PaystackRejected("Transfer not found")).start()
         self.addCleanup(mock.patch.stopall)
 
     def withdraw(self, amount="120000"):

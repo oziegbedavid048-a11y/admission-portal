@@ -116,6 +116,19 @@ api.interceptors.response.use(
     const original = error.config;
     const status = error.response?.status;
 
+    // A read that failed for a passing reason (the server waking up, a dropped
+    // connection, a gateway hiccup) is tried again on its own, twice, a little
+    // later each time. Only reads: a payment, withdrawal or any other change is
+    // never repeated behind the person's back, because the first try may have
+    // gone through.
+    const passing = !error.response || [502, 503, 504].includes(status);
+    const isRead = (original?.method || 'get').toLowerCase() === 'get';
+    if (original && isRead && passing && !['ECONNABORTED', 'ERR_CANCELED'].includes(error.code) && (original._attempt || 0) < 2) {
+      original._attempt = (original._attempt || 0) + 1;
+      await new Promise((resolve) => setTimeout(resolve, 800 * original._attempt));
+      return api(original);
+    }
+
     // The refresh endpoint failing is the end of the session, not something to
     // retry: retrying it would loop.
     const isRefresh = original?.url?.includes('/auth/refresh/');

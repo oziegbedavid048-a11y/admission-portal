@@ -117,7 +117,7 @@ export default function AgentWallet() {
       const sent = money(data.withdrawal.net_amount);
       if (data.withdrawal.status === 'completed') toast.success(`${sent} sent to your bank.`);
       else if (data.withdrawal.status === 'sending') toast.success(`${sent} is on its way to your bank.`);
-      else toast.success(`${sent} requested. We will send it to your bank shortly.`);
+      else toast.success(`${sent} requested and taken from your balance. It will reach your bank shortly, so there is no need to request it again.`);
     } catch (error) {
       toast.error(errorMessage(error, 'Could not start that withdrawal.'));
     } finally {

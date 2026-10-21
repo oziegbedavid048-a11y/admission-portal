@@ -183,6 +183,8 @@ class Application(models.Model):
             models.Index(fields=["-submitted_at"], name="app_submitted_idx"),
             models.Index(fields=["email"], name="app_email_idx"),
             models.Index(fields=["submitted_by_agent", "-submitted_at"], name="app_agent_submitted_idx"),
+            # An applicant's own files, newest first (dashboard and "mine").
+            models.Index(fields=["applicant", "-submitted_at"], name="app_applicant_submitted_idx"),
         ]
         verbose_name = "applicant application"
         verbose_name_plural = "applicant applications"

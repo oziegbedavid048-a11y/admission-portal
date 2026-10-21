@@ -144,6 +144,32 @@ def check_withdrawal_hold(profile):
         )
 
 
+# Written by reset_verification when bank details change, so they are saved
+# along with whatever the person edited.
+VERIFICATION_FIELDS = ("account_verified_at", "paystack_recipient_code", "bank_code", "payout_account_changed_at")
+
+
+def save_profile(instance, validated_data):
+    """Save a profile edit, writing only the columns the edit touched.
+
+    The profile was read when the request began. Saving every column wrote that
+    old copy back: a sales manager's `total_withdrawn` from before a payout in
+    another tab, or a `bonus_total` from before a bonus landed, so the same
+    balance could be withdrawn twice. The same went for the user row, where an
+    old copy could undo a password change or a deactivation made meanwhile.
+    """
+    user_data = validated_data.pop("user", {})
+    if user_data:
+        for field, value in user_data.items():
+            setattr(instance.user, field, value)
+        instance.user.save(update_fields=list(user_data))
+    for field, value in validated_data.items():
+        setattr(instance, field, value)
+    fields = set(validated_data) | set(VERIFICATION_FIELDS)
+    instance.save(update_fields=sorted(fields))
+    return instance, user_data
+
+
 def reset_verification(serializer, instance, validated_data, before):
     """New bank details are verified only if Paystack just confirmed them, and
     the old Paystack recipient no longer applies either way."""

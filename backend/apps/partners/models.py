@@ -212,6 +212,9 @@ class SupervisorBonus(models.Model):
                 fields=("application",), name="one_supervisor_bonus_per_application"
             )
         ]
+        indexes = [
+            models.Index(fields=["supervisor", "-earned_at"], name="bonus_manager_earned_idx"),
+        ]
         verbose_name = "sales manager bonus"
         verbose_name_plural = "sales manager bonuses"
 
@@ -460,6 +463,10 @@ class Commission(models.Model):
                 fields=("application", "kind"), name="one_commission_per_milestone"
             )
         ]
+        indexes = [
+            # The agent's commission list and wallet history, newest first.
+            models.Index(fields=["agent", "-earned_at"], name="commission_agent_earned_idx"),
+        ]
 
     def __str__(self):
         return f"{self.get_kind_display()} · {self.application.reference}"
@@ -499,6 +506,8 @@ class Loan(models.Model):
         ordering = ("-requested_at",)
         indexes = [
             models.Index(fields=["status"], name="loan_status_idx"),
+            # "Is a loan still owed?" is asked on every loan request.
+            models.Index(fields=["agent", "status"], name="loan_agent_status_idx"),
         ]
         verbose_name = "ads funding request"
         verbose_name_plural = "ads funding requests"
@@ -527,6 +536,9 @@ class LoanRepayment(models.Model):
 
     class Meta:
         ordering = ("-created_at",)
+        indexes = [
+            models.Index(fields=["agent", "-created_at"], name="repayment_agent_created_idx"),
+        ]
         verbose_name = "ads funding repayment"
         verbose_name_plural = "ads funding repayments"
 
@@ -619,6 +631,7 @@ class Withdrawal(models.Model):
         ordering = ("-created_at",)
         indexes = [
             models.Index(fields=["status"], name="withdrawal_status_idx"),
+            models.Index(fields=["agent", "-created_at"], name="withdrawal_agent_created_idx"),
         ]
         verbose_name = "agent payout"
         verbose_name_plural = "agent payouts"
@@ -629,6 +642,19 @@ class Withdrawal(models.Model):
     @property
     def reference(self):
         return f"WD-{self.pk:05d}"
+
+    @transaction.atomic
+    def refund_if_pending(self, reason=""):
+        """Refund a payout only while it is still in review.
+
+        Staff fail payouts from a list loaded a moment earlier. In between, the
+        payout may have been handed to Paystack (Sending) or paid; refunding it
+        then would give back money that has left. Locked and re-read first.
+        """
+        locked = type(self).objects.select_for_update().get(pk=self.pk)
+        if locked.status != self.Status.PENDING:
+            return False
+        return self.refund(reason)
 
     @transaction.atomic
     def refund(self, reason=""):
@@ -744,6 +770,11 @@ class SupervisorWithdrawal(models.Model):
 
     class Meta:
         ordering = ("-created_at",)
+        indexes = [
+            # The desk's payout queue is filtered by status.
+            models.Index(fields=["status"], name="mgr_withdrawal_status_idx"),
+            models.Index(fields=["supervisor", "-created_at"], name="mgr_withdrawal_created_idx"),
+        ]
         verbose_name = "sales manager payout"
         verbose_name_plural = "sales manager payouts"
 

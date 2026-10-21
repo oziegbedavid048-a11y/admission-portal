@@ -23,6 +23,7 @@ from .payout_account import (
     announce_bank_change,
     check_password_for_bank_change,
     reset_verification,
+    save_profile,
     snapshot,
     verify_bank_with_paystack,
     withdrawal_hold_until,
@@ -135,12 +136,7 @@ class SupervisorProfileSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         before = snapshot(instance)
         reset_verification(self, instance, validated_data, before)
-        user_data = validated_data.pop("user", {})
-        for field, value in user_data.items():
-            setattr(instance.user, field, value)
-        if user_data:
-            instance.user.save()
-        updated = super().update(instance, validated_data)
+        updated, _user_data = save_profile(instance, validated_data)
         announce_bank_change(updated, before)
         return updated
 

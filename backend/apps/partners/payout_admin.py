@@ -52,6 +52,24 @@ class PaystackPayoutActions:
         text = obj.failure_reason or (obj.review_reason if obj.status == STATUS.PENDING else "")
         return text or "—"
 
+    def cleared_by_paystack(self, request, withdrawals):
+        """The payouts staff may mark paid or failed by hand.
+
+        A Paystack payout in review is first checked with Paystack: if a
+        transfer exists under its reference, marking it failed would refund
+        money already sent and paying it by hand would pay it twice. Those are
+        left alone and named in a warning.
+        """
+        from .payouts import safe_to_settle_by_hand
+
+        cleared, held = [], []
+        for withdrawal in withdrawals:
+            ok, why = safe_to_settle_by_hand(withdrawal)
+            (cleared if ok else held).append((withdrawal, why))
+        for withdrawal, why in held:
+            self.message_user(request, f"{withdrawal.reference} left unchanged: {why}", messages.WARNING)
+        return [withdrawal for withdrawal, _ in cleared]
+
     @admin.action(description="Approve and send through Paystack")
     def action_approve_and_send(self, request, queryset):
         """Send payouts waiting for approval. Only Paystack payouts in review."""

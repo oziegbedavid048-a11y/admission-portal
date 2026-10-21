@@ -311,10 +311,9 @@ class SupervisorWithdrawalAdmin(PaystackPayoutActions, admin.ModelAdmin):
 
     @admin.action(description="Mark as paid out (paid by staff)")
     def action_mark_paid(self, request, queryset):
-        pending = list(
-            queryset.filter(status=SupervisorWithdrawal.Status.PENDING).select_related(
-                "supervisor__user"
-            )
+        pending = self.cleared_by_paystack(
+            request,
+            queryset.filter(status=SupervisorWithdrawal.Status.PENDING).select_related("supervisor__user"),
         )
         count = SupervisorWithdrawal.objects.filter(
             pk__in=[w.pk for w in pending], status=SupervisorWithdrawal.Status.PENDING
@@ -335,7 +334,8 @@ class SupervisorWithdrawalAdmin(PaystackPayoutActions, admin.ModelAdmin):
     @admin.action(description="Mark as failed and return the balance")
     def action_mark_failed(self, request, queryset):
         count = 0
-        for withdrawal in queryset.filter(status=SupervisorWithdrawal.Status.PENDING):
+        pending = self.cleared_by_paystack(request, queryset.filter(status=SupervisorWithdrawal.Status.PENDING))
+        for withdrawal in pending:
             if withdrawal.mark_failed():
                 count += 1
                 send_manager_payout_failed_email(withdrawal)

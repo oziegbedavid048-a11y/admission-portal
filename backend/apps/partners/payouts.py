@@ -81,6 +81,80 @@ def can_pay_automatically(profile):
 
 # ── The payout's journey ──────────────────────────────────────────────
 
+# Set on a payout Paystack refused because the company's Paystack balance was
+# too low. The money stays held (it left the person's balance when they asked),
+# and check_payouts sends it again once the balance is topped up. The reference
+# never changes, so Paystack can only ever pay it once.
+LOW_BALANCE_NOTE = "Paystack balance too low; sent again automatically once it is topped up."
+
+# Paystack could not say whether a transfer exists.
+UNKNOWN = object()
+
+
+def is_low_balance(message):
+    text = (message or "").lower()
+    return "balance" in text and any(word in text for word in ("not enough", "insufficient", "too low", "low"))
+
+
+def paystack_transfer(withdrawal):
+    """What Paystack holds under this payout's reference.
+
+    The transfer's data, None when Paystack has no transfer under it (so
+    nothing was sent), or UNKNOWN when Paystack could not be asked.
+    """
+    if withdrawal.method != METHOD.PAYSTACK or not withdrawal.paystack_reference:
+        return None
+    try:
+        data = paystack.verify_transfer(withdrawal.paystack_reference)
+    except paystack.PaystackRejected as exc:
+        return None if "not found" in str(exc).lower() else UNKNOWN
+    except paystack.PaystackUnreachable:
+        return UNKNOWN
+    return data or UNKNOWN
+
+
+def safe_to_settle_by_hand(withdrawal):
+    """Whether staff may mark this payout paid or failed themselves.
+
+    Not while Paystack holds a live transfer for it: marking it failed would
+    refund money already sent, and paying it by hand would pay it twice.
+    Returns (ok, reason).
+    """
+    found = paystack_transfer(withdrawal)
+    if found is None:
+        return True, ""
+    if found is UNKNOWN:
+        return False, "Paystack could not be reached to confirm nothing was sent. Try again shortly."
+    reported = (found.get("status") or "").lower()
+    if reported in ("failed", "reversed"):
+        return True, ""
+    # Bring it up to date with what Paystack says while we are here.
+    apply_transfer_status(withdrawal, found)
+    return False, f"Paystack already has this transfer ({reported or 'in progress'}); it is not changed by hand."
+
+
+def resend_low_balance(older_than_minutes=10):
+    """Send again the payouts held back because the Paystack balance was low.
+
+    Each keeps its reference, and send() only acts on a payout still in
+    review, so a payout can never be paid twice however often this runs.
+    """
+    from datetime import timedelta
+
+    cutoff = timezone.now() - timedelta(minutes=older_than_minutes)
+    resent = 0
+    for model in (Withdrawal, SupervisorWithdrawal):
+        waiting = model.objects.filter(
+            method=METHOD.PAYSTACK, status=STATUS.PENDING, review_reason=LOW_BALANCE_NOTE, sent_at__lte=cutoff
+        )
+        for withdrawal in waiting:
+            result = send(withdrawal)
+            resent += 1
+            if result.review_reason == LOW_BALANCE_NOTE:
+                # Still too low: the rest would be refused the same way.
+                return resent
+    return resent
+
 
 def prepare(withdrawal):
     """Decide how a new payout is paid. Called right after it is requested.
@@ -133,12 +207,24 @@ def send(withdrawal, approved_by=None):
             locked.net_amount, recipient, locked.paystack_reference, f"Gabstep payout {locked.reference}"
         )
     except paystack.PaystackRejected as exc:
-        # Paystack said no, so nothing left. Back to staff, money still held.
         logger.warning("Paystack refused payout %s: %s", locked.reference, exc)
+        # A refusal is only proof that nothing left if Paystack holds no
+        # transfer under this reference. "Duplicate reference", for one, means
+        # an earlier attempt did go through, and putting that payout back in
+        # review would let staff refund money that is already in the bank.
+        found = paystack_transfer(locked)
+        if found is UNKNOWN:
+            # Left as Sending; check_payouts asks again.
+            return locked
+        if found is not None:
+            apply_transfer_status(locked, found)
+            locked.refresh_from_db()
+            return locked
+        low_balance = is_low_balance(str(exc))
         model.objects.filter(pk=locked.pk, status=STATUS.SENDING).update(
             status=STATUS.PENDING,
             failure_reason=f"Paystack did not send it: {exc}"[:300],
-            review_reason="Paystack refused the transfer; see the reason.",
+            review_reason=LOW_BALANCE_NOTE if low_balance else "Paystack refused the transfer; see the reason.",
         )
         locked.refresh_from_db()
         return locked

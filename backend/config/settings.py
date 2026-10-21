@@ -89,6 +89,9 @@ MIDDLEWARE = [
     "config.middleware.ServerTimingMiddleware",
     "config.middleware.CatalogGZipMiddleware",
     "corsheaders.middleware.CorsMiddleware",
+    # After CORS, so a refused request still carries the CORS headers the
+    # browser needs to show the reason.
+    "config.middleware.ApiBodySizeMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
@@ -226,6 +229,8 @@ REST_FRAMEWORK = {
         "rest_framework.filters.OrderingFilter",
     ),
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    # Unexpected errors answer as JSON too, never as Django's HTML error page.
+    "EXCEPTION_HANDLER": "config.exceptions.api_exception_handler",
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 50,
     # Nothing here was rate limited, which made the sign-in endpoint a free
@@ -254,6 +259,8 @@ REST_FRAMEWORK = {
         # Opening and using a link. Separate, so someone retrying a password the
         # rules refused is not locked out by the emails they asked for.
         "password_reset_confirm": env("THROTTLE_PASSWORD_RESET_CONFIRM", "30/hour"),
+        # Changing the password while signed in: each try checks the current one.
+        "password_change": env("THROTTLE_PASSWORD_CHANGE", "10/hour"),
         # Sending a verification email again, and opening a verification link.
         "verify_resend": env("THROTTLE_VERIFY_RESEND", "6/hour"),
         "verify": env("THROTTLE_VERIFY", "30/hour"),
@@ -376,6 +383,9 @@ DATA_UPLOAD_MAX_MEMORY_SIZE = int(env("DATA_UPLOAD_MAX_MEMORY_SIZE", str(100 * 1
 # Raise the POST field-count ceiling too. With many recipients selected the
 # form emits one hidden input per person; 10 000 covers even the largest lists.
 DATA_UPLOAD_MAX_NUMBER_FIELDS = int(env("DATA_UPLOAD_MAX_NUMBER_FIELDS", "10000"))
+# The API's own ceiling for a request without a file (see
+# config.middleware.ApiBodySizeMiddleware). The limits above are for the admin.
+API_MAX_BODY_BYTES = int(env("API_MAX_BODY_BYTES", str(2 * 1024 * 1024)))
 
 if not DEBUG:
     SECURE_SSL_REDIRECT = env_bool("SECURE_SSL_REDIRECT", True)

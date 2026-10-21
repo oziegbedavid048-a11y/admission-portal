@@ -247,72 +247,76 @@ class CheckoutView(APIView):
 
     throttle_classes = (UserThrottle, CheckoutThrottle)
 
-    @transaction.atomic
     def post(self, request):
         try:
             serializer = CheckoutSerializer(data=request.data)
             serializer.is_valid(raise_exception=True)
 
-            # Only a file the caller may already see: their own, a student they
-            # filed, or any file for staff. Someone else's reference is "not
-            # found", exactly as if it did not exist, so it cannot be used to
-            # read that file or to reset its payment.
-            application = visible_applications(request.user).filter(
-                reference=serializer.validated_data["application"]
-            ).first()
-            if application is None:
-                return Response(
-                    {"detail": "No such application."}, status=status.HTTP_404_NOT_FOUND
-                )
+            # The checks and the pending payment are written in one transaction;
+            # the call to Paystack below is not. It can take up to 20 seconds,
+            # and holding a database connection and a transaction open for that
+            # long is how the connection pool runs dry under load.
+            with transaction.atomic():
+                # Only a file the caller may already see: their own, a student they
+                # filed, or any file for staff. Someone else's reference is "not
+                # found", exactly as if it did not exist, so it cannot be used to
+                # read that file or to reset its payment.
+                application = visible_applications(request.user).filter(
+                    reference=serializer.validated_data["application"]
+                ).first()
+                if application is None:
+                    return Response(
+                        {"detail": "No such application."}, status=status.HTTP_404_NOT_FOUND
+                    )
 
-            existing = getattr(application, "payment", None)
-            if existing and existing.status in {Payment.Status.PAID, Payment.Status.WAIVED}:
-                # Already settled. Saying so is not an error, and it stops a retried
-                # request from opening a second charge.
-                return Response(
-                    {"payment": PaymentSerializer(existing).data, "already_settled": True}
-                )
+                existing = getattr(application, "payment", None)
+                if existing and existing.status in {Payment.Status.PAID, Payment.Status.WAIVED}:
+                    # Already settled. Saying so is not an error, and it stops a retried
+                    # request from opening a second charge.
+                    return Response(
+                        {"payment": PaymentSerializer(existing).data, "already_settled": True}
+                    )
 
-            if fee_already_confirmed(application):
-                return Response({"detail": ALREADY_CONFIRMED}, status=status.HTTP_409_CONFLICT)
+                if fee_already_confirmed(application):
+                    return Response({"detail": ALREADY_CONFIRMED}, status=status.HTTP_409_CONFLICT)
 
-            if existing and existing.status == Payment.Status.REVIEW:
-                # A transfer receipt is already with the desk. Starting a card
-                # payment on top of it could take the fee twice.
-                return Response(
-                    {"detail": "A bank transfer for this student is waiting for confirmation."},
-                    status=status.HTTP_409_CONFLICT,
-                )
+                if existing and existing.status == Payment.Status.REVIEW:
+                    # A transfer receipt is already with the desk. Starting a card
+                    # payment on top of it could take the fee twice.
+                    return Response(
+                        {"detail": "A bank transfer for this student is waiting for confirmation."},
+                        status=status.HTTP_409_CONFLICT,
+                    )
 
-            quote = quote_for(application)
-            payment = existing or Payment(application=application)
-            _price(payment, quote)
-            payment.gateway = Payment.Gateway.PAYSTACK
-            payment.status = Payment.Status.PENDING
-            payment.save()
+                quote = quote_for(application)
+                payment = existing or Payment(application=application)
+                _price(payment, quote)
+                payment.gateway = Payment.Gateway.PAYSTACK
+                payment.status = Payment.Status.PENDING
+                payment.save()
 
-            if quote["waived"]:
-                payment.mark_waived()
-                services.sync_payment_checkpoint(application)
-                reason = (
-                    "Application fee waived for custom course review."
-                    if getattr(application, "is_custom_course", False)
-                    else "Application fee waived by the partner institution."
-                )
-                services.notify(
-                    application,
-                    reason,
-                    send_email=False,
-                )
-                application = Application.objects.get(pk=application.pk)
-                return Response(
-                    {
-                        "payment": PaymentSerializer(payment).data,
-                        "application": ApplicationSerializer(application).data,
-                        "waived": True,
-                    },
-                    status=status.HTTP_201_CREATED,
-                )
+                if quote["waived"]:
+                    payment.mark_waived()
+                    services.sync_payment_checkpoint(application)
+                    reason = (
+                        "Application fee waived for custom course review."
+                        if getattr(application, "is_custom_course", False)
+                        else "Application fee waived by the partner institution."
+                    )
+                    services.notify(
+                        application,
+                        reason,
+                        send_email=False,
+                    )
+                    application = Application.objects.get(pk=application.pk)
+                    return Response(
+                        {
+                            "payment": PaymentSerializer(payment).data,
+                            "application": ApplicationSerializer(application).data,
+                            "waived": True,
+                        },
+                        status=status.HTTP_201_CREATED,
+                    )
 
             # Paystack sends the applicant back here. The application reference is in
             # the path so the page knows what to ask about without trusting the

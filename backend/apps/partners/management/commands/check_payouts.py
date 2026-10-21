@@ -3,7 +3,9 @@
 Paystack normally reports each transfer on the webhook within seconds. This is
 the safety net for a notice that never arrived: run it every few minutes (for
 example as a Render cron job) and any payout Paystack has settled or failed is
-brought up to date, with the agent's money refunded on a failure.
+brought up to date, with the agent's money refunded on a failure. Payouts
+Paystack refused for a low company balance are also sent again (see
+payouts.resend_low_balance); they can only ever be paid once.
 
     python manage.py check_payouts
 """
@@ -14,7 +16,7 @@ from django.core.management.base import BaseCommand
 from django.utils import timezone
 
 from apps.partners.models import SupervisorWithdrawal, Withdrawal
-from apps.partners.payouts import check
+from apps.partners.payouts import check, resend_low_balance
 
 
 class Command(BaseCommand):
@@ -37,3 +39,7 @@ class Command(BaseCommand):
         ]
         changed = sum(1 for withdrawal in sending if check(withdrawal).status != Withdrawal.Status.SENDING)
         self.stdout.write(f"Checked {len(sending)} payout(s); {changed} updated.")
+        # Payouts held back because the Paystack balance was low go out again
+        # once it is topped up, each under its own unchanging reference.
+        resent = resend_low_balance()
+        self.stdout.write(f"Tried {resent} payout(s) held for a low Paystack balance again.")

@@ -1,3 +1,4 @@
+from django.db import transaction
 from django.db.models import Prefetch
 from django.utils import timezone
 from rest_framework import status, viewsets
@@ -38,7 +39,9 @@ def visible_applications(user):
     """
     queryset = (
         Application.objects.select_related(
-            "institution", "institution__country", "origin_country", "destination_country"
+            # The payment is on every row (and in the verification summary);
+            # without it each file in a list cost one more query.
+            "institution", "institution__country", "origin_country", "destination_country", "payment"
         )
         .prefetch_related(
             "programs",
@@ -81,26 +84,31 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         try:
             serializer = self.get_serializer(data=request.data)
             serializer.is_valid(raise_exception=True)
-            application = serializer.save()
-            # Documents saved with the draft become the application's documents.
-            draft = ApplicationDraft.objects.filter(user=request.user).first()
-            if draft is not None:
-                from django.core.files.base import ContentFile
+            # One transaction for the file and its documents. Copying the draft
+            # used to happen after the file was saved, so a failure part way left
+            # a file without its documents, and the "try again" the applicant was
+            # shown then failed because the file already existed.
+            with transaction.atomic():
+                application = serializer.save()
+                # Documents saved with the draft become the application's documents.
+                draft = ApplicationDraft.objects.filter(user=request.user).first()
+                if draft is not None:
+                    from django.core.files.base import ContentFile
 
-                for item in draft.files.all():
-                    item.file.open("rb")
-                    try:
-                        content = item.file.read()
-                    finally:
-                        item.file.close()
-                    Document.objects.create(
-                        application=application,
-                        kind=item.kind,
-                        name=item.name,
-                        original_filename=item.original_filename,
-                        file=ContentFile(content, name=item.original_filename or "document"),
-                    )
-                draft.delete()
+                    for item in draft.files.all():
+                        item.file.open("rb")
+                        try:
+                            content = item.file.read()
+                        finally:
+                            item.file.close()
+                        Document.objects.create(
+                            application=application,
+                            kind=item.kind,
+                            name=item.name,
+                            original_filename=item.original_filename,
+                            file=ContentFile(content, name=item.original_filename or "document"),
+                        )
+                    draft.delete()
             return Response(
                 ApplicationSerializer(application, context=self.get_serializer_context()).data,
                 status=status.HTTP_201_CREATED,

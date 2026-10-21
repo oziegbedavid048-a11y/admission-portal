@@ -1,5 +1,46 @@
 """Response hardening that belongs to the whole project rather than one app."""
 
+from django.conf import settings
+from django.http import JsonResponse
+
+
+class ApiBodySizeMiddleware:
+    """Refuse an oversized request to the API before anything reads it.
+
+    DATA_UPLOAD_MAX_MEMORY_SIZE is set high (100 MB) for the admin's custom
+    message form, and it applied to every endpoint, including the anonymous
+    ones: anyone could send 100 MB of JSON to the sign-in endpoint and have it
+    read into memory, a few at once enough to take a small server down.
+
+    Under /api/ nothing legitimate comes close: forms and drafts are a few
+    kilobytes, a drawn signature is under a megabyte, and every upload is one
+    file of at most MAX_UPLOAD_SIZE_MB. The admin keeps its own limit.
+    """
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+        self.json_limit = int(getattr(settings, "API_MAX_BODY_BYTES", 2 * 1024 * 1024))
+        # One file plus the few text fields that travel with it.
+        self.upload_limit = (int(getattr(settings, "MAX_UPLOAD_SIZE_MB", 10)) + 1) * 1024 * 1024
+
+    def __call__(self, request):
+        if request.path.startswith("/api/"):
+            try:
+                length = int(request.META.get("CONTENT_LENGTH") or 0)
+            except ValueError:
+                length = 0
+            multipart = (request.META.get("CONTENT_TYPE") or "").lower().startswith("multipart/")
+            limit = self.upload_limit if multipart else self.json_limit
+            if length > limit:
+                return JsonResponse(
+                    {
+                        "detail": f"That request is too large. Keep files under {settings.MAX_UPLOAD_SIZE_MB}MB.",
+                        "code": "request_too_large",
+                    },
+                    status=413,
+                )
+        return self.get_response(request)
+
 
 class UploadedFileHeadersMiddleware:
     """Harden every response under MEDIA_URL, whoever produced it.

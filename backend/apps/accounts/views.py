@@ -7,7 +7,7 @@ from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 
-from config.throttles import AnonThrottle, EdgeThrottle, ScopedThrottle
+from config.throttles import AnonThrottle, EdgeThrottle, ScopedThrottle, UserThrottle
 
 from .cookies import clear_refresh_cookie, read_refresh_token, set_refresh_cookie
 from .models import User, WhatsAppContact
@@ -281,7 +281,16 @@ class MeView(generics.RetrieveUpdateAPIView):
         return self.request.user
 
 
+class PasswordChangeThrottle(UserThrottle):
+    """Each attempt checks the current password, so without a limit a stolen
+    session could guess it as fast as the per-user floor allows."""
+
+    scope = "password_change"
+
+
 class PasswordChangeView(APIView):
+    throttle_classes = (UserThrottle, PasswordChangeThrottle)
+
     def post(self, request):
         serializer = PasswordChangeSerializer(
             data=request.data, context={"request": request}
