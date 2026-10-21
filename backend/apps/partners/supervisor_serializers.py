@@ -19,7 +19,14 @@ from .models import (
     SupervisorWithdrawal,
 )
 from .serializers import AdmittedByLetterMixin
-from .payout_account import announce_bank_change, check_password_for_bank_change, snapshot
+from .payout_account import (
+    announce_bank_change,
+    check_password_for_bank_change,
+    reset_verification,
+    snapshot,
+    verify_bank_with_paystack,
+    withdrawal_hold_until,
+)
 
 
 class SupervisorProfileSerializer(serializers.ModelSerializer):
@@ -36,6 +43,12 @@ class SupervisorProfileSerializer(serializers.ModelSerializer):
     # keeping a second copy of the number that can drift.
     minimum_withdrawal = serializers.SerializerMethodField()
     can_withdraw = serializers.SerializerMethodField()
+    withdrawal_hold_until = serializers.SerializerMethodField()
+    # Paystack verification, as on the agent profile.
+    bank_code = serializers.CharField(max_length=12, required=False, allow_blank=True)
+    account_verified = serializers.SerializerMethodField()
+    automatic_payouts = serializers.SerializerMethodField()
+    automatic_payouts_offered = serializers.SerializerMethodField()
     # Needed only when the bank details change. See payout_account.py.
     current_password = serializers.CharField(
         write_only=True, required=False, allow_blank=True, trim_whitespace=False
@@ -55,6 +68,10 @@ class SupervisorProfileSerializer(serializers.ModelSerializer):
             "bank_name",
             "account_number",
             "account_name",
+            "bank_code",
+            "account_verified",
+            "automatic_payouts",
+            "automatic_payouts_offered",
             "current_password",
             "bonus_total",
             "total_withdrawn",
@@ -62,6 +79,7 @@ class SupervisorProfileSerializer(serializers.ModelSerializer):
             "agent_count",
             "minimum_withdrawal",
             "can_withdraw",
+            "withdrawal_hold_until",
             "is_active",
             "created_at",
         )
@@ -74,6 +92,7 @@ class SupervisorProfileSerializer(serializers.ModelSerializer):
             "agent_count",
             "minimum_withdrawal",
             "can_withdraw",
+            "withdrawal_hold_until",
             "is_active",
             "created_at",
         )
@@ -92,11 +111,30 @@ class SupervisorProfileSerializer(serializers.ModelSerializer):
             and bool(obj.account_number)
         )
 
+    def get_withdrawal_hold_until(self, obj):
+        return withdrawal_hold_until(obj)
+
+    def get_account_verified(self, obj):
+        return bool(obj.account_verified_at)
+
+    def get_automatic_payouts(self, obj):
+        from .payouts import can_pay_automatically
+
+        return can_pay_automatically(obj)[0]
+
+    def get_automatic_payouts_offered(self, obj):
+        from .payouts import payouts_enabled
+
+        # Sales managers are paid in Naira wherever they are.
+        return payouts_enabled()
+
     def validate(self, attrs):
-        return check_password_for_bank_change(self, self.instance, attrs)
+        attrs = check_password_for_bank_change(self, self.instance, attrs)
+        return verify_bank_with_paystack(self, self.instance, attrs)
 
     def update(self, instance, validated_data):
         before = snapshot(instance)
+        reset_verification(self, instance, validated_data, before)
         user_data = validated_data.pop("user", {})
         for field, value in user_data.items():
             setattr(instance.user, field, value)
@@ -246,7 +284,7 @@ class SupervisorWithdrawalSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = SupervisorWithdrawal
-        fields = ("id", "reference", "amount", "status", "created_at", "paid_at")
+        fields = ("id", "reference", "amount", "status", "method", "created_at", "paid_at")
         read_only_fields = fields
 
 

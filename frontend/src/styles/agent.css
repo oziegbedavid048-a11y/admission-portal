@@ -584,6 +584,23 @@
 
 .balance-actions { display: flex; gap: 10px; flex-wrap: wrap; }
 
+/* The minimum withdrawal, always in view under the Withdraw button. */
+.balance-min-note {
+  flex: 1 1 100%;
+  margin: 0;
+  font-size: 13px;
+  color: var(--g-ink-2);
+}
+.balance-min-note.is-below {
+  padding: 11px 14px;
+  border-radius: var(--g-r-sm);
+  background: var(--g-attn-tint);
+  border: 1px solid var(--g-attn-line);
+  color: var(--g-attn);
+  font-size: 13.5px;
+  line-height: 1.55;
+}
+
 .balance-split {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));

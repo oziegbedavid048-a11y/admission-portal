@@ -8,12 +8,21 @@ payout at their own account in one request, and nobody would be told. So:
   current password, checked here on the server;
 * the owner is emailed whenever an existing payout account changes;
 * each payout records the account it was requested for (see models.py), so
-  the desk pays the account that was on file at the time of the request.
+  the desk pays the account that was on file at the time of the request;
+* withdrawals pause for ``PAYOUT_HOLD_HOURS_AFTER_BANK_CHANGE`` hours after
+  payouts are pointed at a different account. Payouts go out instantly with
+  no staff approval, so without this a stolen password could change the bank
+  and empty the balance in a minute, before the owner reads the email.
 """
 
+from datetime import timedelta
+
+from django.conf import settings
+from django.core.exceptions import ValidationError
+from django.utils import timezone
 from rest_framework import serializers
 
-BANK_FIELDS = ("bank_name", "account_number", "account_name")
+BANK_FIELDS = ("bank_name", "account_number", "account_name", "bank_code")
 
 
 def bank_changes(instance, attrs):
@@ -21,7 +30,7 @@ def bank_changes(instance, attrs):
     return [
         field
         for field in BANK_FIELDS
-        if field in attrs and (attrs[field] or "") != (getattr(instance, field) or "")
+        if field in attrs and (attrs[field] or "") != (getattr(instance, field, "") or "")
     ]
 
 
@@ -44,7 +53,7 @@ def announce_bank_change(instance, before):
     """Email the owner when an existing payout account was changed."""
     if not any(before.get(field) for field in BANK_FIELDS):
         return  # First time it is set: nothing was redirected.
-    if all(before.get(field) == getattr(instance, field) for field in BANK_FIELDS):
+    if all(before.get(field) == getattr(instance, field, "") for field in BANK_FIELDS):
         return
     from django.db import transaction
 
@@ -54,10 +63,101 @@ def announce_bank_change(instance, before):
 
 
 def snapshot(instance):
-    return {field: getattr(instance, field) for field in BANK_FIELDS}
+    # Sales managers have no bank code; only agents are paid through Paystack.
+    return {field: getattr(instance, field, "") for field in BANK_FIELDS}
 
 
 def destination_label(profile):
     if not profile.bank_name and not profile.account_number:
         return ""
     return f"{profile.bank_name} · {profile.account_number} ({profile.account_name})"
+
+
+def verify_bank_with_paystack(serializer, instance, attrs):
+    """A bank picked from Paystack's list is checked with Paystack before it is
+    saved: the account must exist at that bank, and the name saved is the name
+    the bank holds, not what was typed. Sets ``serializer._verified``."""
+    from . import paystack_transfers as paystack
+
+    serializer._verified = False
+    code = (attrs.get("bank_code") or "").strip()
+    number = attrs.get("account_number", getattr(instance, "account_number", ""))
+    changing = any(
+        field in attrs and (attrs[field] or "") != (getattr(instance, field, "") or "")
+        for field in ("bank_code", "account_number")
+    )
+    if not code or not changing or not paystack.is_configured():
+        return attrs
+    try:
+        name = paystack.resolve_account(number, code)
+        bank = paystack.bank_name_for(code)
+    except paystack.PaystackRejected:
+        raise serializers.ValidationError(
+            {"account_number": "Paystack could not find this account at that bank. Check the number and the bank."}
+        )
+    except paystack.PaystackUnreachable:
+        raise serializers.ValidationError(
+            {"account_number": "The account could not be checked right now. Please try again in a moment."}
+        )
+    attrs["account_name"] = name[:120]
+    if bank:
+        attrs["bank_name"] = bank[:120]
+    serializer._verified = True
+    return attrs
+
+
+def _same(a, b):
+    return " ".join((a or "").split()).lower() == " ".join((b or "").split()).lower()
+
+
+def points_elsewhere(before, after):
+    """Whether payouts would now go to a different account than before.
+
+    Confirming the account typed at sign-up (same number, same bank) is not a
+    change of destination."""
+    if not before.get("account_number"):
+        return False  # First account on file: nothing is redirected.
+    return not (
+        _same(before.get("account_number"), after.get("account_number"))
+        and _same(before.get("bank_name"), after.get("bank_name"))
+    )
+
+
+def withdrawal_hold_until(profile):
+    """When withdrawals open again after a payout-account change, or None."""
+    changed = getattr(profile, "payout_account_changed_at", None)
+    hours = int(getattr(settings, "PAYOUT_HOLD_HOURS_AFTER_BANK_CHANGE", 24) or 0)
+    if not changed or hours <= 0:
+        return None
+    until = changed + timedelta(hours=hours)
+    return until if until > timezone.now() else None
+
+
+def check_withdrawal_hold(profile):
+    """Raise while a recent payout-account change is still on hold."""
+    until = withdrawal_hold_until(profile)
+    if until is not None:
+        local = timezone.localtime(until)
+        raise ValidationError(
+            "Your payout account changed recently, so withdrawals are paused for your safety. "
+            f"You can withdraw from {local:%d %b, %H:%M}."
+        )
+
+
+def reset_verification(serializer, instance, validated_data, before):
+    """New bank details are verified only if Paystack just confirmed them, and
+    the old Paystack recipient no longer applies either way."""
+    changed = any(
+        field in validated_data and (validated_data[field] or "") != (before.get(field) or "")
+        for field in ("bank_code", "account_number", "bank_name", "account_name")
+    )
+    if not changed:
+        return
+    verified = getattr(serializer, "_verified", False)
+    instance.account_verified_at = timezone.now() if verified else None
+    instance.paystack_recipient_code = ""
+    if not verified and "bank_code" not in validated_data:
+        instance.bank_code = ""
+    after = {field: validated_data.get(field, before.get(field)) for field in BANK_FIELDS}
+    if points_elsewhere(before, after):
+        instance.payout_account_changed_at = timezone.now()

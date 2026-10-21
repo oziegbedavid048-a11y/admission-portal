@@ -20,7 +20,14 @@ from .models import (
     Withdrawal,
     loan_block_reason,
 )
-from .payout_account import announce_bank_change, check_password_for_bank_change, snapshot
+from .payout_account import (
+    announce_bank_change,
+    check_password_for_bank_change,
+    reset_verification,
+    snapshot,
+    verify_bank_with_paystack,
+    withdrawal_hold_until,
+)
 
 
 class WalletSerializer(serializers.ModelSerializer):
@@ -32,6 +39,7 @@ class WalletSerializer(serializers.ModelSerializer):
     # amount here, it is in the wallet's currency.
     minimum_withdrawal = serializers.SerializerMethodField()
     can_withdraw = serializers.SerializerMethodField()
+    withdrawal_hold_until = serializers.SerializerMethodField()
     symbol = serializers.CharField(read_only=True)
     loan_min = serializers.SerializerMethodField()
     loan_max = serializers.SerializerMethodField()
@@ -51,6 +59,7 @@ class WalletSerializer(serializers.ModelSerializer):
             "symbol",
             "minimum_withdrawal",
             "can_withdraw",
+            "withdrawal_hold_until",
             "loan_min",
             "loan_max",
             "updated_at",
@@ -62,6 +71,9 @@ class WalletSerializer(serializers.ModelSerializer):
 
     def get_can_withdraw(self, obj):
         return obj.available_balance >= obj.minimum_withdrawal
+
+    def get_withdrawal_hold_until(self, obj):
+        return withdrawal_hold_until(obj.agent)
 
     def get_loan_min(self, obj):
         return obj.loan_limits[0]
@@ -86,6 +98,14 @@ class AgentProfileSerializer(serializers.ModelSerializer):
     # "pending" means the portal shows only the Contract page until it is signed.
     contract_status = serializers.CharField(read_only=True)
     wallet = WalletSerializer(read_only=True)
+    # Paystack's bank code, when the bank was picked from Paystack's list.
+    bank_code = serializers.CharField(max_length=12, required=False, allow_blank=True)
+    # True once Paystack has confirmed the account name.
+    account_verified = serializers.SerializerMethodField()
+    # Whether withdrawals are paid automatically through Paystack, and whether
+    # they could be (switched on, agent in Nigeria) once the account is verified.
+    automatic_payouts = serializers.SerializerMethodField()
+    automatic_payouts_offered = serializers.SerializerMethodField()
     # Needed only when the bank details change. See payout_account.py.
     current_password = serializers.CharField(
         write_only=True, required=False, allow_blank=True, trim_whitespace=False
@@ -109,6 +129,10 @@ class AgentProfileSerializer(serializers.ModelSerializer):
             "bank_name",
             "account_number",
             "account_name",
+            "bank_code",
+            "account_verified",
+            "automatic_payouts",
+            "automatic_payouts_offered",
             "current_password",
             "total_closed_sales",
             "wallet",
@@ -130,11 +154,26 @@ class AgentProfileSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Account number should be 10 digits.")
         return value
 
+    def get_account_verified(self, obj):
+        return bool(obj.account_verified_at)
+
+    def get_automatic_payouts(self, obj):
+        from .payouts import can_pay_automatically
+
+        return can_pay_automatically(obj)[0]
+
+    def get_automatic_payouts_offered(self, obj):
+        from .payouts import NIGERIA, payouts_enabled
+
+        return payouts_enabled() and (obj.user.country or "").strip().lower() == NIGERIA
+
     def validate(self, attrs):
-        return check_password_for_bank_change(self, self.instance, attrs)
+        attrs = check_password_for_bank_change(self, self.instance, attrs)
+        return verify_bank_with_paystack(self, self.instance, attrs)
 
     def update(self, instance, validated_data):
         before = snapshot(instance)
+        reset_verification(self, instance, validated_data, before)
         user_data = validated_data.pop("user", {})
         for field, value in user_data.items():
             setattr(instance.user, field, value)
@@ -223,9 +262,13 @@ class WithdrawalSerializer(serializers.ModelSerializer):
             "net_amount",
             "currency",
             "status",
+            "method",
+            "paid_at",
             "created_at",
         )
-        read_only_fields = ("id", "reference", "loan_deduction", "net_amount", "currency", "status", "created_at")
+        read_only_fields = (
+            "id", "reference", "loan_deduction", "net_amount", "currency", "status", "method", "paid_at", "created_at",
+        )
 
 
 class WithdrawalRequestSerializer(serializers.Serializer):

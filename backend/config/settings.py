@@ -495,6 +495,15 @@ PAYSTACK_FEE_CAP_NGN = env("PAYSTACK_FEE_CAP_NGN", "2000")
 # actually authenticates a webhook, not the address it came from.
 PAYSTACK_WEBHOOK_IPS = env_list("PAYSTACK_WEBHOOK_IPS", "")
 
+# Automatic agent payouts through Paystack Transfers (apps/partners/payouts.py).
+# Off until turned on in the environment: with it off, every payout is paid by
+# staff as before. Only Nigerian agents with a Paystack-verified account are
+# paid automatically, and every payout is sent at once with no staff approval.
+PAYSTACK_PAYOUTS_ENABLED = env_bool("PAYSTACK_PAYOUTS_ENABLED", False)
+# Withdrawals pause this many hours after an agent or sales manager points
+# payouts at a different bank account (0 turns the pause off).
+PAYOUT_HOLD_HOURS_AFTER_BANK_CHANGE = int(env("PAYOUT_HOLD_HOURS_AFTER_BANK_CHANGE", "24"))
+
 # The account an applicant transfers the fee to when no online provider is
 # configured. These were hardcoded into the checkout dialog as placeholder
 # numbers, which is a fee paid into an account nobody owns; they belong in the

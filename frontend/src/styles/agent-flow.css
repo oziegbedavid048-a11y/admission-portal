@@ -675,3 +675,7 @@ a.ag-text-btn { text-decoration: none; }
 }
 .contract-agree input { width: 18px; height: 18px; margin-top: 2px; flex: none; accent-color: var(--g-accent); }
 .contract-error { margin: 14px 0 0; font-size: 14px; font-weight: 500; color: var(--g-neg); }
+
+/* Paystack account check on the payout account. */
+.ap-name-check.is-ok { color: var(--g-pos, #0b7a4b); font-weight: 600; }
+.ap-name-check.is-bad { color: var(--g-neg); font-weight: 600; }

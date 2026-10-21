@@ -484,6 +484,14 @@ class PaystackWebhookView(APIView):
             logger.warning("Rejected a webhook whose body was not JSON.")
             return ok
 
+        if str(event.get("event", "")).startswith("transfer."):
+            # A payout to an agent (apps/partners/payouts.py), on the same
+            # signed webhook as payments.
+            from apps.partners.payouts import handle_webhook
+
+            handle_webhook(event.get("event"), event.get("data") or {})
+            return ok
+
         if event.get("event") != "charge.success":
             # Every other event is recorded and otherwise ignored, so a new event
             # type from Paystack can never be mistaken for a settlement.

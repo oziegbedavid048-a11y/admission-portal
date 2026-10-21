@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import Modal from '../../components/ui/Modal';
 import Loading from '../../components/ui/Loading';
@@ -113,7 +114,10 @@ export default function AgentWallet() {
         .catch(() => {});
       setWithdrawOpen(false);
       setAmount('');
-      toast.success(`${money(data.withdrawal.net_amount)} on its way.`);
+      const sent = money(data.withdrawal.net_amount);
+      if (data.withdrawal.status === 'completed') toast.success(`${sent} sent to your bank.`);
+      else if (data.withdrawal.status === 'sending') toast.success(`${sent} is on its way to your bank.`);
+      else toast.success(`${sent} requested. We will send it to your bank shortly.`);
     } catch (error) {
       toast.error(errorMessage(error, 'Could not start that withdrawal.'));
     } finally {
@@ -127,6 +131,19 @@ export default function AgentWallet() {
   return (
     <div className="agent-stack">
 
+      {profile?.automatic_payouts_offered && !profile?.automatic_payouts ? (
+        // Withdrawals reach the bank on their own once Paystack has confirmed
+        // the payout account.
+        <div className="agent-banner wallet-verify-note" role="status">
+          <span>
+            Confirm your bank in your profile and withdrawals are paid straight to your account through Paystack.
+          </span>
+          <Link className="ag-text-btn" to="/agent/profile">
+            Confirm your bank
+          </Link>
+        </div>
+      ) : null}
+
       <section className="agent-card balance-card">
         <div className="balance-top">
           <div className="balance-lead">
@@ -139,20 +156,22 @@ export default function AgentWallet() {
             </span>
           </div>
           <div className="balance-actions">
-            <button
-              type="button"
-              className="agent-btn agent-btn-primary"
-              onClick={() => setWithdrawOpen(true)}
-              disabled={!canWithdraw}
-              title={
-                canWithdraw
-                  ? undefined
-                  : `You need ${money(minimum)} available to withdraw.`
-              }
-            >
-              <Icon name="payout" size={18} />
-              Withdraw
-            </button>
+            {/* Below the minimum there is nothing to press: the line says why. */}
+            {canWithdraw ? (
+              <button
+                type="button"
+                className="agent-btn agent-btn-primary"
+                onClick={() => setWithdrawOpen(true)}
+              >
+                <Icon name="payout" size={18} />
+                Withdraw
+              </button>
+            ) : null}
+            <p className={`balance-min-note${canWithdraw ? '' : ' is-below'}`}>
+              {canWithdraw
+                ? `Minimum withdrawal is ${money(minimum)}.`
+                : `Minimum withdrawal is ${money(minimum)}. You can withdraw once your balance reaches it.`}
+            </p>
           </div>
         </div>
 

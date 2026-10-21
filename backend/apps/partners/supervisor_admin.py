@@ -27,6 +27,7 @@ from .models import (
     SupervisorProfile,
     SupervisorWithdrawal,
 )
+from .payout_admin import PaystackPayoutActions
 
 
 def _naira(value):
@@ -187,6 +188,7 @@ class SupervisorProfileAdmin(admin.ModelAdmin):
         "bonus_total",
         "total_withdrawn",
         "available",
+        "account_verified_at",
         "created_at",
     )
     inlines = (SupervisedAgentInline, SupervisorBonusInline)
@@ -205,7 +207,7 @@ class SupervisorProfileAdmin(admin.ModelAdmin):
             },
         ),
         ("Team", {"fields": ("region",)}),
-        ("Payout account", {"fields": ("bank_name", "account_number", "account_name")}),
+        ("Payout account", {"fields": ("bank_name", "account_number", "account_name", "bank_code", "account_verified_at")}),
         (
             "Earnings",
             {"fields": ("bonus_total", "total_withdrawn", "available", "created_at")},
@@ -258,15 +260,17 @@ class SupervisorProfileAdmin(admin.ModelAdmin):
 
 
 @admin.register(SupervisorWithdrawal)
-class SupervisorWithdrawalAdmin(admin.ModelAdmin):
+class SupervisorWithdrawalAdmin(PaystackPayoutActions, admin.ModelAdmin):
     """Payouts a sales manager has asked for.
 
     The balance moved when the request was raised, so marking one paid is a
     record of the transfer and marking one failed is what gives the money back.
     """
 
-    list_display = ("reference", "supervisor", "amount_display", "destination", "status", "created_at")
-    list_filter = ("status", "created_at")
+    list_display = (
+        "reference", "supervisor", "amount_display", "destination", "method_label", "status_badge", "note", "created_at",
+    )
+    list_filter = ("status", "method", "created_at")
     search_fields = (
         "supervisor__user__full_name",
         "supervisor__user__email",
@@ -275,8 +279,10 @@ class SupervisorWithdrawalAdmin(admin.ModelAdmin):
     autocomplete_fields = ("supervisor",)
     date_hierarchy = "created_at"
     # Status moves only through the actions, never by hand (see WithdrawalAdmin).
-    readonly_fields = ("reference", "supervisor", "amount", "destination", "status", "created_at", "paid_at")
-    actions = ("action_mark_paid", "action_mark_failed")
+    readonly_fields = (
+        "reference", "supervisor", "amount", "destination", "status", "created_at",
+    ) + PaystackPayoutActions.paystack_readonly
+    actions = ("action_approve_and_send", "action_check_paystack", "action_mark_paid", "action_mark_failed")
 
     # As for agent payouts: raised by the sales manager, moved by the actions,
     # never added or deleted by hand ("Mark as failed" returns the money).
@@ -303,7 +309,7 @@ class SupervisorWithdrawalAdmin(admin.ModelAdmin):
             return "No payout account on file"
         return f"{manager.bank_name} · {manager.account_number} ({manager.account_name})"
 
-    @admin.action(description="Mark as paid out")
+    @admin.action(description="Mark as paid out (paid by staff)")
     def action_mark_paid(self, request, queryset):
         pending = list(
             queryset.filter(status=SupervisorWithdrawal.Status.PENDING).select_related(
@@ -312,7 +318,11 @@ class SupervisorWithdrawalAdmin(admin.ModelAdmin):
         )
         count = SupervisorWithdrawal.objects.filter(
             pk__in=[w.pk for w in pending], status=SupervisorWithdrawal.Status.PENDING
-        ).update(status=SupervisorWithdrawal.Status.PAID, paid_at=timezone.now())
+        ).update(
+            status=SupervisorWithdrawal.Status.PAID,
+            method=SupervisorWithdrawal.Method.MANUAL,
+            paid_at=timezone.now(),
+        )
         paid = set(
             SupervisorWithdrawal.objects.filter(
                 pk__in=[w.pk for w in pending], status=SupervisorWithdrawal.Status.PAID

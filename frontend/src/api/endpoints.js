@@ -148,6 +148,10 @@ export const payments = {
 export const partners = {
   profile: () => api.get('/partners/me/'),
   updateProfile: (payload) => api.patch('/partners/me/', payload),
+  // Nigerian banks Paystack can pay, and the name on an account, for the payout account.
+  banks: () => api.get('/partners/banks/'),
+  resolveBank: (bankCode, accountNumber) =>
+    api.post('/partners/banks/resolve/', { bank_code: bankCode, account_number: accountNumber }),
   overview: () => api.get('/partners/overview/'),
   wallet: () => api.get('/partners/wallet/'),
   // Every movement of the agent's money: commissions in, repayments and withdrawals out.
@@ -200,6 +204,10 @@ export const partners = {
 export const supervisors = {
   profile: () => api.get('/supervisors/me/'),
   updateProfile: (payload) => api.patch('/supervisors/me/', payload),
+  // The same Paystack bank list and name check agents use.
+  banks: () => api.get('/supervisors/banks/'),
+  resolveBank: (bankCode, accountNumber) =>
+    api.post('/supervisors/banks/resolve/', { bank_code: bankCode, account_number: accountNumber }),
   overview: () => api.get('/supervisors/overview/'),
   agents: (params) => api.get('/supervisors/agents/', { params }),
   students: (params) => api.get('/supervisors/students/', { params }),

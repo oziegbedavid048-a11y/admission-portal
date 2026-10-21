@@ -16,6 +16,7 @@ from apps.applications import services
 from apps.applications.constants import SUPERVISOR_BONUS_NGN
 from apps.applications.models import Application
 from apps.payments.models import Payment
+from config.throttles import MoneyThrottle, UserThrottle
 
 from .models import AgentProfile, SupervisorBonus, SupervisorWithdrawal
 from .supervisor_serializers import (
@@ -257,6 +258,9 @@ class SupervisorWithdrawalViewSet(SupervisorScopedMixin, viewsets.ModelViewSet):
     http_method_names = ("get", "post", "head", "options")
     pagination_class = None
 
+    # The same money rate limit as agent withdrawals.
+    throttle_classes = (UserThrottle, MoneyThrottle)
+
     def get_queryset(self):
         return SupervisorWithdrawal.objects.filter(supervisor=self.supervisor)
 
@@ -272,6 +276,13 @@ class SupervisorWithdrawalViewSet(SupervisorScopedMixin, viewsets.ModelViewSet):
         except DjangoValidationError as exc:
             # Raised inside the row lock, which is the check that actually counts.
             raise drf_serializers.ValidationError({"amount": exc.messages})
+        # Paid through Paystack at once when the account is verified.
+        from .payouts import prepare, send
+
+        if prepare(withdrawal):
+            withdrawal = send(withdrawal)
+        else:
+            withdrawal.refresh_from_db()
         self.supervisor.refresh_from_db()
         return Response(
             {

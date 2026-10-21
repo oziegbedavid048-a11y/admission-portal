@@ -18,6 +18,8 @@ from apps.accounts.deletion import AccountDeleteMixin
 from apps.accounts.testdata import RealDataOnlyAdmin
 from config.admin_ui import pill
 
+from .payout_admin import PaystackPayoutActions
+
 from apps.accounts.emails import (
     send_agent_payout_failed_email,
     send_agent_payout_sent_email,
@@ -165,13 +167,13 @@ class AgentProfileAdmin(AccountDeleteMixin, RealDataOnlyAdmin, admin.ModelAdmin)
     search_fields = ("user__full_name", "user__email", "agency_name", "account_number")
     list_filter = ("supervisor",)
     autocomplete_fields = ("user", "supervisor")
-    readonly_fields = ("partner_code", "certificate_link", "contract_link", "created_at")
+    readonly_fields = ("partner_code", "certificate_link", "contract_link", "account_verified_at", "created_at")
     inlines = (AgentContractInline, WalletInline, CommissionInline)
     actions = ("action_send_partnership_certificate", "action_send_custom_message")
 
     fieldsets = (
         (None, {"fields": ("user", "partner_code", "agency_name", "address", "supervisor", "certificate_link", "contract_link", "contract_required", "total_closed_sales", "created_at")}),
-        ("Payout account", {"fields": ("bank_name", "account_number", "account_name")}),
+        ("Payout account", {"fields": ("bank_name", "account_number", "account_name", "bank_code", "account_verified_at")}),
     )
 
     def get_queryset(self, request):
@@ -503,7 +505,7 @@ class LoanAdmin(RealDataOnlyAdmin, admin.ModelAdmin):
 
 
 @admin.register(Withdrawal)
-class WithdrawalAdmin(RealDataOnlyAdmin, admin.ModelAdmin):
+class WithdrawalAdmin(PaystackPayoutActions, RealDataOnlyAdmin, admin.ModelAdmin):
     """Payouts waiting to be sent to an agent's bank account."""
 
     test_user_paths = ("agent__user",)
@@ -515,10 +517,12 @@ class WithdrawalAdmin(RealDataOnlyAdmin, admin.ModelAdmin):
         "deduction",
         "net",
         "destination",
+        "method_label",
         "status_badge",
+        "note",
         "created_at",
     )
-    list_filter = ("status", "created_at")
+    list_filter = ("status", "method", "created_at")
     search_fields = ("agent__user__full_name", "agent__user__email", "agent__account_number")
     autocomplete_fields = ("agent",)
     date_hierarchy = "created_at"
@@ -533,9 +537,17 @@ class WithdrawalAdmin(RealDataOnlyAdmin, admin.ModelAdmin):
         # Moved only by the actions below. Editing it by hand could turn a paid
         # payout back to pending and then refund it.
         "status",
+        "method",
+        "paystack_reference",
+        "transfer_code",
+        "review_reason",
+        "failure_reason",
+        "approved_by",
+        "sent_at",
+        "paid_at",
         "created_at",
     )
-    actions = ("action_mark_paid", "action_mark_failed")
+    actions = ("action_approve_and_send", "action_check_paystack", "action_mark_paid", "action_mark_failed")
 
     # A payout is raised by the agent and moved by the actions. The balance moved
     # when it was raised, so deleting one, even a pending one, would lose that
@@ -572,23 +584,18 @@ class WithdrawalAdmin(RealDataOnlyAdmin, admin.ModelAdmin):
         agent = obj.agent
         return f"{agent.bank_name} · {agent.account_number} ({agent.account_name})"
 
-    @admin.display(description="Status", ordering="status")
-    def status_badge(self, obj):
-        tone = {
-            Withdrawal.Status.PAID: "ok",
-            Withdrawal.Status.FAILED: "bad",
-            Withdrawal.Status.PENDING: "wait",
-        }.get(obj.status, "idle")
-        return _pill(obj.get_status_display(), tone)
-
-    @admin.action(description="Mark as paid out")
+    @admin.action(description="Mark as paid out (paid by staff)")
     def action_mark_paid(self, request, queryset):
+        """For payouts staff paid themselves. A Paystack payout is marked paid
+        by Paystack, so only payouts in review can be marked here."""
+        from django.utils import timezone
+
         pending = list(queryset.filter(status=Withdrawal.Status.PENDING).select_related("agent__user"))
         # Still pending at the moment of writing: one failed by someone else in
         # between is not turned into a payout.
         count = Withdrawal.objects.filter(
             pk__in=[w.pk for w in pending], status=Withdrawal.Status.PENDING
-        ).update(status=Withdrawal.Status.PAID)
+        ).update(status=Withdrawal.Status.PAID, method=Withdrawal.Method.MANUAL, paid_at=timezone.now())
         paid = set(
             Withdrawal.objects.filter(pk__in=[w.pk for w in pending], status=Withdrawal.Status.PAID)
             .values_list("pk", flat=True)
@@ -598,28 +605,16 @@ class WithdrawalAdmin(RealDataOnlyAdmin, admin.ModelAdmin):
         self.message_user(request, f"{_plural(count, 'payout')} marked as sent.", messages.SUCCESS)
 
     @admin.action(description="Mark as failed and refund the balance")
-    @transaction.atomic
     def action_mark_failed(self, request, queryset):
+        """Give the money back for payouts in review. A payout that is Sending
+        may already be on its way, so it is checked with Paystack instead."""
         count = 0
-        # Locked and re-read, so a payout marked paid or failed by someone else
-        # in the meantime is not refunded a second time.
-        for withdrawal in queryset.select_for_update().filter(status=Withdrawal.Status.PENDING):
-            withdrawal.status = Withdrawal.Status.FAILED
-            withdrawal.save(update_fields=["status"])
-
-            # A payout that never left the bank has to be given back, including
-            # the slice that was applied to the agent's loan.
-            wallet = Wallet.objects.select_for_update().get(agent_id=withdrawal.agent_id)
-            wallet.total_withdrawn = max(
-                Decimal("0.00"), wallet.total_withdrawn - withdrawal.amount_requested
-            )
-            wallet.loan_balance += withdrawal.loan_deduction
-            wallet.save(update_fields=["total_withdrawn", "loan_balance"])
-            count += 1
-            transaction.on_commit(
-                lambda withdrawal=withdrawal: send_agent_payout_failed_email(withdrawal)
-            )
-
+        for withdrawal in queryset.filter(status=Withdrawal.Status.PENDING):
+            if withdrawal.refund("Marked as failed by staff."):
+                count += 1
+                transaction.on_commit(
+                    lambda withdrawal=withdrawal: send_agent_payout_failed_email(withdrawal)
+                )
         self.message_user(
             request,
             f"{_plural(count, 'payout')} failed and the balance returned to the agent.",

@@ -25,6 +25,7 @@ export function LedgerStatus({ tone = 'muted', children }) {
 
 const WITHDRAWAL_STATUS = {
   pending: ['wait', 'In review'],
+  sending: ['wait', 'Sending'],
   completed: ['good', 'Paid out'],
   rejected: ['bad', 'Failed'],
 };

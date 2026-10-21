@@ -159,6 +159,13 @@ class WithdrawalViewSet(AgentScopedMixin, viewsets.ModelViewSet):
         except DjangoValidationError as exc:
             # Raised inside the row lock, which is the check that actually counts.
             raise drf_serializers.ValidationError({"amount": exc.messages})
+        # A Nigerian agent with a verified account is paid through Paystack at once.
+        from .payouts import prepare, send
+
+        if prepare(withdrawal):
+            withdrawal = send(withdrawal)
+        else:
+            withdrawal.refresh_from_db()
         return Response(
             {
                 "withdrawal": WithdrawalSerializer(withdrawal).data,
@@ -458,6 +465,60 @@ class AgentContractFileView(AgentScopedMixin, APIView):
         response["Content-Disposition"] = f'inline; filename="{contract.filename}"'
         response["Cache-Control"] = "private, no-store"
         return response
+
+
+class AgentOrSalesManager(IsAgent):
+    """An agent or a sales manager: both have a payout account."""
+
+    message = "This area is for partners."
+
+    def has_permission(self, request, view):
+        user = request.user
+        return bool(user and user.is_authenticated) and (
+            getattr(user, "agent_profile", None) is not None
+            or getattr(user, "supervisor_profile", None) is not None
+        )
+
+
+class BankListView(APIView):
+    """Nigerian banks Paystack can pay, for the payout account picker.
+
+    Empty when Paystack is not configured; the profile then takes a typed bank
+    name as before, and payouts stay with staff.
+    """
+
+    permission_classes = (AgentOrSalesManager,)
+
+    def get(self, request):
+        from . import paystack_transfers as paystack
+
+        if not paystack.is_configured():
+            return Response({"banks": [], "available": False})
+        try:
+            return Response({"banks": paystack.list_banks(), "available": True})
+        except (paystack.PaystackRejected, paystack.PaystackUnreachable):
+            return Response({"banks": [], "available": False})
+
+
+class BankResolveView(APIView):
+    """The name on an account, from Paystack, shown before it is saved."""
+
+    permission_classes = (AgentOrSalesManager,)
+    throttle_classes = (UserThrottle, MoneyThrottle)
+
+    def post(self, request):
+        from . import paystack_transfers as paystack
+
+        code = str(request.data.get("bank_code", "")).strip()
+        number = str(request.data.get("account_number", "")).strip()
+        if not code or not (number.isdigit() and len(number) == 10):
+            return Response({"detail": "Choose your bank and enter the 10-digit account number."}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            return Response({"account_name": paystack.resolve_account(number, code)})
+        except paystack.PaystackRejected:
+            return Response({"detail": "Paystack could not find this account at that bank."}, status=status.HTTP_400_BAD_REQUEST)
+        except paystack.PaystackUnreachable:
+            return Response({"detail": "The account could not be checked right now. Please try again."}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
 
 class AgentLettersView(AgentScopedMixin, APIView):

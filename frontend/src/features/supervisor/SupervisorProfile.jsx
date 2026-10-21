@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import Avatar from '../../components/ui/Avatar';
 import Modal from '../../components/ui/Modal';
 import PasswordInput from '../../components/ui/PasswordInput';
+import SearchableSelect from '../../components/ui/SearchableSelect';
 import Icon from '../../lib/icons';
 import { errorMessage } from '../../api/client';
 import { auth, supervisors } from '../../api/endpoints';
@@ -23,7 +24,12 @@ export default function SupervisorProfile() {
     bank_name: '',
     account_number: '',
     account_name: '',
+    bank_code: '',
   });
+  // Paystack's banks: picking from the list lets Paystack confirm the account
+  // and pay withdrawals automatically.
+  const [banks, setBanks] = useState([]);
+  const [nameCheck, setNameCheck] = useState({ state: 'idle', message: '' });
   const [passwords, setPasswords] = useState({ current: '', next: '', confirm: '' });
   // Changing where payouts go is confirmed with the account password.
   const [payoutPassword, setPayoutPassword] = useState('');
@@ -45,9 +51,61 @@ export default function SupervisorProfile() {
       bank_name: profile.bank_name || '',
       account_number: profile.account_number || '',
       account_name: profile.account_name || '',
+      bank_code: profile.bank_code || '',
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile?.id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    supervisors
+      .banks()
+      .then(({ data }) => {
+        if (!cancelled && data?.available) setBanks(data.banks || []);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  const usePaystackBanks = banks.length > 0;
+
+  // The name on the account comes from Paystack, never typed.
+  useEffect(() => {
+    if (!usePaystackBanks || !form.bank_code || !/^\d{10}$/.test(form.account_number)) {
+      setNameCheck({ state: 'idle', message: '' });
+      return undefined;
+    }
+    const unchanged =
+      form.bank_code === (profile?.bank_code || '') &&
+      form.account_number === (profile?.account_number || '') &&
+      profile?.account_verified;
+    if (unchanged) {
+      setNameCheck({ state: 'ok', message: profile.account_name });
+      return undefined;
+    }
+    let cancelled = false;
+    setNameCheck({ state: 'checking', message: '' });
+    const timer = window.setTimeout(() => {
+      supervisors
+        .resolveBank(form.bank_code, form.account_number)
+        .then(({ data }) => {
+          if (cancelled) return;
+          setNameCheck({ state: 'ok', message: data.account_name });
+          setForm((current) => ({ ...current, account_name: data.account_name }));
+        })
+        .catch((error) => {
+          if (!cancelled) {
+            setNameCheck({ state: 'bad', message: errorMessage(error, 'That account could not be found.') });
+          }
+        });
+    }, 400);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [usePaystackBanks, form.bank_code, form.account_number]);
 
   const save = async (which, payload, message) => {
     setBusy(which);
@@ -82,7 +140,8 @@ export default function SupervisorProfile() {
     Boolean(profile) &&
     (form.bank_name.trim() !== (profile.bank_name || '') ||
       form.account_number !== (profile.account_number || '') ||
-      form.account_name.trim() !== (profile.account_name || ''));
+      form.account_name.trim() !== (profile.account_name || '') ||
+      form.bank_code !== (profile.bank_code || ''));
 
   // Update checks the details, then asks for the password before anything
   // is saved.
@@ -90,6 +149,14 @@ export default function SupervisorProfile() {
     event.preventDefault();
     if (form.account_number && !/^\d{10}$/.test(form.account_number)) {
       toast.warning('Account number should be 10 digits.');
+      return;
+    }
+    if (usePaystackBanks && nameCheck.state !== 'ok') {
+      toast.warning(
+        nameCheck.state === 'checking'
+          ? 'Checking the account. One moment.'
+          : 'Choose your bank and an account Paystack can find.',
+      );
       return;
     }
     if (!payoutChanged) {
@@ -121,6 +188,7 @@ export default function SupervisorProfile() {
         bank_name: form.bank_name.trim(),
         account_number: form.account_number,
         account_name: form.account_name.trim(),
+        ...(usePaystackBanks ? { bank_code: form.bank_code } : {}),
         current_password: payoutPassword,
       });
       setProfile(data);
@@ -269,13 +337,43 @@ export default function SupervisorProfile() {
             <span className="agent-card-note">Where your bonus is sent</span>
           </div>
           <div className="agent-2col-grid">
-            {input('bank_name', 'Bank name', { })}
+            {usePaystackBanks ? (
+              <div className="agent-form-group">
+                <span className="agent-form-label" id="sv-bank-label">
+                  Bank name
+                </span>
+                <SearchableSelect
+                  id="sv-bank_name"
+                  labelledBy="sv-bank-label"
+                  options={banks.map((bank) => bank.name)}
+                  value={banks.find((bank) => bank.code === form.bank_code)?.name || ''}
+                  placeholder="Choose your bank"
+                  onChange={(name) => {
+                    const bank = banks.find((item) => item.name === name);
+                    setForm({ ...form, bank_name: bank?.name || name, bank_code: bank?.code || '' });
+                  }}
+                />
+              </div>
+            ) : (
+              input('bank_name', 'Bank name', { })
+            )}
             {input('account_number', 'Account number (10 digits)', {
               inputMode: 'numeric',
               maxLength: 10,
             })}
-            {input('account_name', 'Account name')}
+            {input('account_name', 'Account name', usePaystackBanks ? { readOnly: true } : {})}
           </div>
+          {usePaystackBanks ? (
+            <p className={`agent-form-hint ap-name-check is-${nameCheck.state}`} role="status">
+              {nameCheck.state === 'checking'
+                ? 'Checking the account with Paystack...'
+                : nameCheck.state === 'ok'
+                  ? 'Confirmed by Paystack. Withdrawals are paid to this account automatically.'
+                  : nameCheck.state === 'bad'
+                    ? nameCheck.message
+                    : 'Choose your bank and enter your account number. Paystack fills in the name.'}
+            </p>
+          ) : null}
           <button
             type="submit"
             className="agent-btn agent-btn-primary"

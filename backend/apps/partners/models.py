@@ -40,6 +40,9 @@ class AgentProfile(models.Model):
     # Paystack's handle for this account, made on the first automatic payout
     # and cleared whenever the bank details change.
     paystack_recipient_code = models.CharField(max_length=40, blank=True)
+    # When payouts were last pointed at a different account. Withdrawals pause
+    # for a while afterwards (see payout_account.withdrawal_hold_until).
+    payout_account_changed_at = models.DateTimeField(null=True, blank=True)
     total_closed_sales = models.PositiveIntegerField(default=0)
     supervisor = models.ForeignKey(
         "partners.SupervisorProfile",
@@ -144,6 +147,7 @@ class SupervisorProfile(models.Model):
     bank_code = models.CharField(max_length=12, blank=True)
     account_verified_at = models.DateTimeField(null=True, blank=True)
     paystack_recipient_code = models.CharField(max_length=40, blank=True)
+    payout_account_changed_at = models.DateTimeField(null=True, blank=True)
 
     bonus_total = models.DecimalField(
         max_digits=12, decimal_places=2, default=Decimal("0.00")
@@ -662,6 +666,9 @@ class Withdrawal(models.Model):
         """
         wallet = Wallet.objects.select_for_update().get(agent=agent)
 
+        from .payout_account import check_withdrawal_hold
+
+        check_withdrawal_hold(agent)
         # The minimum is set in Naira and applied in the wallet's currency.
         minimum = wallet.minimum_withdrawal
         if amount < minimum:
@@ -755,6 +762,9 @@ class SupervisorWithdrawal(models.Model):
 
         locked = SupervisorProfile.objects.select_for_update().get(pk=supervisor.pk)
 
+        from .payout_account import check_withdrawal_hold
+
+        check_withdrawal_hold(locked)
         if amount < MIN_SUPERVISOR_WITHDRAWAL_NGN:
             raise ValidationError(
                 f"The smallest withdrawal is ₦{MIN_SUPERVISOR_WITHDRAWAL_NGN:,.0f}."

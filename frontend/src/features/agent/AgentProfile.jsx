@@ -26,7 +26,12 @@ export default function AgentProfile() {
     bank_name: '',
     account_number: '',
     account_name: '',
+    bank_code: '',
   });
+  // Paystack's banks, for a Nigerian agent: picking from the list lets
+  // Paystack confirm the account and pay withdrawals automatically.
+  const [banks, setBanks] = useState([]);
+  const [nameCheck, setNameCheck] = useState({ state: 'idle', message: '' });
   const [passwords, setPasswords] = useState({ current: '', next: '', confirm: '' });
   // Changing where payouts go is confirmed with the account password, asked
   // for in a sheet only once the new details are filled in and Update pressed.
@@ -54,9 +59,64 @@ export default function AgentProfile() {
       bank_name: profile.bank_name || '',
       account_number: profile.account_number || '',
       account_name: profile.account_name || '',
+      bank_code: profile.bank_code || '',
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile?.id]);
+
+  const inNigeria = (profile?.country || '').trim().toLowerCase() === 'nigeria';
+  useEffect(() => {
+    if (!inNigeria) return undefined;
+    let cancelled = false;
+    partners
+      .banks()
+      .then(({ data }) => {
+        if (!cancelled && data?.available) setBanks(data.banks || []);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [inNigeria]);
+  const usePaystackBanks = inNigeria && banks.length > 0;
+
+  // The name on the account comes from Paystack once the bank and a full
+  // account number are in, so it is never typed (or mistyped).
+  useEffect(() => {
+    if (!usePaystackBanks || !form.bank_code || !/^\d{10}$/.test(form.account_number)) {
+      setNameCheck({ state: 'idle', message: '' });
+      return undefined;
+    }
+    const unchanged =
+      form.bank_code === (profile?.bank_code || '') &&
+      form.account_number === (profile?.account_number || '') &&
+      profile?.account_verified;
+    if (unchanged) {
+      setNameCheck({ state: 'ok', message: profile.account_name });
+      return undefined;
+    }
+    let cancelled = false;
+    setNameCheck({ state: 'checking', message: '' });
+    const timer = window.setTimeout(() => {
+      partners
+        .resolveBank(form.bank_code, form.account_number)
+        .then(({ data }) => {
+          if (cancelled) return;
+          setNameCheck({ state: 'ok', message: data.account_name });
+          setForm((current) => ({ ...current, account_name: data.account_name }));
+        })
+        .catch((error) => {
+          if (!cancelled) {
+            setNameCheck({ state: 'bad', message: errorMessage(error, 'That account could not be found.') });
+          }
+        });
+    }, 400);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [usePaystackBanks, form.bank_code, form.account_number]);
 
   const save = async (which, payload, message) => {
     setBusy(which);
@@ -91,7 +151,8 @@ export default function AgentProfile() {
     Boolean(profile) &&
     (form.bank_name.trim() !== (profile.bank_name || '') ||
       form.account_number !== (profile.account_number || '') ||
-      form.account_name.trim() !== (profile.account_name || ''));
+      form.account_name.trim() !== (profile.account_name || '') ||
+      form.bank_code !== (profile.bank_code || ''));
 
   // Update checks the details, then asks for the password before anything
   // is saved.
@@ -103,6 +164,14 @@ export default function AgentProfile() {
     }
     if (!/^\d{10}$/.test(form.account_number)) {
       toast.warning('Account number should be 10 digits.');
+      return;
+    }
+    if (usePaystackBanks && nameCheck.state !== 'ok') {
+      toast.warning(
+        nameCheck.state === 'checking'
+          ? 'Checking the account. One moment.'
+          : 'Choose your bank and an account Paystack can find.',
+      );
       return;
     }
     if (!payoutChanged) {
@@ -134,6 +203,7 @@ export default function AgentProfile() {
         bank_name: form.bank_name.trim(),
         account_number: form.account_number,
         account_name: form.account_name.trim(),
+        ...(usePaystackBanks ? { bank_code: form.bank_code } : {}),
         current_password: payoutPassword,
       });
       setProfile(data);
@@ -385,18 +455,31 @@ export default function AgentProfile() {
                 <label className="ap-label" htmlFor="ap-bank">
                   <span>Bank Name *</span>
                 </label>
-                <div className="ap-input-wrap">
-                  <span className="ap-input-icon">
-                    <Icon name="building" size={17} />
-                  </span>
-                  <input
+                {usePaystackBanks ? (
+                  <SearchableSelect
                     id="ap-bank"
-                    className="ap-input"
-                    value={form.bank_name}
-                    onChange={(e) => setForm({ ...form, bank_name: e.target.value })}
-                    required
+                    options={banks.map((bank) => bank.name)}
+                    value={banks.find((bank) => bank.code === form.bank_code)?.name || ''}
+                    placeholder="Choose your bank"
+                    onChange={(name) => {
+                      const bank = banks.find((item) => item.name === name);
+                      setForm({ ...form, bank_name: bank?.name || name, bank_code: bank?.code || '' });
+                    }}
                   />
-                </div>
+                ) : (
+                  <div className="ap-input-wrap">
+                    <span className="ap-input-icon">
+                      <Icon name="building" size={17} />
+                    </span>
+                    <input
+                      id="ap-bank"
+                      className="ap-input"
+                      value={form.bank_name}
+                      onChange={(e) => setForm({ ...form, bank_name: e.target.value })}
+                      required
+                    />
+                  </div>
+                )}
               </div>
 
               <div className="ap-form-field">
@@ -433,10 +516,23 @@ export default function AgentProfile() {
                     className="ap-input"
                     value={form.account_name}
                     onChange={(e) => setForm({ ...form, account_name: e.target.value })}
+                    readOnly={usePaystackBanks}
                     required
                   />
                 </div>
-                <span className="ap-field-hint">Must exactly match the name registered with your bank.</span>
+                {usePaystackBanks ? (
+                  <span className={`ap-field-hint ap-name-check is-${nameCheck.state}`} role="status">
+                    {nameCheck.state === 'checking'
+                      ? 'Checking the account with Paystack...'
+                      : nameCheck.state === 'ok'
+                        ? 'Confirmed by Paystack. Withdrawals are paid to this account automatically.'
+                        : nameCheck.state === 'bad'
+                          ? nameCheck.message
+                          : 'Choose your bank and enter your account number. Paystack fills in the name.'}
+                  </span>
+                ) : (
+                  <span className="ap-field-hint">Must exactly match the name registered with your bank.</span>
+                )}
               </div>
 
             </div>

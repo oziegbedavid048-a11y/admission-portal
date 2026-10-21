@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import Loading from '../../components/ui/Loading';
 import Modal from '../../components/ui/Modal';
 import Icon from '../../lib/icons';
@@ -56,7 +57,7 @@ export default function SupervisorEarnings() {
 
   const minimum = Number(profile?.minimum_withdrawal) || FALLBACK_MINIMUM;
   const available = Number(profile?.available_balance) || 0;
-  const canWithdraw = profile?.can_withdraw ?? available >= minimum;
+  const reachedMinimum = available >= minimum;
   const hasPayoutAccount = Boolean(profile?.bank_name && profile?.account_number);
   const belowMinimum = Number(amount) > 0 && Number(amount) < minimum;
 
@@ -87,9 +88,10 @@ export default function SupervisorEarnings() {
       setPayouts((current) => [data.withdrawal, ...current]);
       setWithdrawOpen(false);
       setAmount('');
-      toast.success(
-        `${formatNaira(data.withdrawal.amount)} requested. The desk will send it to your bank.`,
-      );
+      const sent = formatNaira(data.withdrawal.amount);
+      if (data.withdrawal.status === 'completed') toast.success(`${sent} sent to your bank.`);
+      else if (data.withdrawal.status === 'sending') toast.success(`${sent} is on its way to your bank.`);
+      else toast.success(`${sent} requested. We will send it to your bank shortly.`);
     } catch (error) {
       toast.error(errorMessage(error, 'Could not start that withdrawal.'));
     } finally {
@@ -101,6 +103,18 @@ export default function SupervisorEarnings() {
 
   return (
     <div className="agent-stack">
+      {profile.automatic_payouts_offered && !profile.automatic_payouts ? (
+        // Withdrawals reach the bank on their own once Paystack has confirmed
+        // the payout account.
+        <div className="agent-banner wallet-verify-note" role="status">
+          <span>
+            Confirm your bank in your profile and withdrawals are paid straight to your account through Paystack.
+          </span>
+          <Link className="ag-text-btn" to="/sales-manager/profile">
+            Confirm your bank
+          </Link>
+        </div>
+      ) : null}
 
       <section className="agent-card balance-card">
         <div className="balance-top">
@@ -115,22 +129,24 @@ export default function SupervisorEarnings() {
           </div>
 
           <div className="balance-actions">
-            <button
-              type="button"
-              className="agent-btn agent-btn-primary"
-              onClick={() => setWithdrawOpen(true)}
-              disabled={!canWithdraw || !hasPayoutAccount}
-              title={
-                !hasPayoutAccount
-                  ? 'Add your payout account on your profile first.'
-                  : canWithdraw
-                    ? undefined
-                    : `You need ${formatNaira(minimum)} available to withdraw.`
-              }
-            >
-              <Icon name="download" size={18} />
-              Withdraw
-            </button>
+            {/* Below the minimum there is nothing to press: the line says why. */}
+            {reachedMinimum ? (
+              <button
+                type="button"
+                className="agent-btn agent-btn-primary"
+                onClick={() => setWithdrawOpen(true)}
+                disabled={!hasPayoutAccount}
+                title={hasPayoutAccount ? undefined : 'Add your payout account on your profile first.'}
+              >
+                <Icon name="download" size={18} />
+                Withdraw
+              </button>
+            ) : null}
+            <p className={`balance-min-note${reachedMinimum ? '' : ' is-below'}`}>
+              {reachedMinimum
+                ? `Minimum withdrawal is ${formatNaira(minimum)}.`
+                : `Minimum withdrawal is ${formatNaira(minimum)}. You can withdraw once your balance reaches it.`}
+            </p>
           </div>
         </div>
 
@@ -198,7 +214,7 @@ export default function SupervisorEarnings() {
                       {formatNaira(payout.amount)}
                     </td>
                     <td data-label="Status">
-                      <SupervisorStatusBadge status={payout.status} />
+                      <SupervisorStatusBadge status={payout.status} payout />
                     </td>
                     <td data-label="Requested" className="t-hide-sm">
                       {formatDate(payout.created_at)}
