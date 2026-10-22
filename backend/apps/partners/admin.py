@@ -370,6 +370,19 @@ class AgentProfileAdmin(AccountDeleteMixin, RealDataOnlyAdmin, admin.ModelAdmin)
         )
 
 
+def locked_loans(queryset):
+    """The selected loans, locked for this transaction.
+
+    The admin's list query also loads each agent's wallet with an outer join,
+    and PostgreSQL refuses to lock rows from a query like that ("FOR UPDATE
+    cannot be applied to the nullable side of an outer join"). Every approval
+    failed with a server error on the live database, while SQLite, which the
+    tests use, ignores locking and let it through. So the loans are locked on
+    their own, without the joins.
+    """
+    return Loan.objects.select_for_update().filter(pk__in=list(queryset.values_list("pk", flat=True)))
+
+
 @admin.register(Loan)
 class LoanAdmin(RealDataOnlyAdmin, admin.ModelAdmin):
     """Ads funding requests waiting on a decision."""
@@ -430,7 +443,7 @@ class LoanAdmin(RealDataOnlyAdmin, admin.ModelAdmin):
         released = Decimal("0")
         count = 0
         # Locked, so two staff approving at once cannot release a loan twice.
-        loans = queryset.select_for_update().exclude(
+        loans = locked_loans(queryset).exclude(
             status__in=(Loan.Status.DISBURSED, Loan.Status.REPAID)
         )
         released_by_currency = {}
@@ -477,7 +490,7 @@ class LoanAdmin(RealDataOnlyAdmin, admin.ModelAdmin):
         Each loan is locked and re-read, so it is only ever cleared once.
         """
         count = 0
-        for loan in queryset.select_for_update().filter(status=Loan.Status.DISBURSED):
+        for loan in locked_loans(queryset).filter(status=Loan.Status.DISBURSED):
             loan.status = Loan.Status.REPAID
             loan.save(update_fields=["status"])
             wallet = Wallet.objects.select_for_update().filter(agent=loan.agent).first()
