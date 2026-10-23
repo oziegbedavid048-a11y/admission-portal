@@ -810,6 +810,21 @@
   color: var(--g-ink-2);
 }
 
+/* The amount on a student's payment link page (PayLinkPage.jsx). */
+.paylink-amount {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  padding: 16px;
+  border: 1px solid var(--g-line);
+  border-radius: var(--g-r-sm);
+  background: var(--g-surface-2, var(--g-surface));
+}
+.paylink-amount span { font-size: 0.8125rem; color: var(--g-ink-3); }
+.paylink-amount strong { font-size: 1.5rem; font-weight: 800; color: var(--g-ink); overflow-wrap: anywhere; }
+.paylink-amount small { font-size: 0.8125rem; color: var(--g-ink-2); }
+.paylink-small { font-size: 0.8125rem; }
+
 .quote-fx-note {
   margin: 10px 0 0;
   font-size: 0.75rem;

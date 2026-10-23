@@ -154,6 +154,40 @@ class Payment(models.Model):
 
 
 
+def _link_code():
+    return secrets.token_urlsafe(24)
+
+
+class PaymentLink(models.Model):
+    """A link an agent sends a student so the student pays the fee themselves.
+
+    For students outside Nigeria, who cannot use the company's Nigerian bank
+    accounts: the student opens the link on their own phone and pays by card
+    through Paystack. Settlement is the same as any Paystack payment (the
+    signed webhook, or the return page asking Paystack), so the file shows as
+    paid and the agent's commission is credited the moment Paystack confirms.
+
+    The code is the only thing that opens the page, so it is long and random.
+    One link per application; asking again returns the same link.
+    """
+
+    application = models.OneToOneField(
+        "applications.Application", on_delete=models.CASCADE, related_name="payment_link"
+    )
+    code = models.CharField(max_length=48, unique=True, default=_link_code, editable=False)
+    created_by = models.ForeignKey(
+        "accounts.User", on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "student payment link"
+        verbose_name_plural = "student payment links"
+
+    def __str__(self):
+        return f"Payment link for {self.application.reference}"
+
+
 class PaymentToConfirm(Payment):
     """Bank transfers waiting for staff to confirm the money arrived.
 

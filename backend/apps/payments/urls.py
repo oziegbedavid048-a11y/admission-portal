@@ -1,5 +1,6 @@
 from django.urls import path
 
+from .links import PaymentLinkView, PublicPayView
 from .views import (
     CheckoutView,
     PaymentStatusView,
@@ -18,6 +19,9 @@ urlpatterns = [
     # Where the applicant lands coming back from Paystack. Asks Paystack what
     # happened rather than waiting for the webhook, and settles on the same path.
     path("status/<str:reference>/", PaymentStatusView.as_view(), name="payment-status"),
+    # A link an agent sends a student, and the public page behind it.
+    path("link/<str:reference>/", PaymentLinkView.as_view(), name="payment-link"),
+    path("pay/<str:code>/", PublicPayView.as_view(), name="payment-pay"),
     # The provider posts here. Unauthenticated by necessity, verified by
     # signature inside the view. Keep this path out of any auth middleware and
     # out of CSRF, which DRF's APIView already is.

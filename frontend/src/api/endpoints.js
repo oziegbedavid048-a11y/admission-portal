@@ -143,6 +143,15 @@ export const payments = {
       params: gatewayReference ? { reference: gatewayReference } : undefined,
     }),
   receipt: (reference) => api.get(`/payments/receipt/${reference}/`),
+  // A link the agent sends a student, who then pays by card themselves.
+  createLink: (reference) => api.post(`/payments/link/${reference}/`),
+  // The student's page behind that link. No sign-in. `gatewayReference` is
+  // what Paystack appends on the way back, so the server can confirm with it.
+  payLink: (code, gatewayReference) =>
+    api.get(`/payments/pay/${code}/`, {
+      params: gatewayReference ? { reference: gatewayReference } : undefined,
+    }),
+  startPayLink: (code) => api.post(`/payments/pay/${code}/`),
 };
 
 export const partners = {

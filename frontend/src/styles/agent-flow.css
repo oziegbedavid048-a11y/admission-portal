@@ -340,6 +340,28 @@
   color: var(--g-ink-2);
   cursor: pointer;
 }
+/* The payment link an agent sends a student (FeePayment.jsx). */
+.pay-link-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--g-line);
+  border-radius: var(--g-r-sm);
+  background: var(--g-surface);
+  min-width: 0;
+}
+.pay-link-input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 13.5px;
+  color: var(--g-ink);
+  text-overflow: ellipsis;
+}
+.pay-link-input:focus { outline: none; }
 .pay-note { display: grid; gap: 4px; padding: 12px 14px; border-radius: var(--g-r-sm); font-size: 14px; line-height: 1.5; }
 .pay-note-bad { background: var(--g-neg-tint); border: 1px solid var(--g-neg-line); color: var(--g-ink); }
 .pay-note-bad strong { color: var(--g-neg); }

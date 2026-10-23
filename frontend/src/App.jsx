@@ -21,6 +21,7 @@ const AgentRegisterPage = lazy(() => import('./features/auth/AgentRegisterPage')
 const AgentPortal = lazy(() => import('./features/agent/AgentPortal'));
 const SupervisorLoginPage = lazy(() => import('./features/auth/SupervisorLoginPage'));
 const SupervisorPortal = lazy(() => import('./features/supervisor/SupervisorPortal'));
+const PayLinkPage = lazy(() => import('./features/wizard/PayLinkPage'));
 const NotFoundPage = lazy(() => import('./features/landing/NotFoundPage'));
 
 /**
@@ -83,6 +84,8 @@ export default function App() {
 
           {/* Paystack sends the applicant back here. Unprotected so applicants returning from Paystack on any device or tab can confirm payment and auto-sign in. */}
           <Route path="/payment/:reference" element={<PaymentReturnPage />} />
+          {/* A payment link an agent sent a student: no sign-in. */}
+          <Route path="/pay/:code" element={<PayLinkPage />} />
 
           <Route path="*" element={<NotFoundPage />} />
         </Routes>

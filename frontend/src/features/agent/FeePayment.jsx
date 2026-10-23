@@ -14,6 +14,11 @@ import { formatFee, formatNaira } from '../../lib/format';
  * Paystack sends the agent to the checkout page and back to
  * /agent/payment/<reference>. A transfer asks for the bank first, shows that
  * account, then takes the receipt; the fee then waits for the desk to confirm.
+ *
+ * "Send a payment link" is for a student who pays themselves, usually one
+ * outside Nigeria: the agent copies the link or shares it on WhatsApp, the
+ * student pays by card on their own phone, and the file shows as paid here
+ * (with the commission credited) the moment Paystack confirms it.
  */
 export default function FeePayment({ reference, rejectedNote = '', onTransferSent, onWaived }) {
   const [quote, setQuote] = useState(null);
@@ -24,6 +29,8 @@ export default function FeePayment({ reference, rejectedNote = '', onTransferSen
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
+  const [link, setLink] = useState('');
+  const [linkCopied, setLinkCopied] = useState(false);
   const fileInput = useRef(null);
 
   useEffect(() => {
@@ -80,6 +87,7 @@ export default function FeePayment({ reference, rejectedNote = '', onTransferSen
 
   const accounts = quote.transfer_accounts || [];
   const canTransfer = Boolean(quote.transfer_allowed && accounts.length);
+  const canLink = Boolean(quote.paystack_available);
   const bank = accounts.find((account) => account.id === bankId) || null;
   // The application fee in the university's own currency. Paystack's checkout
   // shows the Naira charge, so it is not converted here.
@@ -122,6 +130,37 @@ export default function FeePayment({ reference, rejectedNote = '', onTransferSen
     }
   };
 
+  const makeLink = async () => {
+    setBusy(true);
+    setError('');
+    try {
+      const { data } = await payments.createLink(reference);
+      setLink(data.url);
+    } catch (err) {
+      setError(errorMessage(err, 'Could not create the payment link. Please try again.'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const copyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(link);
+      setLinkCopied(true);
+      window.setTimeout(() => setLinkCopied(false), 1600);
+    } catch {
+      // Clipboard can be blocked; the link is on screen to select.
+    }
+  };
+
+  const whatsappHref = link
+    ? `https://wa.me/?text=${encodeURIComponent(
+        // The page shows the amount in the student's own currency, so the
+        // message leaves it out rather than quote it in another one.
+        `Please pay your Gabstep application fee here: ${link}`,
+      )}`
+    : '';
+
   const copyNumber = async () => {
     try {
       await navigator.clipboard.writeText(bank.account_number);
@@ -141,7 +180,7 @@ export default function FeePayment({ reference, rejectedNote = '', onTransferSen
         </div>
       ) : null}
 
-      {canTransfer ? (
+      {canTransfer || canLink ? (
         <fieldset className="pay-methods">
           <legend className="nf-label">Pay with</legend>
           <label className={`pay-method${method === 'paystack' ? ' is-selected' : ''}`}>
@@ -157,6 +196,22 @@ export default function FeePayment({ reference, rejectedNote = '', onTransferSen
               <small>Card, bank or USSD. Confirmed instantly.</small>
             </span>
           </label>
+          {canLink ? (
+            <label className={`pay-method${method === 'link' ? ' is-selected' : ''}`}>
+              <input
+                type="radio"
+                name={`pay-${reference}`}
+                value="link"
+                checked={method === 'link'}
+                onChange={() => setMethod('link')}
+              />
+              <span className="pay-method-text">
+                <strong>Send a payment link</strong>
+                <small>The student pays by card from any country. Confirmed instantly.</small>
+              </span>
+            </label>
+          ) : null}
+          {canTransfer ? (
           <label className={`pay-method${method === 'transfer' ? ' is-selected' : ''}`}>
             <input
               type="radio"
@@ -170,10 +225,56 @@ export default function FeePayment({ reference, rejectedNote = '', onTransferSen
               <small>Bank transfer. Confirmed once we see the money.</small>
             </span>
           </label>
+          ) : null}
         </fieldset>
       ) : null}
 
-      {method === 'paystack' || !canTransfer ? (
+      {method === 'link' && canLink ? (
+        <div className="pay-panel">
+          <div className="pay-amount">
+            <span>Application fee</span>
+            <strong>{applicationFee}</strong>
+          </div>
+          <p className="pay-hint">
+            Send this link to the student. They pay by card on their own phone, in any country, and Paystack adds
+            its card fee. When Paystack confirms, the fee shows as paid here and your commission is added.
+          </p>
+          {link ? (
+            <>
+              <div className="pay-link-box">
+                <input
+                  className="pay-link-input"
+                  value={link}
+                  readOnly
+                  aria-label="Payment link"
+                  onFocus={(event) => event.target.select()}
+                />
+                <button type="button" className="pay-copy" onClick={copyLink}>
+                  {linkCopied ? 'Copied' : 'Copy'}
+                </button>
+              </div>
+              <a
+                className="agent-btn agent-btn-primary agent-btn-block"
+                href={whatsappHref}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Share on WhatsApp
+              </a>
+            </>
+          ) : (
+            <button
+              type="button"
+              className="agent-btn agent-btn-primary agent-btn-block"
+              onClick={makeLink}
+              disabled={busy}
+            >
+              {busy ? <span className="spinner-sm" aria-hidden="true" /> : null}
+              {busy ? 'Creating the link' : 'Create payment link'}
+            </button>
+          )}
+        </div>
+      ) : method === 'paystack' || !canTransfer ? (
         <div className="pay-panel">
           <div className="pay-amount">
             <span>Application fee</span>
