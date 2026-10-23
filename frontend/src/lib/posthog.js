@@ -10,6 +10,36 @@
  */
 import posthog from 'posthog-js';
 
+/**
+ * Secrets that travel in page addresses, removed before anything reaches
+ * PostHog: a password-reset link (?uid=…&token=…) works for an hour and an
+ * email-verification link signs the person in, so either one sitting in the
+ * analytics dashboard could be reused by anyone who can read it. The code in a
+ * student's payment link (/pay/<code>) is what opens that page.
+ */
+const SECRET_PATH = /(\/pay\/)[^/?#\s"'<>]+/g;
+const SECRET_QUERY = /([?&](?:token|uid|reference|trxref)=)[^&#\s"'<>]*/gi;
+
+export function scrubUrl(text) {
+  if (typeof text !== 'string' || (!text.includes('/pay/') && !/[?&](token|uid|reference|trxref)=/i.test(text))) {
+    return text;
+  }
+  return text.replace(SECRET_PATH, '$1[hidden]').replace(SECRET_QUERY, '$1[hidden]');
+}
+
+// Every string in the event, including the page addresses inside session
+// recordings, which sit a few levels down.
+function scrubDeep(value, depth = 0) {
+  if (typeof value === 'string') return scrubUrl(value);
+  if (depth > 8 || value === null || typeof value !== 'object') return value;
+  if (Array.isArray(value)) {
+    for (let i = 0; i < value.length; i += 1) value[i] = scrubDeep(value[i], depth + 1);
+    return value;
+  }
+  for (const name of Object.keys(value)) value[name] = scrubDeep(value[name], depth + 1);
+  return value;
+}
+
 const key  = import.meta.env.VITE_POSTHOG_KEY;
 const host = import.meta.env.VITE_POSTHOG_HOST || 'https://us.i.posthog.com';
 
@@ -36,6 +66,9 @@ if (key && key !== 'phc_REPLACE_WITH_YOUR_KEY') {
     // Page-view events are fired manually via usePostHogPageView so that the
     // correct SPA route is always captured after React Router renders.
     capture_pageview: false,
+
+    // Strip secrets from page addresses before any event leaves the browser.
+    before_send: (event) => (event ? scrubDeep(event) : event),
 
     // Persist distinct_id and feature flags across page refreshes.
     persistence: 'localStorage+cookie',

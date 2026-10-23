@@ -165,7 +165,7 @@ def _compress_pdf(data):
         page.compress_content_streams()
 
     check_time()
-    writer.compress_identical_objects(remove_identicals=True, remove_orphans=True)
+    writer.compress_identical_objects(remove_duplicates=True, remove_unreferenced=True)
     check_time()
     out = io.BytesIO()
     writer.write(out)

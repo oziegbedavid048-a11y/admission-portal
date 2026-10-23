@@ -15,14 +15,15 @@
  */
 import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import posthog from '../lib/posthog';
+import posthog, { scrubUrl } from '../lib/posthog';
 
 export function usePostHogPageView() {
   const location = useLocation();
 
   useEffect(() => {
     posthog.capture('$pageview', {
-      $current_url: window.location.href,
+      // Scrubbed here too, so a secret never sits in the event even briefly.
+      $current_url: scrubUrl(window.location.href),
     });
   }, [location.pathname, location.search]);
 }
