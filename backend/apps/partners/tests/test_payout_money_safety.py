@@ -174,3 +174,35 @@ class PayoutMoneySafetyTests(TestCase):
         self.assertFalse(stale.refund_if_pending("Marked as failed by staff."))
         self.assertEqual(Withdrawal.objects.get(pk=withdrawal.pk).status, Withdrawal.Status.SENDING)
         self.assertEqual(self.available(), Decimal("150000"))
+
+    # ── Answers from Paystack the code did not expect ─────────────────
+
+    def test_an_unexpected_error_leaves_the_payout_sending_not_crashed(self):
+        mock.patch(f"{P}.send_transfer", side_effect=KeyError("data")).start()
+        response = self.request_payout()
+        # The agent is told it is on its way; the money is held, not lost.
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(Withdrawal.objects.get().status, Withdrawal.Status.SENDING)
+        self.assertEqual(self.available(), Decimal("150000"))
+
+    def test_paystack_returning_no_recipient_goes_back_to_review(self):
+        mock.patch(f"{P}._request", side_effect=[{}]).start()
+        from apps.partners.payouts import send
+
+        withdrawal = Withdrawal.objects.create(
+            agent=self.agent, amount_requested=Decimal("150000"), net_amount=Decimal("150000"),
+            method=Withdrawal.Method.PAYSTACK, bank_code="058", account_number="0123456789",
+            paystack_reference="gabstep-wd-test-1",
+        )
+        AgentProfile.objects.filter(pk=self.agent.pk).update(paystack_recipient_code="")
+        mock.patch.stopall()
+        self.verify = mock.patch(f"{P}.verify_transfer", side_effect=NOT_FOUND).start()
+        mock.patch(f"{P}.create_recipient", side_effect=paystack.PaystackRejected("Paystack did not return a recipient for this account.")).start()
+        result = send(withdrawal)
+        self.assertEqual(result.status, Withdrawal.Status.PENDING)
+
+    def test_create_recipient_without_a_code_is_a_refusal(self):
+        mock.patch.stopall()
+        with mock.patch(f"{P}._request", return_value={}):
+            with self.assertRaises(paystack.PaystackRejected):
+                paystack.create_recipient("ADA AGENT", "0123456789", "058")

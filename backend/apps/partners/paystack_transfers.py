@@ -114,7 +114,12 @@ def create_recipient(name, account_number, bank_code):
         },
         method="POST",
     )
-    return data["recipient_code"]
+    code = (data or {}).get("recipient_code") if isinstance(data, dict) else None
+    if not code:
+        # Paystack answered without one: nothing was sent, so it can go back
+        # to review rather than leave the payout in an unknown state.
+        raise PaystackRejected("Paystack did not return a recipient for this account.")
+    return code
 
 
 def send_transfer(amount_ngn, recipient_code, reference, reason):

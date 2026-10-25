@@ -232,8 +232,14 @@ def send(withdrawal, approved_by=None):
         # No clear answer: it may have gone. Left as Sending and checked later.
         logger.error("No clear answer from Paystack for payout %s: %s", locked.reference, exc)
         return locked
+    except Exception:  # noqa: BLE001 - an answer this code did not expect
+        # Treated like no answer: the money is held, the payout stays Sending,
+        # and check_payouts (or "Check with Paystack") settles it by reference.
+        # The agent is told their withdrawal is on its way, not shown a crash.
+        logger.exception("Unexpected error sending payout %s; left as Sending.", locked.reference)
+        return locked
 
-    apply_transfer_status(locked, data or {})
+    apply_transfer_status(locked, data if isinstance(data, dict) else {})
     locked.refresh_from_db()
     return locked
 
@@ -296,7 +302,7 @@ def check(withdrawal):
         return withdrawal
     except paystack.PaystackUnreachable:
         return withdrawal
-    apply_transfer_status(withdrawal, data or {})
+    apply_transfer_status(withdrawal, data if isinstance(data, dict) else {})
     withdrawal.refresh_from_db()
     return withdrawal
 
@@ -317,7 +323,12 @@ def handle_webhook(event, data):
         logger.warning("Transfer webhook for an unknown reference %r.", reference)
         return
     amount = (data or {}).get("amount")
-    if amount is not None and int(amount) != paystack.kobo(withdrawal.net_amount):
+    try:
+        amount = int(amount) if amount is not None else None
+    except (TypeError, ValueError):
+        logger.error("Transfer webhook for %s carried an unreadable amount %r.", withdrawal.reference, amount)
+        return
+    if amount is not None and amount != paystack.kobo(withdrawal.net_amount):
         logger.error(
             "Transfer webhook for %s reported %r kobo, not %s.",
             withdrawal.reference, amount, paystack.kobo(withdrawal.net_amount),
