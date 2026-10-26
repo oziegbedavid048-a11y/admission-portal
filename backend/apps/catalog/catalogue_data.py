@@ -463,7 +463,10 @@ CIMT = {
     ],
 }
 
-SCHOOLS = [INSA, C3S, UCAM, PBA, FINANCIA, ALTERNIS, HEMA, SHERIDAN, CIMT]
+# Five more French schools, supplied 26 October 2026 (see catalogue_omnes.py).
+from apps.catalog.catalogue_omnes import OMNES_SCHOOLS  # noqa: E402
+
+SCHOOLS = [INSA, C3S, UCAM, PBA, FINANCIA, ALTERNIS, HEMA, *OMNES_SCHOOLS, SHERIDAN, CIMT]
 
 
 def course_fields(row):

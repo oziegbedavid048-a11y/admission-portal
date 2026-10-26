@@ -19,7 +19,7 @@ class MultipleApplicationsTests(TestCase):
         OriginCountry.objects.create(
             name="Nigeria", currency="NGN", symbol="N", ngn_per_unit=Decimal("1")
         )
-        self.france = DestinationCountry.objects.create(name="France", code="FR", currency="EUR")
+        self.france = DestinationCountry.objects.update_or_create(name="France", defaults=dict(code="FR", currency="EUR"))[0]
         self.school_a = Institution.objects.create(
             slug="school-a", name="School A", country=self.france, application_fee=Decimal("200000")
         )

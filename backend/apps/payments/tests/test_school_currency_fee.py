@@ -16,7 +16,7 @@ LIVE_EUR = Decimal("1650")
 
 class SchoolCurrencyFeeTests(TestCase):
     def setUp(self):
-        self.france = DestinationCountry.objects.create(name="France", code="FR", currency="EUR", currency_symbol="€")
+        self.france = DestinationCountry.objects.update_or_create(name="France", defaults=dict(code="FR", currency="EUR", currency_symbol="€"))[0]
         OriginCountry.objects.get_or_create(
             name="France", defaults={"currency": "EUR", "symbol": "€", "ngn_per_unit": Decimal("1680")}
         )
@@ -78,7 +78,7 @@ class FeeConversionMigrationTests(TestCase):
         OriginCountry.objects.get_or_create(
             name="Canada", defaults={"currency": "CAD", "symbol": "C$", "ngn_per_unit": Decimal("1120")}
         )
-        france = DestinationCountry.objects.create(name="France", code="FR", currency="EUR")
+        france = DestinationCountry.objects.update_or_create(name="France", defaults=dict(code="FR", currency="EUR"))[0]
         OriginCountry.objects.get_or_create(
             name="France", defaults={"currency": "EUR", "symbol": "€", "ngn_per_unit": Decimal("1680")}
         )

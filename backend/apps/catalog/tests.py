@@ -9,7 +9,7 @@ from apps.catalog.models import DestinationCountry, Institution
 
 class CatalogueFreshnessTests(TestCase):
     def setUp(self):
-        france = DestinationCountry.objects.create(name="France", code="FR", currency="EUR")
+        france = DestinationCountry.objects.update_or_create(name="France", defaults=dict(code="FR", currency="EUR"))[0]
         self.school = Institution.objects.create(
             slug="paris", name="Paris School", country=france, currency="EUR",
             application_fee=Decimal("135"), tuition_deposit_amount=Decimal("1000"),
@@ -37,3 +37,33 @@ class CatalogueFreshnessTests(TestCase):
         row = (rows["results"] if isinstance(rows, dict) else rows)[0]
         self.assertEqual((row["application_fee"], row["application_fee_currency"]), ("135.00", "EUR"))
         self.assertEqual((row["fee_symbol"], row["tuition_symbol"]), ("€", "€"))
+
+
+class OmnesSchoolsMigrationTests(TestCase):
+    """Five French schools added by migration 0012 (catalogue_omnes.py)."""
+
+    def test_the_five_schools_and_their_courses_are_on_file(self):
+        from decimal import Decimal
+
+        from apps.catalog.catalogue_omnes import OMNES_SCHOOLS
+        from apps.catalog.models import Institution
+
+        expected = {"ece-engineering-school": 11, "esce": 3, "inseec": 16, "heip": 13, "sup-de-pub": 26}
+        self.assertEqual({school["slug"] for school in OMNES_SCHOOLS}, set(expected))
+        for slug, count in expected.items():
+            school = Institution.objects.get(slug=slug)
+            self.assertEqual(school.country.name, "France")
+            self.assertTrue(school.is_active)
+            self.assertEqual(school.currency, "EUR")
+            self.assertEqual(school.tuition_deposit_amount, Decimal("3500"))
+            self.assertEqual(school.programs.count(), count, slug)
+
+        ai = Institution.objects.get(slug="ece-engineering-school").programs.get(name="Bachelor in Artificial Intelligence")
+        self.assertEqual((ai.level, ai.duration, ai.tuition), ("bachelors", "3 years", Decimal("8850.00")))
+        self.assertEqual(ai.note, "Taught in French / English")
+
+    def test_the_public_course_list_shows_them(self):
+        response = self.client.get("/api/catalog/institutions/")
+        self.assertEqual(response.status_code, 200)
+        slugs = {row["slug"] for row in (response.json() if isinstance(response.json(), list) else response.json()["results"])}
+        self.assertTrue({"ece-engineering-school", "esce", "inseec", "heip", "sup-de-pub"} <= slugs)
