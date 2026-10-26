@@ -849,3 +849,37 @@
 
 /* The student's payment link page: plan and instalment choices. */
 .paylink-choices { width: 100%; text-align: left; grid-template-columns: 1fr; }
+
+/* ── Student payment link page: one card, one choice, one button ───── */
+.pl { display: grid; gap: 18px; width: 100%; text-align: left; }
+.pl .return-title { text-align: center; }
+.pl-for { margin: -8px 0 0; text-align: center; font-size: 0.9375rem; color: var(--g-ink-2); }
+.pl-progress { display: grid; gap: 6px; }
+.pl-progress p { margin: 0; font-size: 0.875rem; font-weight: 600; color: var(--g-ink); }
+.pl-progress-bar { height: 6px; border-radius: var(--g-r-pill); background: var(--g-line); overflow: hidden; }
+.pl-progress-bar span { display: block; height: 100%; background: var(--g-accent); border-radius: inherit; }
+.pl-options { display: grid; gap: 10px; }
+.pl-option,
+.pl-total {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--g-line-strong);
+  border-radius: var(--g-r-md);
+  background: var(--g-surface);
+}
+.pl-option { cursor: pointer; }
+.pl-total { grid-template-columns: minmax(0, 1fr) auto; font-weight: 600; color: var(--g-ink); }
+.pl-option input { margin: 0; width: 18px; height: 18px; accent-color: var(--g-accent); }
+.pl-option.is-selected { border-color: var(--g-accent); box-shadow: 0 0 0 3px var(--g-accent-tint); }
+.pl-option-text { display: grid; gap: 2px; min-width: 0; }
+.pl-option-text strong { font-size: 0.9375rem; color: var(--g-ink); }
+.pl-option-text small { font-size: 0.8125rem; color: var(--g-ink-3); }
+.pl-amount { display: grid; justify-items: end; gap: 2px; text-align: right; white-space: nowrap; }
+.pl-amount strong { font-size: 1rem; font-weight: 800; color: var(--g-ink); }
+.pl-amount strong em { font-style: normal; font-weight: 500; font-size: 0.8125rem; color: var(--g-ink-3); }
+.pl-amount small { font-size: 0.8125rem; color: var(--g-ink-3); }
+.pl-pay { width: 100%; justify-content: center; }
+.pl-fine { margin: -6px 0 0; text-align: center; font-size: 0.75rem; line-height: 1.5; color: var(--g-ink-3); }

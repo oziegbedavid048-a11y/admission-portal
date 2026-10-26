@@ -4,7 +4,7 @@ import SiteHeader from '../../components/layout/SiteHeader';
 import Icon from '../../lib/icons';
 import { errorMessage } from '../../api/client';
 import { payments } from '../../api/endpoints';
-import { formatFee, formatNaira } from '../../lib/format';
+import { formatNaira } from '../../lib/format';
 
 /**
  * The page behind a payment link an agent sends a student.
@@ -92,8 +92,6 @@ export default function PayLinkPage() {
     }
   };
 
-  const courses = (info?.courses || []).filter(Boolean).join(' & ');
-  const otherSchools = (info?.schools || []).slice(1);
   const options = info?.options || {};
   const partPaid = Number(options.paid_ngn) > 0;
   const picked = choice || (partPaid ? 'next' : 'full');
@@ -102,7 +100,12 @@ export default function PayLinkPage() {
   const offerNext = partPaid && nextAmount > 0 && nextAmount < Number(options.balance_ngn);
   const dueDate = (value) =>
     value ? new Date(value).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
-  const withLocal = (naira, local) => `${formatNaira(naira)}${local ? ` (about ${local})` : ''}`;
+  // What the Pay button charges, shown on it.
+  const payingNow = partPaid
+    ? (picked === 'balance' || !offerNext ? options.balance_ngn : nextAmount)
+    : picked === 'instalments' && canSplit
+      ? options.deposit_ngn
+      : info?.amount_ngn;
 
   return (
     <>
@@ -123,103 +126,90 @@ export default function PayLinkPage() {
             ) : null}
 
             {state === 'due' && info ? (
-              <>
-                <h1 className="return-title">Application fee</h1>
-                <p className="return-note">
-                  {info.student ? `For ${info.student}'s application to ` : 'For an application to '}
-                  <strong>{info.institution || 'a partner university'}</strong>
-                  {courses ? ` (${courses})` : ''}
-                  {otherSchools.length ? `, and ${otherSchools.join(' and ')} under the same fee` : ''}.
+              <div className="pl">
+                <h1 className="return-title">Pay application fee</h1>
+                <p className="pl-for">
+                  {[info.student, (info.schools && info.schools.length ? info.schools : [info.institution]).filter(Boolean).join(', ')]
+                    .filter(Boolean)
+                    .join(' · ')}
                 </p>
-                {/* In the student's own currency when they are outside Nigeria;
-                    the card is charged in Naira and their bank converts it. */}
-                <div className="paylink-amount">
-                  <span>Amount{info.local_display ? ` in ${info.local_currency}` : ''}</span>
-                  <strong>
-                    {info.local_display
-                      ? `about ${info.local_display}`
-                      : formatFee(info.amount, info.currency, info.symbol)}
-                  </strong>
-                  <small>
-                    {info.local_display
-                      ? `Application fee ${formatFee(info.amount, info.currency, info.symbol)}, charged as ${formatNaira(info.amount_ngn)} at today's rate`
-                      : info.currency && info.currency.toUpperCase() !== 'NGN'
-                        ? `Charged as ${formatNaira(info.amount_ngn)} at today's rate`
-                        : 'Application fee'}
-                  </small>
-                </div>
+
                 {partPaid ? (
-                  <fieldset className="pay-methods paylink-choices">
-                    <legend className="nf-label">
-                      {formatNaira(options.paid_ngn)} paid. Pay now:
-                    </legend>
-                    {offerNext ? (
-                      <label className={`pay-method${picked === 'next' ? ' is-selected' : ''}`}>
-                        <input type="radio" name="paylink-choice" checked={picked === 'next'} onChange={() => setChoice('next')} />
-                        <span className="pay-method-text">
-                          <strong>Next payment: {withLocal(nextAmount, options.next_local)}</strong>
-                          {options.next?.due_on ? <small>Due {dueDate(options.next.due_on)}.</small> : null}
-                        </span>
-                      </label>
-                    ) : null}
-                    <label className={`pay-method${picked === 'balance' || !offerNext ? ' is-selected' : ''}`}>
-                      <input
-                        type="radio"
-                        name="paylink-choice"
-                        checked={picked === 'balance' || !offerNext}
-                        onChange={() => setChoice('balance')}
-                      />
-                      <span className="pay-method-text">
-                        <strong>The whole balance: {withLocal(options.balance_ngn, options.balance_ngn_local)}</strong>
-                      </span>
-                    </label>
-                  </fieldset>
-                ) : canSplit ? (
-                  <fieldset className="pay-methods paylink-choices">
-                    <legend className="nf-label">How do you want to pay?</legend>
-                    <label className={`pay-method${picked === 'full' ? ' is-selected' : ''}`}>
-                      <input type="radio" name="paylink-choice" checked={picked === 'full'} onChange={() => setChoice('full')} />
-                      <span className="pay-method-text">
-                        <strong>Pay in full</strong>
-                      </span>
-                    </label>
-                    <label className={`pay-method${picked === 'instalments' ? ' is-selected' : ''}`}>
-                      <input
-                        type="radio"
-                        name="paylink-choice"
-                        checked={picked === 'instalments'}
-                        onChange={() => setChoice('instalments')}
-                      />
-                      <span className="pay-method-text">
-                        <strong>Pay small small</strong>
-                        <small>
-                          {withLocal(options.deposit_ngn, options.deposit_ngn_local)} now, then{' '}
-                          {options.instalments.slice(1).map((amount) => formatNaira(amount)).join(' and ')} a week apart.
-                        </small>
-                      </span>
-                    </label>
-                  </fieldset>
+                  <div className="pl-progress">
+                    <div className="pl-progress-bar" aria-hidden="true">
+                      <span style={{ width: `${Math.min(100, (Number(options.paid_ngn) / Number(info.amount_ngn || 1)) * 100)}%` }} />
+                    </div>
+                    <p>
+                      {formatNaira(options.paid_ngn)} of {formatNaira(info.amount_ngn)} paid
+                    </p>
+                  </div>
                 ) : null}
-                <p className="return-note paylink-small">
-                  You pay by card on Paystack&apos;s secure page. Paystack adds its card fee
-                  {info.local_display ? ', and your bank converts the Naira charge, so the final figure can differ slightly' : ''}.
-                </p>
+
+                <div className="pl-options" role="radiogroup" aria-label="What to pay">
+                  {partPaid ? (
+                    <>
+                      {offerNext ? (
+                        <Option
+                          checked={picked === 'next'}
+                          onSelect={() => setChoice('next')}
+                          title="Next payment"
+                          note={options.next?.due_on ? `Due ${dueDate(options.next.due_on)}` : ''}
+                          naira={nextAmount}
+                          local={options.next_local}
+                        />
+                      ) : null}
+                      <Option
+                        checked={picked === 'balance' || !offerNext}
+                        onSelect={() => setChoice('balance')}
+                        title="Full balance"
+                        naira={options.balance_ngn}
+                        local={options.balance_ngn_local}
+                      />
+                    </>
+                  ) : canSplit ? (
+                    <>
+                      <Option
+                        checked={picked === 'full'}
+                        onSelect={() => setChoice('full')}
+                        title="Pay in full"
+                        naira={info.amount_ngn}
+                        local={info.local_display}
+                      />
+                      <Option
+                        checked={picked === 'instalments'}
+                        onSelect={() => setChoice('instalments')}
+                        title="Pay small small"
+                        note={`Then ${options.instalments.slice(1).map((amount) => formatNaira(amount)).join(' + ')}, one week apart`}
+                        naira={options.deposit_ngn}
+                        nairaNote="now"
+                        local={options.deposit_ngn_local}
+                      />
+                    </>
+                  ) : (
+                    <div className="pl-total">
+                      <span>Application fee</span>
+                      <span className="pl-amount">
+                        <strong>{formatNaira(info.amount_ngn)}</strong>
+                        {info.local_display ? <small>{info.local_display}</small> : null}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
                 {info.card_available ? (
-                  <button type="button" className="btn btn-accent btn-lg" onClick={pay} disabled={busy}>
+                  <button type="button" className="btn btn-accent btn-lg pl-pay" onClick={pay} disabled={busy}>
                     {busy ? <span className="spinner-sm" aria-hidden="true" /> : <Icon name="lock" size={16} strokeWidth={2} />}
-                    {busy
-                      ? 'Opening Paystack'
-                      : partPaid
-                        ? `Pay ${formatNaira(picked === 'balance' || !offerNext ? options.balance_ngn : nextAmount)} with card`
-                        : picked === 'instalments'
-                          ? `Pay ${formatNaira(options.deposit_ngn)} with card`
-                          : 'Pay with card'}
+                    {busy ? 'Opening Paystack' : `Pay ${formatNaira(payingNow)}`}
                   </button>
                 ) : (
                   <p className="return-note">Card payments are not available right now. Please try again later.</p>
                 )}
                 {error ? <p className="pay-error" role="alert">{error}</p> : null}
-              </>
+                <p className="pl-fine">
+                  Secure card payment by Paystack. Paystack adds its card fee at checkout.
+                  {info.local_display ? ' Charged in Naira.' : ''}
+                </p>
+              </div>
             ) : null}
 
             {state === 'paid' ? (
@@ -307,5 +297,25 @@ export default function PayLinkPage() {
         </div>
       </main>
     </>
+  );
+}
+
+/** One way to pay: a radio row with the amount on the right. */
+function Option({ checked, onSelect, title, note, naira, nairaNote, local }) {
+  return (
+    <label className={`pl-option${checked ? ' is-selected' : ''}`}>
+      <input type="radio" name="paylink-choice" checked={checked} onChange={onSelect} />
+      <span className="pl-option-text">
+        <strong>{title}</strong>
+        {note ? <small>{note}</small> : null}
+      </span>
+      <span className="pl-amount">
+        <strong>
+          {formatNaira(naira)}
+          {nairaNote ? <em> {nairaNote}</em> : null}
+        </strong>
+        {local ? <small>{local}</small> : null}
+      </span>
+    </label>
   );
 }
