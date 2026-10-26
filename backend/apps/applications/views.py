@@ -41,7 +41,9 @@ def visible_applications(user):
         Application.objects.select_related(
             # The payment is on every row (and in the verification summary);
             # without it each file in a list cost one more query.
-            "institution", "institution__country", "origin_country", "destination_country", "payment"
+            "institution", "institution__country", "origin_country", "destination_country", "payment",
+            # A 2nd or 3rd choice reads its fee from its 1st choice.
+            "fee_parent", "fee_parent__payment", "fee_parent__institution",
         )
         .prefetch_related(
             "programs",
@@ -50,6 +52,8 @@ def visible_applications(user):
             Prefetch("notifications", queryset=Notification.objects.all()),
             Prefetch("letters", queryset=Letter.objects.filter(is_published=True)),
             "corrections",
+            Prefetch("covered_applications", queryset=Application.objects.select_related("institution")),
+            Prefetch("fee_parent__covered_applications", queryset=Application.objects.select_related("institution")),
         )
     )
     if user.is_staff:
@@ -95,19 +99,23 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                 if draft is not None:
                     from django.core.files.base import ContentFile
 
+                    # Every school's file gets the documents: each is reviewed
+                    # and sent to its school on its own.
+                    targets = [application, *application.covered_applications.all()]
                     for item in draft.files.all():
                         item.file.open("rb")
                         try:
                             content = item.file.read()
                         finally:
                             item.file.close()
-                        Document.objects.create(
-                            application=application,
-                            kind=item.kind,
-                            name=item.name,
-                            original_filename=item.original_filename,
-                            file=ContentFile(content, name=item.original_filename or "document"),
-                        )
+                        for target in targets:
+                            Document.objects.create(
+                                application=target,
+                                kind=item.kind,
+                                name=item.name,
+                                original_filename=item.original_filename,
+                                file=ContentFile(content, name=item.original_filename or "document"),
+                            )
                     draft.delete()
             return Response(
                 ApplicationSerializer(application, context=self.get_serializer_context()).data,
@@ -161,12 +169,12 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         """Every file the signed-in applicant has, newest first, in brief."""
         own = (
             Application.objects.filter(applicant=request.user)
-            .select_related("institution", "payment")
+            .select_related("institution", "payment", "fee_parent__payment")
             .prefetch_related("programs")
         )
         rows = []
         for application in own:
-            payment = getattr(application, "payment", None)
+            payment = application.fee_payment
             rows.append(
                 {
                     "reference": application.reference,

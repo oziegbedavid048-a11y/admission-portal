@@ -214,7 +214,9 @@ export default function SupervisorStudents() {
                             ? 'Paid'
                             : student.fee_status === 'waived'
                               ? 'waived'
-                              : 'pending'
+                              : student.fee_status === 'part_paid'
+                                ? 'part_paid'
+                                : 'pending'
                         }
                       />
                     </td>

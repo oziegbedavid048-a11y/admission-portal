@@ -248,18 +248,20 @@ class SupervisedStudentSerializer(AdmittedByLetterMixin, serializers.ModelSerial
         return " and ".join(p.name for p in obj.programs.all())
 
     def get_fee_status(self, obj):
-        payment = getattr(obj, "payment", None)
+        payment = obj.fee_payment
         if payment is None:
             return "unpaid"
-        return {"paid": "paid", "waived": "waived"}.get(payment.status, "pending")
+        return {"paid": "paid", "waived": "waived", "part_paid": "part_paid"}.get(payment.status, "pending")
 
     def get_fee_display(self, obj):
-        payment = getattr(obj, "payment", None)
+        payment = obj.fee_payment
         if payment is None:
             return "Not paid"
         if payment.status == "waived":
             return "Waived"
-        return payment.display_total
+        if payment.paid_ngn and payment.paid_ngn < payment.amount_ngn:
+            return f"₦{payment.paid_ngn:,.0f} of ₦{payment.amount_ngn:,.0f}"
+        return f"₦{payment.amount_ngn:,.0f}" if payment.currency == "NGN" else payment.display_total
 
 
 class SupervisorBonusSerializer(serializers.ModelSerializer):

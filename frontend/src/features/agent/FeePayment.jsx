@@ -3,6 +3,7 @@ import { errorMessage } from '../../api/client';
 import { payments } from '../../api/endpoints';
 import { compressImageFile } from '../../lib/compress';
 import { formatFee, formatNaira } from '../../lib/format';
+import PlanChooser from '../wizard/PlanChooser';
 
 /**
  * Paying one student's application fee.
@@ -19,6 +20,10 @@ import { formatFee, formatNaira } from '../../lib/format';
  * outside Nigeria: the agent copies the link or shares it on WhatsApp, the
  * student pays by card on their own phone, and the file shows as paid here
  * (with the commission credited) the moment Paystack confirms it.
+ *
+ * One fee covers up to three schools (the 1st choice holds it). It can be paid
+ * in full or "small small": ₦100,000 now and the rest weekly. Once a deposit
+ * is in, this offers the next instalment or the whole balance.
  */
 export default function FeePayment({ reference, rejectedNote = '', onTransferSent, onWaived }) {
   const [quote, setQuote] = useState(null);
@@ -30,6 +35,8 @@ export default function FeePayment({ reference, rejectedNote = '', onTransferSen
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
   const [link, setLink] = useState('');
+  const [plan, setPlan] = useState('full');
+  const [payWhat, setPayWhat] = useState('next');
   const [linkCopied, setLinkCopied] = useState(false);
   const fileInput = useRef(null);
 
@@ -88,18 +95,33 @@ export default function FeePayment({ reference, rejectedNote = '', onTransferSen
   const accounts = quote.transfer_accounts || [];
   const canTransfer = Boolean(quote.transfer_allowed && accounts.length);
   const canLink = Boolean(quote.paystack_available);
+  // Pay small small: a deposit is in, the rest is owed.
+  const progress = quote.plan || null;
+  const instalments = (quote.instalments || []).map((row) => Number(row.amount_ngn));
+  const nextAmount = progress?.next ? Number(progress.next.amount_ngn) : 0;
+  const balance = progress ? Number(progress.balance_ngn) : Number(quote.amount_ngn);
+  const offerNext = Boolean(progress) && nextAmount > 0 && nextAmount < balance;
+  // What this payment is for, in Naira, and what the server is told.
+  const dueNow = progress
+    ? (payWhat === 'next' && offerNext ? nextAmount : balance)
+    : plan === 'instalments' && instalments.length > 1
+      ? instalments[0]
+      : Number(quote.amount_ngn);
+  const payOptions = progress ? { pay: payWhat === 'next' && offerNext ? 'next' : 'balance' } : { plan };
   const bank = accounts.find((account) => account.id === bankId) || null;
   // The application fee in the university's own currency. Paystack's checkout
   // shows the Naira charge, so it is not converted here.
   const applicationFee = formatFee(quote.amount, quote.currency, quote.symbol);
   // A transfer is sent in Naira: the fee at today's rate, rounded up to ₦100.
-  const transferTotal = formatNaira(quote.transfer_amount_ngn ?? quote.amount_ngn);
+  const transferTotal = formatNaira(
+    progress || plan === 'instalments' ? Math.ceil(dueNow / 100) * 100 : (quote.transfer_amount_ngn ?? quote.amount_ngn),
+  );
 
   const payWithPaystack = async () => {
     setBusy(true);
     setError('');
     try {
-      const { data } = await payments.checkout(reference, 'agent');
+      const { data } = await payments.checkout(reference, 'agent', payOptions);
       if (data.already_settled) {
         window.location.assign(`/agent/payment/${reference}`);
         return;
@@ -121,7 +143,7 @@ export default function FeePayment({ reference, rejectedNote = '', onTransferSen
     setBusy(true);
     setError('');
     try {
-      const { data } = await payments.transfer(reference, { receipt, bank: bank.id });
+      const { data } = await payments.transfer(reference, { receipt, bank: bank.id, ...payOptions });
       onTransferSent?.(data.payment);
     } catch (err) {
       setError(errorMessage(err, 'Could not send the receipt. Please try again.'));
@@ -179,6 +201,44 @@ export default function FeePayment({ reference, rejectedNote = '', onTransferSen
           <span>{rejectedNote}</span>
         </div>
       ) : null}
+
+      {progress ? (
+        <div className="pay-progress">
+          <div className="pay-amount">
+            <span>Paid so far</span>
+            <strong>
+              {formatNaira(progress.paid_ngn)} of {formatNaira(progress.total_ngn)}
+            </strong>
+          </div>
+          {offerNext ? (
+            <fieldset className="pay-methods">
+              <legend className="nf-label">Pay now</legend>
+              <label className={`pay-method${payWhat === 'next' ? ' is-selected' : ''}`}>
+                <input type="radio" name={`what-${reference}`} checked={payWhat === 'next'} onChange={() => setPayWhat('next')} />
+                <span className="pay-method-text">
+                  <strong>Next payment: {formatNaira(nextAmount)}</strong>
+                  <small>
+                    {progress.next?.due_on
+                      ? `Due ${new Date(progress.next.due_on).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}.`
+                      : 'Due a week after the deposit.'}
+                  </small>
+                </span>
+              </label>
+              <label className={`pay-method${payWhat === 'balance' ? ' is-selected' : ''}`}>
+                <input type="radio" name={`what-${reference}`} checked={payWhat === 'balance'} onChange={() => setPayWhat('balance')} />
+                <span className="pay-method-text">
+                  <strong>The whole balance: {formatNaira(balance)}</strong>
+                  <small>Clears the fee now; the commission is added once it is paid.</small>
+                </span>
+              </label>
+            </fieldset>
+          ) : (
+            <p className="pay-hint">Balance to pay: {formatNaira(balance)}.</p>
+          )}
+        </div>
+      ) : (
+        <PlanChooser totalNgn={quote.amount_ngn} plan={plan} onChange={setPlan} name={`plan-${reference}`} />
+      )}
 
       {canTransfer || canLink ? (
         <fieldset className="pay-methods">
@@ -277,10 +337,13 @@ export default function FeePayment({ reference, rejectedNote = '', onTransferSen
       ) : method === 'paystack' || !canTransfer ? (
         <div className="pay-panel">
           <div className="pay-amount">
-            <span>Application fee</span>
-            <strong>{applicationFee}</strong>
+            <span>{progress || plan === 'instalments' ? 'To pay now' : 'Application fee'}</span>
+            <strong>{progress || plan === 'instalments' ? formatNaira(dueNow) : applicationFee}</strong>
           </div>
-          <p className="pay-hint">Paystack shows the amount in Naira, with its card processing fee.</p>
+          <p className="pay-hint">
+            {Number(quote.school_count) > 1 ? `Covers ${quote.school_count} schools. ` : ''}
+            Paystack shows the amount in Naira, with its card processing fee.
+          </p>
           <button
             type="button"
             className="agent-btn agent-btn-primary agent-btn-block"
@@ -336,7 +399,11 @@ export default function FeePayment({ reference, rejectedNote = '', onTransferSen
                   <dt>Amount to send</dt>
                   <dd className="pay-account-amount">
                     {transferTotal}
-                    <small className="pay-account-note">Application fee {applicationFee} at today&apos;s rate</small>
+                    <small className="pay-account-note">
+                      {progress || plan === 'instalments'
+                        ? 'This payment of the application fee'
+                        : `Application fee ${applicationFee} at today's rate`}
+                    </small>
                   </dd>
                 </div>
               </dl>

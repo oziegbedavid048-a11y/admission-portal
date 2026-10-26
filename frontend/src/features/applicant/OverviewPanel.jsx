@@ -4,7 +4,8 @@ import { applications, payments } from '../../api/endpoints';
 import { errorMessage } from '../../api/client';
 import { useToast } from '../../context/ToastContext';
 import Icon from '../../lib/icons';
-import { firstNameOf, timeAgo } from '../../lib/format';
+import { firstNameOf, formatNaira, timeAgo } from '../../lib/format';
+import PlanChooser from '../wizard/PlanChooser';
 import { rememberSelectedApplication, useApplication } from './ApplicationContext';
 import { useAuth } from '../../context/AuthContext';
 
@@ -28,6 +29,7 @@ export default function OverviewPanel() {
   const hasApplication = Boolean(current);
   const application = current || {};
   const [paying, setPaying] = useState(false);
+  const [plan, setPlan] = useState('full');
   // A saved, unsubmitted application, offered back on the Overview.
   const [draft, setDraft] = useState(null);
 
@@ -46,22 +48,33 @@ export default function OverviewPanel() {
     };
   }, []);
 
+  // The fee for every school it covers is held on the 1st choice, so a 2nd or
+  // 3rd choice shows (and pays) that same fee.
   const payment = application.payment;
-  const feeDue = Boolean(payment) && ['pending', 'failed'].includes(payment.status);
+  const paidSoFar = Number(payment?.paid_ngn) || 0;
+  const feeDue = Boolean(payment) && ['pending', 'failed'].includes(payment.status) && paidSoFar <= 0;
+  // Pay small small: the deposit is in and the rest is still owed.
+  const partPaid = Boolean(payment) && payment.status === 'part_paid';
+  const nextDue = payment?.plan_summary?.next || null;
   const feeValue = !payment
     ? 'None'
     : payment.status === 'paid'
       ? 'Paid'
       : payment.status === 'waived'
         ? 'Waived'
-        : 'Due';
+        : partPaid
+          ? 'Part paid'
+          : payment.status === 'review'
+            ? 'In review'
+            : 'Due';
 
   // An application whose fee was never settled (the payment page was closed, or
-  // the card declined) can be paid from here, without starting again.
-  const pay = async () => {
+  // the card declined) can be paid from here, without starting again; so can
+  // the next instalment, or the whole balance, of a fee paid small small.
+  const pay = async (options = {}) => {
     setPaying(true);
     try {
-      const { data } = await payments.checkout(application.reference);
+      const { data } = await payments.checkout(application.reference, 'portal', options);
       if (data?.authorization_url) {
         rememberSelectedApplication(application.reference);
         window.location.assign(data.authorization_url);
@@ -120,18 +133,55 @@ export default function OverviewPanel() {
       )}
 
       {feeDue ? (
-        <section className="gx-card gx-welcome">
+        <section className="gx-card gx-welcome gx-fee-card">
           <div>
             <h2>Complete your application</h2>
             <p className="gx-muted">
-              Pay the {payment.display_total} application fee to complete your application.
+              Pay the {formatNaira(payment.amount_ngn)} application fee to complete your application.
             </p>
+            <PlanChooser totalNgn={payment.amount_ngn} plan={plan} onChange={setPlan} name="overview-plan" />
           </div>
-          <button type="button" className="gx-btn gx-btn-primary gx-btn-lg" onClick={pay} disabled={paying}>
+          <button
+            type="button"
+            className="gx-btn gx-btn-primary gx-btn-lg"
+            onClick={() => pay({ plan })}
+            disabled={paying}
+          >
             {paying ? <span className="spinner-sm" aria-hidden="true" /> : null}
-            {paying ? 'Opening payment' : 'Complete application'}
+            {paying ? 'Opening payment' : plan === 'instalments' ? 'Pay the first ₦100,000' : 'Complete application'}
             {paying ? null : <Icon name="arrowRight" size={17} strokeWidth={2} />}
           </button>
+        </section>
+      ) : null}
+
+      {partPaid ? (
+        <section className="gx-card gx-welcome gx-fee-card">
+          <div>
+            <h2>Application fee: {formatNaira(paidSoFar)} of {formatNaira(payment.amount_ngn)} paid</h2>
+            <p className="gx-muted">
+              Work on your application has started.{' '}
+              {nextDue
+                ? `Next payment: ${formatNaira(nextDue.amount_ngn)}${nextDue.due_on ? `, due ${new Date(nextDue.due_on).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}.`
+                : ''}{' '}
+              You can also pay the {formatNaira(payment.balance_ngn)} balance at once.
+            </p>
+          </div>
+          <div className="gx-fee-actions">
+            {nextDue && Number(nextDue.amount_ngn) < Number(payment.balance_ngn) ? (
+              <button type="button" className="gx-btn gx-btn-primary" onClick={() => pay({ pay: 'next' })} disabled={paying}>
+                {paying ? <span className="spinner-sm" aria-hidden="true" /> : null}
+                Pay {formatNaira(nextDue.amount_ngn)}
+              </button>
+            ) : null}
+            <button
+              type="button"
+              className={`gx-btn ${nextDue && Number(nextDue.amount_ngn) < Number(payment.balance_ngn) ? 'gx-btn-secondary' : 'gx-btn-primary'}`}
+              onClick={() => pay({ pay: 'balance' })}
+              disabled={paying}
+            >
+              Pay the balance ({formatNaira(payment.balance_ngn)})
+            </button>
+          </div>
         </section>
       ) : null}
 
@@ -139,7 +189,9 @@ export default function OverviewPanel() {
         <section className="gx-card gx-welcome">
           <div>
             <h2>Apply to another school</h2>
-            <p className="gx-muted">Each school is a separate application with its own fee.</p>
+            <p className="gx-muted">
+              A new application has its own fee. When you apply, add a 2nd choice school at no extra cost.
+            </p>
           </div>
           <Link to="/portal/courses" className="gx-btn gx-btn-secondary gx-btn-lg">
             Browse courses
@@ -253,6 +305,16 @@ export default function OverviewPanel() {
                   {application.programs?.map((p) => p.name).join(', ') || application.custom_course_name || 'Not chosen yet'}
                 </span>
               </div>
+
+              {application.choice_order > 1 ? (
+                <div className="app-prog-info-item">
+                  <span className="app-prog-info-key">Application fee</span>
+                  <span className="app-prog-info-value">
+                    Your {application.choice_order === 2 ? '2nd' : '3rd'} choice, covered by the fee for{' '}
+                    {application.fee_reference}
+                  </span>
+                </div>
+              ) : null}
 
               <div className="app-prog-info-item">
                 <span className="app-prog-info-key">Prior qualification</span>

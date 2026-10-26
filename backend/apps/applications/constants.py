@@ -6,6 +6,21 @@ from decimal import Decimal
 # to the applicant converted into their own currency.
 APPLICATION_FEE_NGN = Decimal("200000")
 
+# One application fee covers up to two schools (a 1st and a 2nd choice). The
+# fee is the 1st choice school's own (in its currency, charged in Naira, never
+# below its Naira minimum); a 3rd choice school adds EXTRA_SCHOOL_FEE_NGN on top
+# (David's rule, October 2026).
+SCHOOLS_INCLUDED_IN_FEE = 2
+MAX_SCHOOLS_PER_FEE = 3
+EXTRA_SCHOOL_FEE_NGN = Decimal("100000")
+
+# "Pay small small": a deposit now, then the rest in two equal weekly
+# instalments. A 200,000 fee is 100,000 now, 50,000 a week later and 50,000 a
+# week after; with a 3rd school (300,000) it is 100,000, 100,000 and 100,000.
+INSTALMENT_DEPOSIT_NGN = Decimal("100000")
+INSTALMENT_COUNT = 3
+INSTALMENT_GAP_DAYS = 7
+
 # Paystack's own charge on a Nigerian card transaction, published at
 # paystack.com/pricing: 1.5% plus a flat fee, with the flat part waived on small
 # transactions and the whole thing capped. Every value is overridable from the

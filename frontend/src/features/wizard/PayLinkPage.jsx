@@ -28,6 +28,9 @@ export default function PayLinkPage() {
   const [state, setState] = useState(gatewayReference ? 'confirming' : 'loading');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  // Before anything is paid: "full" or "instalments". After the deposit:
+  // "next" (the next instalment) or "balance" (everything left).
+  const [choice, setChoice] = useState('');
   const attempt = useRef(0);
   const timer = useRef(null);
 
@@ -36,6 +39,12 @@ export default function PayLinkPage() {
     try {
       const { data } = await payments.payLink(code, gatewayReference);
       setInfo(data);
+      // A deposit or instalment just paid: the fee is still "due", but this
+      // payment is in.
+      if (gatewayReference && data.status === 'due' && data.received) {
+        setState('received');
+        return;
+      }
       if (data.status !== 'due' || !gatewayReference) {
         setState(data.status);
         return;
@@ -65,7 +74,13 @@ export default function PayLinkPage() {
     setBusy(true);
     setError('');
     try {
-      const { data } = await payments.startPayLink(code);
+      const options = info?.options || {};
+      const partPaid = Number(options.paid_ngn) > 0;
+      const picked = choice || (partPaid ? 'next' : 'full');
+      const { data } = await payments.startPayLink(
+        code,
+        partPaid ? { pay: picked === 'balance' ? 'balance' : 'next' } : { plan: picked === 'instalments' ? 'instalments' : 'full' },
+      );
       window.location.assign(data.authorization_url);
     } catch (err) {
       if (err?.response?.data?.code === 'paid') {
@@ -78,6 +93,16 @@ export default function PayLinkPage() {
   };
 
   const courses = (info?.courses || []).filter(Boolean).join(' & ');
+  const otherSchools = (info?.schools || []).slice(1);
+  const options = info?.options || {};
+  const partPaid = Number(options.paid_ngn) > 0;
+  const picked = choice || (partPaid ? 'next' : 'full');
+  const nextAmount = Number(options.next?.amount_ngn) || 0;
+  const canSplit = !partPaid && (options.instalments || []).length > 1;
+  const offerNext = partPaid && nextAmount > 0 && nextAmount < Number(options.balance_ngn);
+  const dueDate = (value) =>
+    value ? new Date(value).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+  const withLocal = (naira, local) => `${formatNaira(naira)}${local ? ` (about ${local})` : ''}`;
 
   return (
     <>
@@ -103,7 +128,8 @@ export default function PayLinkPage() {
                 <p className="return-note">
                   {info.student ? `For ${info.student}'s application to ` : 'For an application to '}
                   <strong>{info.institution || 'a partner university'}</strong>
-                  {courses ? ` (${courses})` : ''}.
+                  {courses ? ` (${courses})` : ''}
+                  {otherSchools.length ? `, and ${otherSchools.join(' and ')} under the same fee` : ''}.
                 </p>
                 {/* In the student's own currency when they are outside Nigeria;
                     the card is charged in Naira and their bank converts it. */}
@@ -122,6 +148,58 @@ export default function PayLinkPage() {
                         : 'Application fee'}
                   </small>
                 </div>
+                {partPaid ? (
+                  <fieldset className="pay-methods paylink-choices">
+                    <legend className="nf-label">
+                      {formatNaira(options.paid_ngn)} paid. Pay now:
+                    </legend>
+                    {offerNext ? (
+                      <label className={`pay-method${picked === 'next' ? ' is-selected' : ''}`}>
+                        <input type="radio" name="paylink-choice" checked={picked === 'next'} onChange={() => setChoice('next')} />
+                        <span className="pay-method-text">
+                          <strong>Next payment: {withLocal(nextAmount, options.next_local)}</strong>
+                          {options.next?.due_on ? <small>Due {dueDate(options.next.due_on)}.</small> : null}
+                        </span>
+                      </label>
+                    ) : null}
+                    <label className={`pay-method${picked === 'balance' || !offerNext ? ' is-selected' : ''}`}>
+                      <input
+                        type="radio"
+                        name="paylink-choice"
+                        checked={picked === 'balance' || !offerNext}
+                        onChange={() => setChoice('balance')}
+                      />
+                      <span className="pay-method-text">
+                        <strong>The whole balance: {withLocal(options.balance_ngn, options.balance_ngn_local)}</strong>
+                      </span>
+                    </label>
+                  </fieldset>
+                ) : canSplit ? (
+                  <fieldset className="pay-methods paylink-choices">
+                    <legend className="nf-label">How do you want to pay?</legend>
+                    <label className={`pay-method${picked === 'full' ? ' is-selected' : ''}`}>
+                      <input type="radio" name="paylink-choice" checked={picked === 'full'} onChange={() => setChoice('full')} />
+                      <span className="pay-method-text">
+                        <strong>Pay in full</strong>
+                      </span>
+                    </label>
+                    <label className={`pay-method${picked === 'instalments' ? ' is-selected' : ''}`}>
+                      <input
+                        type="radio"
+                        name="paylink-choice"
+                        checked={picked === 'instalments'}
+                        onChange={() => setChoice('instalments')}
+                      />
+                      <span className="pay-method-text">
+                        <strong>Pay small small</strong>
+                        <small>
+                          {withLocal(options.deposit_ngn, options.deposit_ngn_local)} now, then{' '}
+                          {options.instalments.slice(1).map((amount) => formatNaira(amount)).join(' and ')} a week apart.
+                        </small>
+                      </span>
+                    </label>
+                  </fieldset>
+                ) : null}
                 <p className="return-note paylink-small">
                   You pay by card on Paystack&apos;s secure page. Paystack adds its card fee
                   {info.local_display ? ', and your bank converts the Naira charge, so the final figure can differ slightly' : ''}.
@@ -129,7 +207,13 @@ export default function PayLinkPage() {
                 {info.card_available ? (
                   <button type="button" className="btn btn-accent btn-lg" onClick={pay} disabled={busy}>
                     {busy ? <span className="spinner-sm" aria-hidden="true" /> : <Icon name="lock" size={16} strokeWidth={2} />}
-                    {busy ? 'Opening Paystack' : 'Pay with card'}
+                    {busy
+                      ? 'Opening Paystack'
+                      : partPaid
+                        ? `Pay ${formatNaira(picked === 'balance' || !offerNext ? options.balance_ngn : nextAmount)} with card`
+                        : picked === 'instalments'
+                          ? `Pay ${formatNaira(options.deposit_ngn)} with card`
+                          : 'Pay with card'}
                   </button>
                 ) : (
                   <p className="return-note">Card payments are not available right now. Please try again later.</p>
@@ -148,6 +232,25 @@ export default function PayLinkPage() {
                   {info?.paid_total ? `${info.paid_total} received` : 'The application fee has been received'}
                   {info?.institution ? ` for the application to ${info.institution}` : ''}. Your education agent can
                   see it now. There is nothing more to pay.
+                </p>
+              </>
+            ) : null}
+
+            {state === 'received' ? (
+              <>
+                <span className="return-mark is-ok" aria-hidden="true">
+                  <Icon name="checkCircle" size={26} strokeWidth={2} />
+                </span>
+                <h1 className="return-title">Payment received</h1>
+                <p className="return-note">
+                  Thank you. Work on the application has started.{' '}
+                  {info?.options?.balance_ngn
+                    ? `${formatNaira(info.options.balance_ngn)} of the application fee is still to pay${
+                        info.options.next?.due_on
+                          ? `; the next payment is due ${new Date(info.options.next.due_on).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`
+                          : ''
+                      }. Use this same link to pay it.`
+                    : ''}
                 </p>
               </>
             ) : null}

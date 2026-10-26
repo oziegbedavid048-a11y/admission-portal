@@ -199,9 +199,17 @@ def _refresh_verification_status(application, verified_by=None):
 
 
 def sync_payment_checkpoint(application):
-    """Tick the fee check once the fee is paid or waived. Never by hand."""
-    payment = getattr(application, "payment", None)
-    settled = bool(payment and payment.status in ("paid", "waived"))
+    """Tick the fee check once the fee is paid or waived. Never by hand.
+
+    A 2nd or 3rd choice school follows its 1st choice's fee. Under pay small
+    small the deposit ticks it, because work starts once the deposit is in (a
+    transfer receipt for an instalment, waiting for the desk, keeps it ticked).
+    """
+    payment = application.fee_payment
+    settled = bool(
+        payment
+        and (payment.status in ("paid", "waived", "part_paid") or (payment.paid_ngn or 0) > 0)
+    )
     if application.payment_verified == settled:
         return
     application.payment_verified = settled
@@ -643,9 +651,12 @@ def reject_transfer(payment, note):
     """Turn down a transfer receipt with a reason. The payer can send another."""
     from apps.accounts.emails import send_transfer_rejected_email
 
-    payment.status = "pending"
+    # Back to where it stood before the receipt: part paid if a deposit is
+    # already in (pay small small), otherwise waiting for payment.
+    payment.status = "part_paid" if payment.paid_ngn > 0 else "pending"
     payment.review_note = (note or "").strip()
     payment.save(update_fields=["status", "review_note"])
+    payment.charges.filter(status="review").update(status="failed")
     notify(
         payment.application,
         f"Bank transfer not confirmed: {payment.review_note}",

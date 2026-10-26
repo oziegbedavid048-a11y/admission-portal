@@ -27,10 +27,12 @@ class PaymentAdmin(RealDataOnlyAdmin, admin.ModelAdmin):
         "status_badge",
         "charged",
         "in_naira",
+        "plan",
+        "progress",
         "gateway",
         "paid_at",
     )
-    list_filter = ("status", "gateway", "currency", "paid_at")
+    list_filter = ("status", "plan", "gateway", "currency", "paid_at")
     search_fields = ("reference", "application__reference", "application__full_name")
     autocomplete_fields = ("application",)
     date_hierarchy = "created_at"
@@ -51,6 +53,9 @@ class PaymentAdmin(RealDataOnlyAdmin, admin.ModelAdmin):
         "amount_ngn",
         "fx_rate",
         "in_naira",
+        "plan",
+        "progress",
+        "schedule",
         "created_at",
         "paid_at",
     )
@@ -86,7 +91,7 @@ class PaymentAdmin(RealDataOnlyAdmin, admin.ModelAdmin):
 
     @admin.display(description="Status", ordering="status")
     def status_badge(self, obj):
-        tones = {Payment.Status.PAID: "ok", Payment.Status.WAIVED: "info", Payment.Status.FAILED: "bad"}
+        tones = {Payment.Status.PAID: "ok", Payment.Status.WAIVED: "info", Payment.Status.FAILED: "bad", Payment.Status.PART_PAID: "wait"}
         return pill(obj.get_status_display(), tones.get(obj.status, "wait"))
 
     @admin.display(description="Total")
@@ -96,6 +101,24 @@ class PaymentAdmin(RealDataOnlyAdmin, admin.ModelAdmin):
     @admin.display(description="In Naira", ordering="amount_ngn")
     def in_naira(self, obj):
         return f"₦{obj.amount_ngn:,.2f}"
+
+    @admin.display(description="Paid so far")
+    def progress(self, obj):
+        if obj.paid_ngn and obj.paid_ngn < obj.amount_ngn:
+            return f"₦{obj.paid_ngn:,.0f} of ₦{obj.amount_ngn:,.0f}"
+        return f"₦{obj.paid_ngn:,.0f}"
+
+    @admin.display(description="Instalments")
+    def schedule(self, obj):
+        from .plans import schedule as plan_schedule
+
+        if obj.plan != Payment.Plan.INSTALMENTS:
+            return "Paid in full"
+        lines = []
+        for row in plan_schedule(obj):
+            due = f"due {row['due_on']:%d %b %Y}" if row["due_on"] else ("due now" if row["number"] == 1 else "")
+            lines.append(f"{row['number']}. ₦{row['amount_ngn']:,.0f} {due} - {'paid' if row['paid'] else 'owed'}")
+        return "; ".join(lines)
 
     @admin.action(description="Waive the fee")
     def action_waive(self, request, queryset):
@@ -163,6 +186,13 @@ class PaymentToConfirmAdmin(RealDataOnlyAdmin, admin.ModelAdmin):
 
     @admin.display(description="Amount", ordering="amount_ngn")
     def amount_due(self, obj):
+        """What this receipt is for: the whole fee, or one instalment of it."""
+        charge = obj.charges.filter(status="review").order_by("-created_at").first()
+        if charge is not None:
+            label = charge.get_kind_display()
+            if obj.plan == Payment.Plan.INSTALMENTS:
+                return f"₦{charge.amount_ngn:,.2f} ({label}; fee ₦{obj.amount_ngn:,.0f}, ₦{obj.paid_ngn:,.0f} already paid)"
+            return f"₦{charge.amount_ngn:,.2f}"
         return f"{obj.display_total} (₦{obj.total_ngn:,.2f})"
 
     @admin.display(description="Receipt sent", ordering="receipt_submitted_at")

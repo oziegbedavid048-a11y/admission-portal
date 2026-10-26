@@ -22,6 +22,7 @@ random so it cannot be guessed.
 """
 
 import logging
+from decimal import Decimal
 
 from django.conf import settings
 from django.db import IntegrityError, transaction
@@ -36,7 +37,8 @@ from config.throttles import CheckoutThrottle, EdgeThrottle, PaymentStatusThrott
 from . import gateway
 from .models import Payment, PaymentLink
 from .settlement import settle
-from .views import ALREADY_CONFIRMED, _price, fee_already_confirmed, payer_email, quote_for
+from . import plans
+from .views import ALREADY_CONFIRMED, ChargeRefused, fee_already_confirmed, open_charge, payer_email, quote_for
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +79,11 @@ def link_url(link):
 
 
 def standing(application):
-    """Where this fee stands: "paid", "review", "no_fee" or "due"."""
+    """Where this fee stands: "paid", "review", "no_fee" or "due".
+
+    Part paid (pay small small) is "due": the rest can be paid from the link.
+    """
+    application = application.fee_owner
     payment = getattr(application, "payment", None)
     if payment is not None and payment.status in SETTLED:
         return "paid"
@@ -115,9 +121,11 @@ class PaymentLinkView(APIView):
     throttle_classes = (UserThrottle, CheckoutThrottle)
 
     def post(self, request, reference):
-        application = visible_applications(request.user).filter(reference=reference).first()
-        if application is None:
+        found = visible_applications(request.user).filter(reference=reference).first()
+        if found is None:
             return Response({"detail": "No such application."}, status=status.HTTP_404_NOT_FOUND)
+        # The fee for every school on it is paid through the 1st choice.
+        application = found.fee_owner
         if application.submitted_by_agent_id is None:
             return Response(
                 {"detail": "Payment links are for students registered by an agent."},
@@ -180,7 +188,7 @@ class PublicPayView(APIView):
         supplied = (request.query_params.get("reference") or "").strip()
         if (
             payment is not None
-            and payment.status == Payment.Status.PENDING
+            and payment.status in {Payment.Status.PENDING, Payment.Status.PART_PAID}
             and supplied
             and supplied == payment.gateway_reference
         ):
@@ -188,14 +196,23 @@ class PublicPayView(APIView):
             if (
                 gateway.transaction_is_settled(data)
                 and gateway.currency_is_expected(data)
-                and gateway.amount_covers(payment, (data or {}).get("amount"))
+                and gateway.amount_covers(payment, (data or {}).get("amount"), payment.gateway_reference)
             ):
                 settled_now = settle(payment, Payment.Gateway.PAYSTACK, payment.gateway_reference)
             application.refresh_from_db()
 
         state = standing(application)
+        # Back from Paystack: whether that payment (its reference) is in, which
+        # "due" cannot say when it was a deposit or an instalment.
+        payment = getattr(application, "payment", None)
+        received = bool(
+            supplied
+            and payment is not None
+            and payment.charges.filter(gateway_reference=supplied, status="paid").exists()
+        )
         body = {
             "status": state,
+            "received": received,
             "settled_now": settled_now,
             "student": (application.full_name or "").strip().split(" ")[0],
             "institution": application.institution.name if application.institution else "",
@@ -207,8 +224,10 @@ class PublicPayView(APIView):
             "card_available": gateway.is_live(),
         }
         payment = getattr(application, "payment", None)
+        schools = plans.schools_on_fee(application)
+        body["schools"] = [app.institution.name if app.institution else app.custom_course_name for app in schools]
         if state == "paid" and payment is not None:
-            body["paid_total"] = payment.display_total
+            body["paid_total"] = f"₦{payment.amount_ngn:,.0f}" if payment.amount_ngn else payment.display_total
         if state == "due":
             quote = quote_for(application)
             body.update(
@@ -220,6 +239,31 @@ class PublicPayView(APIView):
                 }
             )
             body.update(local_estimate(application, quote["total_ngn"]))
+            # How it can be paid: in full or small small while nothing is in,
+            # then the next instalment or the whole balance.
+            summary = plans.plan_summary(payment) if payment is not None and payment.paid_ngn > 0 else None
+            options = {"paid_ngn": Decimal("0.00"), "plan": None, "next": None, "balance_ngn": quote["amount_ngn"]}
+            if summary is not None:
+                options.update(
+                    {
+                        "plan": summary["plan"],
+                        "paid_ngn": summary["paid_ngn"],
+                        "balance_ngn": summary["balance_ngn"],
+                        "next": summary["next"],
+                    }
+                )
+            else:
+                amounts = plans.instalment_amounts(quote["amount_ngn"])
+                options["deposit_ngn"] = amounts[0] if len(amounts) > 1 else None
+                options["instalments"] = amounts if len(amounts) > 1 else []
+            for key in ("next", "deposit_ngn", "balance_ngn"):
+                value = options.get(key)
+                amount = value["amount_ngn"] if isinstance(value, dict) else value
+                if amount:
+                    local = local_estimate(application, amount)
+                    if local:
+                        options[f"{key}_local"] = local["local_display"]
+            body["options"] = options
         return Response(body)
 
     def post(self, request, code):
@@ -232,26 +276,23 @@ class PublicPayView(APIView):
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
 
-        # The checks and the pending payment are written together, with the
-        # payment row locked, so the agent paying in the portal and the student
-        # paying from the link at the same moment never both start a charge on
-        # a stale view of it. Paystack is called after the transaction, as in
-        # checkout.
+        # The checks and the charge are written together, with the payment row
+        # locked (inside open_charge), so the agent paying in the portal and the
+        # student paying from the link at the same moment never both start a
+        # charge on a stale view of it. Paystack is called after the
+        # transaction, as in checkout.
+        plan = request.data.get("plan") if request.data.get("plan") in (Payment.Plan.FULL, Payment.Plan.INSTALMENTS) else None
+        pay = request.data.get("pay") if request.data.get("pay") in ("next", "balance") else "next"
         try:
             with transaction.atomic():
-                Payment.objects.select_for_update().filter(application_id=link.application_id).first()
-                # Read again under the lock: the agent may have paid meanwhile.
-                application = Application.objects.select_related("institution", "payment").get(
-                    pk=link.application_id
-                )
+                application = Application.objects.select_related("institution").get(pk=link.application_id)
                 state = standing(application)
                 if state != "due":
                     return _refusal(application, state)
-                payment = getattr(application, "payment", None) or Payment(application=application)
-                _price(payment, quote_for(application))
-                payment.gateway = Payment.Gateway.PAYSTACK
-                payment.status = Payment.Status.PENDING
-                payment.save()
+                try:
+                    payment, charge, _quote = open_charge(application, Payment.Gateway.PAYSTACK, plan=plan, pay=pay)
+                except ChargeRefused:
+                    return _refusal(application, standing(application) if standing(application) != "due" else "paid")
         except IntegrityError:
             # The agent started the very first payment at the same instant.
             return Response(
@@ -265,6 +306,7 @@ class PublicPayView(APIView):
             # never written to by Gabstep.
             email=payer_email(application),
             callback_url=link_url(link),
+            charge=charge,
         )
         if not authorization_url:
             return Response(

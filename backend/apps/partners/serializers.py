@@ -416,25 +416,34 @@ class AgentStudentSerializer(AdmittedByLetterMixin, serializers.ModelSerializer)
         This is what gates the agent's commission, so the students table shows
         it on every row rather than making them open each file to find out.
         """
-        payment = getattr(obj, "payment", None)
+        payment = obj.fee_payment
         if payment is None:
             return "unpaid"
-        return {"paid": "paid", "waived": "waived", "review": "review"}.get(payment.status, "pending")
+        return {"paid": "paid", "waived": "waived", "review": "review", "part_paid": "part_paid"}.get(
+            payment.status, "pending"
+        )
 
     def get_fee_display(self, obj):
-        payment = getattr(obj, "payment", None)
+        payment = obj.fee_payment
         if payment is None:
             return "Not paid"
         if payment.status == "waived":
             return "Waived"
-        return payment.display_total
+        if payment.paid_ngn and payment.paid_ngn < payment.amount_ngn:
+            return f"₦{payment.paid_ngn:,.0f} of ₦{payment.amount_ngn:,.0f}"
+        return f"₦{payment.amount_ngn:,.0f}" if payment.currency == "NGN" else payment.display_total
 
     def get_payment(self, obj):
         """How the fee stands, including a transfer the desk turned down."""
-        payment = getattr(obj, "payment", None)
+        from apps.payments.plans import plan_summary
+
+        payment = obj.fee_payment
         if payment is None:
             return None
         return {
+            # The 1st choice holds the fee for every school on it.
+            "fee_reference": obj.fee_owner.reference,
+            "plan_summary": plan_summary(payment),
             "status": payment.status,
             "status_label": payment.get_status_display(),
             "method": payment.gateway,
@@ -573,19 +582,22 @@ class AgentStudentCreateSerializer(ApplicationCreateSerializer):
 
                 from apps.applications.models import Document
 
+                # Every school's file (2nd and 3rd choices too) gets them.
+                targets = [application, *application.covered_applications.all()]
                 for item in draft.files.all():
                     item.file.open("rb")
                     try:
                         content = item.file.read()
                     finally:
                         item.file.close()
-                    Document.objects.create(
-                        application=application,
-                        kind=item.kind,
-                        name=item.name,
-                        original_filename=item.original_filename,
-                        file=ContentFile(content, name=item.original_filename or "document"),
-                    )
+                    for target in targets:
+                        Document.objects.create(
+                            application=target,
+                            kind=item.kind,
+                            name=item.name,
+                            original_filename=item.original_filename,
+                            file=ContentFile(content, name=item.original_filename or "document"),
+                        )
                 draft.delete()
 
         from apps.accounts.emails import send_agent_student_registered_email

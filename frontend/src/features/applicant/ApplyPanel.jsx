@@ -9,9 +9,11 @@ import { useToast } from '../../context/ToastContext';
 import { useCatalog, useInstitutions } from '../../hooks/useCatalog';
 import Icon from '../../lib/icons';
 import { compressImageFile } from '../../lib/compress';
-import { formatFee, formatTuition } from '../../lib/format';
+import { formatFee, formatNaira, formatTuition } from '../../lib/format';
 import EuropeanCvTip from '../../components/ui/EuropeanCvTip';
 import ProgramPicker from '../wizard/ProgramPicker';
+import ExtraChoices, { EXTRA_SCHOOL_FEE_NGN, choiceErrors, choicesPayload } from '../wizard/ExtraChoices';
+import PlanChooser from '../wizard/PlanChooser';
 import { rememberSelectedApplication, useApplication } from './ApplicationContext';
 
 /**
@@ -24,6 +26,9 @@ import { rememberSelectedApplication, useApplication } from './ApplicationContex
  *
  * The fee shown is the server's quote for this school in the applicant's
  * currency. Nothing here invents a figure.
+ *
+ * One fee covers a 1st and a 2nd choice school; a 3rd adds ₦100,000. The fee
+ * can be paid in full or "small small" (a ₦100,000 deposit, then weekly).
  */
 
 const STEPS = ['Your details', 'Education', 'University and course', 'Documents', 'Review and pay'];
@@ -61,6 +66,7 @@ export default function ApplyPanel() {
   const leaving = useRef(false);
   const otherCounter = useRef(1);
   const [submitted, setSubmitted] = useState(null);
+  const [plan, setPlan] = useState('full');
   const [form, setForm] = useState(() => ({
     fullName: user?.full_name || '',
     phone: user?.phone || '',
@@ -75,6 +81,8 @@ export default function ApplyPanel() {
     programs: [],
     is_custom_course: false,
     custom_course: '',
+    // 2nd and 3rd choice schools: [{ country, institution, programs }].
+    extraChoices: [],
   }));
 
   const { institutions, loading: institutionsLoading } = useInstitutions(form.destinationCountry);
@@ -176,6 +184,10 @@ export default function ApplyPanel() {
 
   const hasDoc = (slot) => Boolean(docs[slot]?.file || docs[slot]?.remote);
 
+  // A 3rd choice school adds ₦100,000 to the 1st choice school's fee.
+  const extraNgn = !isCustomCourse && (form.extraChoices || []).length >= 2 ? EXTRA_SCHOOL_FEE_NGN : 0;
+  const totalNgn = (Number(quote?.amount_ngn) || 0) + extraNgn;
+
   const validate = (index) => {
     const found = {};
     if (index === 0) {
@@ -198,6 +210,12 @@ export default function ApplyPanel() {
       else if (!isCustomCourse && appliedAt(form.institution)) {
         found.course = `You have already applied to ${appliedAt(form.institution).institution}. Choose a different school.`;
       }
+      if (!isCustomCourse && !found.course) {
+        const problems = choiceErrors(form.extraChoices || []);
+        const taken = (form.extraChoices || []).find((choice) => choice.institution && appliedAt(choice.institution));
+        if (problems.some(Boolean)) found.choices = problems;
+        else if (taken) found.choices = [`You have already applied to ${appliedAt(taken.institution).institution}. Choose a different school.`];
+      }
     }
     if (index === 3) {
       if (!hasDoc('passport')) found.passport = 'Add your passport data page.';
@@ -207,7 +225,8 @@ export default function ApplyPanel() {
     }
     setErrors(found);
     if (Object.keys(found).length) {
-      toast.warning(Object.values(found)[0]);
+      const first = Object.values(found)[0];
+      toast.warning(Array.isArray(first) ? first.find(Boolean) : first);
       return false;
     }
     return true;
@@ -343,7 +362,11 @@ export default function ApplyPanel() {
         program_ids: isCustomCourse ? [] : form.programs.map((program) => program.id),
         is_custom_course: isCustomCourse,
         custom_course_name: isCustomCourse ? form.custom_course.trim() : '',
+        extra_choices: isCustomCourse ? [] : choicesPayload(form.extraChoices || []),
       });
+      // Each school has its own file and gets its own copy of the documents.
+      const schoolRefs = (created.fee_schools || []).map((item) => item.reference);
+      const references = schoolRefs.length ? schoolRefs : [created.reference];
 
       setPhase('uploading');
       const queue = hasDraft
@@ -359,8 +382,13 @@ export default function ApplyPanel() {
               .map((item) => ({ file: item.file, kind: 'other', name: item.name.trim() || 'Other document' })),
           ];
       const [settlement, results] = await Promise.all([
-        payments.checkout(created.reference).then((response) => response.data).catch(() => null),
-        Promise.allSettled(queue.map((item) => applications.uploadDocument(created.reference, item))),
+        payments
+          .checkout(created.reference, 'portal', { plan })
+          .then((response) => response.data)
+          .catch(() => null),
+        Promise.allSettled(
+          references.flatMap((reference) => queue.map((item) => applications.uploadDocument(reference, item))),
+        ),
       ]);
       const failed = results.filter((result) => result.status === 'rejected').length;
       if (failed) toast.warning(`${failed} document${failed === 1 ? '' : 's'} did not upload. Add them again from Application.`);
@@ -605,6 +633,24 @@ export default function ApplyPanel() {
               />
             </div>
             {errors.course ? <p className="nf-error">{errors.course}</p> : null}
+            {!isCustomCourse && form.institution ? (
+              <>
+                <p className="nf-lede nf-choices-lede">
+                  Apply to two schools for the price of one. A third school adds ₦100,000.
+                </p>
+                <ExtraChoices
+                  choices={form.extraChoices || []}
+                  destinations={destinations}
+                  taken={[
+                    form.institution,
+                    ...applicationsList.filter((item) => item.status !== 'rejected').map((item) => item.institution_slug),
+                  ].filter(Boolean)}
+                  onChange={(next) => update({ extraChoices: next, choices: undefined })}
+                  onNotify={(message, type) => toast.toast(message, type)}
+                  errors={errors.choices || []}
+                />
+              </>
+            ) : null}
             {footer(continueBtn)}
           </>
         ) : null}
@@ -714,6 +760,17 @@ export default function ApplyPanel() {
                   <small>{isCustomCourse ? form.custom_course : form.programs.map((program) => program.name).join(', ')}</small>
                 </dd>
               </div>
+              {!isCustomCourse
+                ? (form.extraChoices || []).map((choice, index) => (
+                    <div key={choice.institution || index} className="nf-review-wide">
+                      <dt>{index === 0 ? '2nd choice' : '3rd choice'}</dt>
+                      <dd>
+                        {choice.institutionName || choice.institution}
+                        <small>{(choice.programs || []).map((program) => program.name).join(', ')}</small>
+                      </dd>
+                    </div>
+                  ))
+                : null}
               {!isCustomCourse && form.programs[0]?.tuition ? (
                 <div>
                   <dt>Tuition</dt>
@@ -754,7 +811,29 @@ export default function ApplyPanel() {
                   <span>{formatFee(quote.processing_fee, quote.currency, quote.symbol)}</span>
                 </div>
               ) : null}
+              {!isCustomCourse && (form.extraChoices || []).length ? (
+                <div className="nf-fee-row">
+                  <span>Schools covered</span>
+                  <span>{1 + form.extraChoices.length}</span>
+                </div>
+              ) : null}
+              {!isCustomCourse && extraNgn ? (
+                <div className="nf-fee-row">
+                  <span>3rd choice school</span>
+                  <span>+{formatNaira(extraNgn)}</span>
+                </div>
+              ) : null}
+              {!feeFree && quoteState === 'ready' && quote ? (
+                <div className="nf-fee-row nf-fee-total">
+                  <span>Total to pay</span>
+                  <span>{formatNaira(totalNgn)}</span>
+                </div>
+              ) : null}
             </div>
+
+            {!feeFree && quoteState === 'ready' && quote ? (
+              <PlanChooser totalNgn={totalNgn} plan={plan} onChange={setPlan} name="apply-plan" />
+            ) : null}
 
             {footer(
               <button

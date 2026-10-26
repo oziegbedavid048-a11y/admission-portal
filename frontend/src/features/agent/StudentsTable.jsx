@@ -12,6 +12,8 @@ export const PAYMENT_LABEL = {
   paid: ['approved', 'Paid'],
   waived: ['approved', 'Waived'],
   review: ['pending', 'Awaiting confirmation'],
+  // Pay small small: the deposit is in, the rest is owed.
+  part_paid: ['pending', 'Part paid'],
   pending: ['na', 'Not paid'],
   unpaid: ['na', 'Not paid'],
 };

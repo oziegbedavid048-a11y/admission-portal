@@ -50,6 +50,11 @@ export default function PaymentReturnPage() {
         setState('settled');
         return;
       }
+      // Pay small small: this payment is in, the rest of the fee is still owed.
+      if (data.received) {
+        setState('part');
+        return;
+      }
       if (attempt.current >= ATTEMPTS) {
         setState('pending');
         return;
@@ -107,6 +112,22 @@ export default function PaymentReturnPage() {
                   now under review.
                 </p>
 
+                {continueLink}
+              </>
+            ) : null}
+
+            {state === 'part' ? (
+              <>
+                <span className="return-mark is-ok" aria-hidden="true">
+                  <Icon name="checkCircle" size={26} strokeWidth={2} />
+                </span>
+                <h1 className="return-title">Payment received</h1>
+                <p className="return-note">
+                  Thank you. Work on your application has started.{' '}
+                  {Number(result?.balance_ngn) > 0
+                    ? `₦${Number(result.balance_ngn).toLocaleString('en-NG')} of the application fee is still to pay. Your dashboard shows when the next payment is due.`
+                    : ''}
+                </p>
                 {continueLink}
               </>
             ) : null}

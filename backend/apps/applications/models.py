@@ -54,6 +54,20 @@ class Application(models.Model):
         related_name="applications",
         help_text="Set when a partner agent filed this application for the student.",
     )
+    # A 2nd or 3rd choice school paid for under the 1st choice's application
+    # fee. That application holds the payment; this one points to it, and its
+    # fee counts as paid exactly when that payment does. Empty on a 1st choice
+    # and on a file with its own fee.
+    fee_parent = models.ForeignKey(
+        "self",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="covered_applications",
+        help_text="The 1st choice application whose fee also covers this school.",
+    )
+    # 1 for the 1st choice (or a file on its own), 2 or 3 for the others.
+    choice_order = models.PositiveSmallIntegerField(default=1)
 
     # Step 1 — personal
     full_name = models.CharField(max_length=180)
@@ -193,6 +207,16 @@ class Application(models.Model):
         return f"{self.reference} · {self.full_name}"
 
     @property
+    def fee_owner(self):
+        """The application whose payment covers this one: itself, or its 1st choice."""
+        return self.fee_parent if self.fee_parent_id else self
+
+    @property
+    def fee_payment(self):
+        """The payment that covers this school's fee, wherever it is held."""
+        return getattr(self.fee_owner, "payment", None)
+
+    @property
     def current_stage(self):
         """The stage in progress, or the last completed one if none is live."""
         stages = list(self.stages.all())
@@ -219,13 +243,10 @@ class Application(models.Model):
             {
                 "key": "payment",
                 "label": "Application fee",
+                # A deposit counts: work starts once it is in (pay small small).
                 "verified": bool(
                     self.payment_verified
-                    or (
-                        hasattr(self, "payment")
-                        and getattr(self, "payment")
-                        and getattr(self.payment, "status", "") in ("paid", "waived")
-                    )
+                    or getattr(self.fee_payment, "status", "") in ("paid", "waived", "part_paid")
                 ),
                 "description": "Application fee paid and confirmed.",
             },

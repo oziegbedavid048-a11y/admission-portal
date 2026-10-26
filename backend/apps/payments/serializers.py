@@ -9,6 +9,9 @@ class PaymentSerializer(serializers.ModelSerializer):
     # a receipt can state the number that will appear on the statement.
     total_ngn = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
     display_total = serializers.CharField(read_only=True)
+    balance_ngn = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
+    # Pay small small: the schedule and what is due next.
+    plan_summary = serializers.SerializerMethodField()
 
     class Meta:
         model = Payment
@@ -32,8 +35,17 @@ class PaymentSerializer(serializers.ModelSerializer):
             "transfer_bank",
             "created_at",
             "paid_at",
+            "plan",
+            "paid_ngn",
+            "balance_ngn",
+            "plan_summary",
         )
         read_only_fields = fields
+
+    def get_plan_summary(self, obj):
+        from .plans import plan_summary
+
+        return plan_summary(obj)
 
 
 class CheckoutSerializer(serializers.Serializer):
@@ -46,3 +58,8 @@ class CheckoutSerializer(serializers.Serializer):
     # Where Paystack sends the payer back to: the applicant's page, or the
     # agent portal when an agent paid for a student.
     return_to = serializers.ChoiceField(choices=("portal", "agent"), default="portal")
+    # How to pay: in full, or "pay small small" (a deposit and weekly
+    # instalments). Only taken before anything has been paid.
+    plan = serializers.ChoiceField(choices=Payment.Plan.choices, required=False)
+    # Once paying in instalments: the next one, or the whole balance at once.
+    pay = serializers.ChoiceField(choices=("next", "balance"), default="next")

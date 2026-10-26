@@ -65,6 +65,10 @@ def fee_already_confirmed(application):
     payment = getattr(application, "payment", None)
     if payment is not None and payment.status in {Payment.Status.PAID, Payment.Status.WAIVED}:
         return False
+    if payment is not None and (payment.status == Payment.Status.PART_PAID or payment.paid_ngn > 0):
+        # Pay small small: the deposit ticks the fee check, and the rest is
+        # still owed, so the next instalment must be payable.
+        return False
     return bool(
         application.payment_verified
         or application.commissions.filter(kind=Commission.Kind.REGISTRATION).exists()
@@ -77,60 +81,74 @@ ALREADY_CONFIRMED = (
 
 
 def quote_for(application):
-    """What this application fee is, in the school's currency and in Naira.
+    """What this application's fee is, in the school's currency and in Naira.
 
-    **The fee belongs to the school applied to, and is shown in that school's
-    currency**: a French school's fee in euros, a Canadian one's in Canadian
-    dollars, whatever country the applicant is from. It comes from the
-    institution row on this application and from nowhere else, which is what
-    stops one school's fee reaching another school's applicant.
-
-    The card is debited in Naira, so the fee is converted at the rate of the
-    moment and Paystack's own cut is worked out on that Naira figure; Paystack's
-    checkout shows the Naira total. A bank transfer, open only to payers in
-    Nigeria, is sent in Naira too: the amount to send is the fee in Naira
-    rounded up to the next 100.
+    **The fee belongs to the school applied to**, shown in its currency and
+    charged in Naira at the rate of the moment (never below its Naira minimum).
+    One fee covers the 1st and 2nd choice schools, priced at the 1st choice; a
+    3rd choice adds 100,000 Naira (see plans.py). A 2nd or 3rd choice file is
+    quoted as its 1st choice. A bank transfer, open only to payers in Nigeria,
+    is the Naira figure rounded up to the next 100.
     """
-    institution = application.institution
+    from . import plans
+
+    primary = application.fee_owner
+    schools = plans.schools_on_fee(primary)
+    names = [app.institution.name if app.institution else app.custom_course_name for app in schools]
+    pricing = plans.pricing_application(primary)
+    institution = pricing.institution if pricing is not None else primary.institution
     fee_currency = (
         (institution.application_fee_currency or institution.currency) if institution is not None else "NGN"
     ).upper()
     symbol = currency_symbol(fee_currency)
+    base = {
+        "currency": fee_currency,
+        "symbol": symbol,
+        "institution": institution.name if institution else "",
+        "institution_fee_currency": fee_currency,
+        "fee_reference": primary.reference,
+        "schools": names,
+        "school_count": len(schools),
+    }
 
-    if institution is None or institution.application_fee <= 0:
+    if pricing is None:
+        zero = Decimal("0.00")
         return {
-            "currency": fee_currency,
-            "symbol": symbol,
-            "amount": Decimal("0.00"),
-            "processing_fee": Decimal("0.00"),
-            "amount_ngn": Decimal("0.00"),
-            "processing_fee_ngn": Decimal("0.00"),
-            "total_ngn": Decimal("0.00"),
-            "transfer_amount_ngn": Decimal("0.00"),
+            **base,
+            "amount": zero,
+            "processing_fee": zero,
+            "amount_ngn": zero,
+            "processing_fee_ngn": zero,
+            "total_ngn": zero,
+            "transfer_amount_ngn": zero,
             "fx_rate": Decimal("1"),
-            "institution": institution.name if institution else "",
-            "institution_fee": Decimal("0.00"),
-            "institution_fee_currency": fee_currency,
+            "institution_fee": zero,
+            "extra_school_ngn": zero,
+            "instalments": [],
             "waived": True,
         }
 
-    rate, fee_ngn = institution.application_fee_in_naira()
+    rate, school_fee_ngn = institution.application_fee_in_naira()
+    extra_ngn = plans.extra_fee_ngn(primary)
+    fee_ngn = school_fee_ngn + extra_ngn
     gateway_fee_ngn = processing_fee_ngn(fee_ngn)
     return {
-        "currency": fee_currency,
-        "symbol": symbol,
-        "amount": Decimal(institution.application_fee).quantize(Decimal("0.01")),
-        # Paystack's cut, worked out in Naira and stated in the school's
-        # currency at the same rate, so the two totals describe one charge.
+        **base,
+        # The school's fee in its own currency, plus a 3rd school's extra at the
+        # same rate, so the figure shown adds up to the Naira charged.
+        "amount": (Decimal(institution.application_fee) + extra_ngn / rate).quantize(Decimal("0.01")),
         "processing_fee": (gateway_fee_ngn / rate).quantize(Decimal("0.01")),
         "amount_ngn": fee_ngn,
         "processing_fee_ngn": gateway_fee_ngn,
         "total_ngn": fee_ngn + gateway_fee_ngn,
         "transfer_amount_ngn": transfer_amount_ngn(fee_ngn),
         "fx_rate": rate,
-        "institution": institution.name,
         "institution_fee": institution.application_fee,
-        "institution_fee_currency": fee_currency,
+        "extra_school_ngn": extra_ngn,
+        "instalments": [
+            {"number": number, "amount_ngn": amount}
+            for number, amount in enumerate(plans.instalment_amounts(fee_ngn), start=1)
+        ],
         "waived": False,
     }
 
@@ -141,6 +159,76 @@ def transfer_amount_ngn(fee_ngn):
     Never short of the fee, and a round figure to type into a banking app.
     """
     return Decimal(math.ceil(Decimal(fee_ngn) / 100) * 100).quantize(Decimal("0.01"))
+
+
+class ChargeRefused(Exception):
+    """Nothing can be charged now; carries the response to give."""
+
+    def __init__(self, response):
+        super().__init__(response.data.get("detail", ""))
+        self.response = response
+
+
+def open_charge(application, gateway_name, plan=None, pay="next", status_after=None):
+    """Price the fee and record the amount to ask for now. Call inside a transaction.
+
+    Works on the 1st choice application, which holds the payment for every
+    school the fee covers. `plan` ("full" or "instalments") is only taken while
+    nothing has been paid yet; after that the plan is fixed and `pay` chooses
+    between the next instalment and the whole balance. Returns
+    (payment, charge, quote); raises ChargeRefused when there is nothing to
+    charge (already paid, a transfer with the desk, fee-free, confirmed by hand).
+    """
+    from . import plans
+    from .models import PaymentCharge
+
+    primary = application.fee_owner
+    locked = Payment.objects.select_for_update().filter(application=primary).first()
+    if locked is not None:
+        primary.payment = locked
+    existing = locked
+
+    if existing and existing.status in {Payment.Status.PAID, Payment.Status.WAIVED}:
+        raise ChargeRefused(Response({"payment": PaymentSerializer(existing).data, "already_settled": True}))
+    if fee_already_confirmed(primary):
+        raise ChargeRefused(Response({"detail": ALREADY_CONFIRMED}, status=status.HTTP_409_CONFLICT))
+    if existing and existing.status == Payment.Status.REVIEW:
+        raise ChargeRefused(
+            Response(
+                {"detail": "A bank transfer for this application is waiting for confirmation."},
+                status=status.HTTP_409_CONFLICT,
+            )
+        )
+
+    quote = quote_for(primary)
+    payment = existing or Payment(application=primary)
+    if payment.paid_ngn <= 0:
+        # Nothing in yet: price it afresh and take the chosen plan.
+        _price(payment, quote)
+        if plan in (Payment.Plan.FULL, Payment.Plan.INSTALMENTS):
+            payment.plan = plan
+    payment.gateway = gateway_name
+    if quote["waived"]:
+        return payment, None, quote
+
+    wanted = plans.charge_for(payment, "balance" if plan == Payment.Plan.FULL else pay)
+    if wanted is None:
+        raise ChargeRefused(
+            Response({"detail": "This application fee has already been paid."}, status=status.HTTP_409_CONFLICT)
+        )
+    kind, amount = wanted
+    payment.status = status_after or (Payment.Status.PART_PAID if payment.paid_ngn > 0 else Payment.Status.PENDING)
+    payment.save()
+    extra = processing_fee_ngn(amount) if gateway_name == Payment.Gateway.PAYSTACK else Decimal("0.00")
+    charge = PaymentCharge.objects.create(
+        payment=payment,
+        kind=kind,
+        amount_ngn=amount,
+        expected_ngn=amount + extra,
+        gateway=gateway_name,
+        status=PaymentCharge.Status.PENDING,
+    )
+    return payment, charge, quote
 
 
 def _price(payment, quote):
@@ -208,6 +296,7 @@ class QuoteView(APIView):
             return Response(
                 {"detail": "No such application."}, status=status.HTTP_404_NOT_FOUND
             )
+        application = application.fee_owner
         quote = quote_for(application)
         quote["total"] = quote["amount"] + quote["processing_fee"]
         # Stated alongside the converted total so the applicant can see the figure
@@ -222,6 +311,12 @@ class QuoteView(APIView):
         # Account numbers go only to payers who may transfer.
         quote["transfer_accounts"] = company_accounts() if allowed else []
         quote["transfer_account"] = transfer_account() if allowed else None
+        # Pay small small: where the fee stands once something is paid.
+        from . import plans
+
+        payment = getattr(application, "payment", None)
+        quote["plan"] = plans.plan_summary(payment) if payment is not None and payment.paid_ngn > 0 else None
+        quote["payment_status"] = payment.status if payment is not None else ""
         return Response(quote)
 
 
@@ -260,44 +355,32 @@ class CheckoutView(APIView):
                 # Only a file the caller may already see: their own, a student they
                 # filed, or any file for staff. Someone else's reference is "not
                 # found", exactly as if it did not exist, so it cannot be used to
-                # read that file or to reset its payment.
-                application = visible_applications(request.user).filter(
+                # read that file or to reset its payment. A 2nd or 3rd choice is
+                # paid through its 1st choice, which holds the one fee.
+                found = visible_applications(request.user).filter(
                     reference=serializer.validated_data["application"]
                 ).first()
-                if application is None:
+                if found is None:
                     return Response(
                         {"detail": "No such application."}, status=status.HTTP_404_NOT_FOUND
                     )
-
-                existing = getattr(application, "payment", None)
-                if existing and existing.status in {Payment.Status.PAID, Payment.Status.WAIVED}:
-                    # Already settled. Saying so is not an error, and it stops a retried
-                    # request from opening a second charge.
-                    return Response(
-                        {"payment": PaymentSerializer(existing).data, "already_settled": True}
+                application = found.fee_owner
+                try:
+                    payment, charge, quote = open_charge(
+                        application,
+                        Payment.Gateway.PAYSTACK,
+                        plan=serializer.validated_data.get("plan"),
+                        pay=serializer.validated_data["pay"],
                     )
-
-                if fee_already_confirmed(application):
-                    return Response({"detail": ALREADY_CONFIRMED}, status=status.HTTP_409_CONFLICT)
-
-                if existing and existing.status == Payment.Status.REVIEW:
-                    # A transfer receipt is already with the desk. Starting a card
-                    # payment on top of it could take the fee twice.
-                    return Response(
-                        {"detail": "A bank transfer for this student is waiting for confirmation."},
-                        status=status.HTTP_409_CONFLICT,
-                    )
-
-                quote = quote_for(application)
-                payment = existing or Payment(application=application)
-                _price(payment, quote)
-                payment.gateway = Payment.Gateway.PAYSTACK
-                payment.status = Payment.Status.PENDING
-                payment.save()
+                except ChargeRefused as refused:
+                    return refused.response
 
                 if quote["waived"]:
+                    payment.save()
                     payment.mark_waived()
                     services.sync_payment_checkpoint(application)
+                    for covered in application.covered_applications.all():
+                        services.sync_payment_checkpoint(covered)
                     reason = (
                         "Application fee waived for custom course review."
                         if getattr(application, "is_custom_course", False)
@@ -308,7 +391,7 @@ class CheckoutView(APIView):
                         reason,
                         send_email=False,
                     )
-                    application = Application.objects.get(pk=application.pk)
+                    application = Application.objects.get(pk=found.pk)
                     return Response(
                         {
                             "payment": PaymentSerializer(payment).data,
@@ -342,16 +425,18 @@ class CheckoutView(APIView):
                 payment,
                 email=payer_email(application),
                 callback_url=callback_url,
+                charge=charge,
             )
 
-            services.notify(
-                application,
-                f"Application fee of {payment.display_total} is outstanding. "
-                "Pay it to complete your application.",
-                send_email=False,
-            )
+            if payment.paid_ngn <= 0:
+                services.notify(
+                    application,
+                    f"Application fee of ₦{payment.amount_ngn:,.0f} is outstanding. "
+                    "Pay it to complete your application.",
+                    send_email=False,
+                )
 
-            application = Application.objects.get(pk=application.pk)
+            application = Application.objects.get(pk=found.pk)
             return Response(
                 {
                     "payment": PaymentSerializer(payment).data,
@@ -414,30 +499,34 @@ class TransferReceiptView(APIView):
             return Response({"receipt": ["Upload the transfer receipt."]}, status=status.HTTP_400_BAD_REQUEST)
         validate_upload(receipt, settings.MAX_UPLOAD_SIZE_MB)
 
-        existing = getattr(application, "payment", None)
-        if existing and existing.status in {Payment.Status.PAID, Payment.Status.WAIVED}:
-            return Response(
-                {"detail": "This application fee is already settled."}, status=status.HTTP_409_CONFLICT
+        application = application.fee_owner
+        try:
+            payment, charge, quote = open_charge(
+                application,
+                Payment.Gateway.TRANSFER,
+                plan=request.data.get("plan") or None,
+                pay=request.data.get("pay") if request.data.get("pay") in ("next", "balance") else "next",
+                status_after=Payment.Status.REVIEW,
             )
-        if fee_already_confirmed(application):
-            return Response({"detail": ALREADY_CONFIRMED}, status=status.HTTP_409_CONFLICT)
-
-        quote = quote_for(application)
-        if quote["waived"]:
+        except ChargeRefused as refused:
+            if refused.response.data.get("already_settled"):
+                return Response(
+                    {"detail": "This application fee is already settled."}, status=status.HTTP_409_CONFLICT
+                )
+            return refused.response
+        if quote["waived"] or charge is None:
             return Response(
                 {"detail": "This university does not charge an application fee."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        payment = existing or Payment(application=application)
-        _price(payment, quote)
-        # A transfer carries no gateway fee, and what is expected in the account
-        # is the rounded Naira figure the payer was told to send.
-        payment.processing_fee = Decimal("0.00")
-        payment.processing_fee_ngn = Decimal("0.00")
-        payment.amount_ngn = quote["transfer_amount_ngn"]
-        payment.gateway = Payment.Gateway.TRANSFER
-        payment.status = Payment.Status.REVIEW
+        # A transfer carries no gateway fee. The charge is what is expected in
+        # the account; the desk confirms it against the receipt.
+        if payment.paid_ngn <= 0:
+            payment.processing_fee = Decimal("0.00")
+            payment.processing_fee_ngn = Decimal("0.00")
+        charge.status = charge.Status.REVIEW
+        charge.save(update_fields=["status"])
         payment.receipt = receipt
         payment.receipt_submitted_at = timezone.now()
         payment.transfer_bank = f"{bank['bank']} · {bank['account_number']}"
@@ -446,7 +535,7 @@ class TransferReceiptView(APIView):
 
         services.notify(
             application,
-            f"Bank transfer of {payment.display_total} received for review. "
+            f"Bank transfer of ₦{charge.amount_ngn:,.0f} received for review. "
             "We confirm it once the money reaches our account.",
             send_email=False,
         )
@@ -521,7 +610,7 @@ class PaystackWebhookView(APIView):
             )
             return ok
 
-        if not gateway.amount_covers(payment, data.get("amount")):
+        if not gateway.amount_covers(payment, data.get("amount"), data.get("reference")):
             logger.error(
                 "Webhook for %s collected %r kobo, short of the %s NGN quoted.",
                 payment.reference, data.get("amount"), payment.total_ngn,
@@ -563,6 +652,9 @@ class PaymentStatusView(APIView):
             ).first()
         else:
             application = Application.objects.filter(reference=reference).first()
+        if application is not None:
+            # A 2nd or 3rd choice is paid through its 1st choice.
+            application = application.fee_owner
 
         if application is None or not hasattr(application, "payment"):
             return Response(
@@ -583,12 +675,12 @@ class PaymentStatusView(APIView):
                 )
 
         settled_now = False
-        if payment.status == Payment.Status.PENDING and payment.gateway_reference:
+        if payment.status in {Payment.Status.PENDING, Payment.Status.PART_PAID} and payment.gateway_reference:
             data = gateway.verify(payment.gateway_reference)
             if (
                 gateway.transaction_is_settled(data)
                 and gateway.currency_is_expected(data)
-                and gateway.amount_covers(payment, (data or {}).get("amount"))
+                and gateway.amount_covers(payment, (data or {}).get("amount"), payment.gateway_reference)
             ):
                 settled_now = settle(
                     payment, Payment.Gateway.PAYSTACK, payment.gateway_reference
@@ -600,12 +692,23 @@ class PaymentStatusView(APIView):
                 )
 
         is_settled = payment.status in {Payment.Status.PAID, Payment.Status.WAIVED}
+        # Pay small small: this payment went through, but more is still owed.
+        part_paid = payment.status == Payment.Status.PART_PAID
+        # Whether the charge this return is about (Paystack's reference) is in,
+        # which "part paid" alone cannot say once an earlier deposit is in.
+        attempt = (request.query_params.get("reference") or "").strip() or payment.gateway_reference
+        received = is_settled or payment.charges.filter(
+            gateway_reference=attempt, status="paid"
+        ).exists()
 
         if request.user.is_authenticated:
             return Response(
                 {
                     "payment": PaymentSerializer(payment).data,
                     "settled": is_settled,
+                    "part_paid": part_paid,
+                    "received": received,
+                    "balance_ngn": payment.balance_ngn,
                     "settled_now": settled_now,
                 }
             )
@@ -614,6 +717,9 @@ class PaymentStatusView(APIView):
         return Response(
             {
                 "settled": is_settled,
+                "part_paid": part_paid,
+                "received": received,
+                "balance_ngn": payment.balance_ngn,
                 "settled_now": settled_now,
                 "display_total": payment.display_total,
                 "application": application.reference,
@@ -631,6 +737,8 @@ class ReceiptView(APIView):
         application = visible_applications(request.user).filter(
             reference=reference
         ).first()
+        if application is not None:
+            application = application.fee_owner
         if application is None or not hasattr(application, "payment"):
             return Response(
                 {"detail": "No receipt for this application yet."},

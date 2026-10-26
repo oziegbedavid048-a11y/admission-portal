@@ -1810,3 +1810,12 @@ html { scroll-behavior: smooth; }
   color: var(--g-ink);
   font-size: 14px;
 }
+
+/* The applicant's fee card: the plan choice sits under the text, and a fee
+   paid small small offers the next payment and the balance side by side. */
+.gx-fee-card .plan-chooser { margin-top: 16px; text-align: left; }
+.gx-fee-actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; }
+@media (max-width: 640px) {
+  .gx-fee-actions { justify-content: stretch; }
+  .gx-fee-actions .gx-btn { width: 100%; }
+}

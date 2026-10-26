@@ -10,6 +10,7 @@ import { useToast } from '../../context/ToastContext';
 import { useCatalog, useInstitutions } from '../../hooks/useCatalog';
 import { ALL_WORLD_COUNTRIES } from '../../lib/countries';
 import ProgramPicker from '../wizard/ProgramPicker';
+import ExtraChoices, { EXTRA_SCHOOL_FEE_NGN, choiceErrors, choicesPayload } from '../wizard/ExtraChoices';
 import EuropeanCvTip from '../../components/ui/EuropeanCvTip';
 import FeePayment from './FeePayment';
 import { downloadStudentSummary } from './studentSummary';
@@ -33,6 +34,8 @@ const BLANK = {
   programs: [],
   is_custom_course: false,
   custom_course: '',
+  // 2nd and 3rd choice schools, under the one application fee.
+  extraChoices: [],
 };
 
 // The three named documents. Anything else goes under Other documents.
@@ -89,7 +92,7 @@ export default function AgentNewStudent() {
   const navigate = useNavigate();
   const location = useLocation();
   const toast = useToast();
-  const { originNames } = useCatalog();
+  const { originNames, destinations } = useCatalog();
   const { institutions, loading: institutionsLoading } = useInstitutions(form.destinationCountry);
 
   const safeInstitutions = Array.isArray(institutions) ? institutions : [];
@@ -189,6 +192,8 @@ export default function AgentNewStudent() {
       } else {
         if (!form.institution) return toast.warning('Choose a university.') || false;
         if (!form.programs.length) return toast.warning('Choose at least one course.') || false;
+        const problem = choiceErrors(form.extraChoices || []).find(Boolean);
+        if (problem) return toast.warning(problem) || false;
       }
     }
     if (which === 4) {
@@ -326,6 +331,7 @@ export default function AgentNewStudent() {
         program_ids: isCustomCourse ? [] : form.programs.map((program) => program.id),
         is_custom_course: isCustomCourse,
         custom_course_name: isCustomCourse ? form.custom_course.trim() : '',
+        extra_choices: isCustomCourse ? [] : choicesPayload(form.extraChoices || []),
         notes: '',
       };
 
@@ -348,8 +354,11 @@ export default function AgentNewStudent() {
             .map((item) => ({ file: item.file, kind: 'other', name: item.name.trim() || 'Other document' })),
         ];
         if (queue.length) {
+          // Each school (2nd and 3rd choices too) has its own file and copy.
+          const references = (student.fee_schools || []).map((item) => item.reference);
+          const targets = references.length ? references : [student.reference];
           const results = await Promise.allSettled(
-            queue.map((item) => applications.uploadDocument(student.reference, item)),
+            targets.flatMap((reference) => queue.map((item) => applications.uploadDocument(reference, item))),
           );
           const failed = results.filter((result) => result.status === 'rejected').length;
           if (failed) toast.warning(`${failed} document(s) did not upload. Add them from the student’s file.`);
@@ -641,6 +650,20 @@ export default function AgentNewStudent() {
                 onNotify={(message, type) => toast.toast(message, type)}
               />
             </div>
+            {!isCustomCourse && form.institution ? (
+              <>
+                <p className="nf-lede nf-choices-lede">
+                  Two schools for the price of one: add a 2nd choice at no extra cost. A third adds ₦100,000.
+                </p>
+                <ExtraChoices
+                  choices={form.extraChoices || []}
+                  destinations={destinations}
+                  taken={[form.institution]}
+                  onChange={(next) => update({ extraChoices: next })}
+                  onNotify={(message, type) => toast.toast(message, type)}
+                />
+              </>
+            ) : null}
             {footer(() => goTo(2), continueBtn(4))}
           </>
         ) : null}
@@ -751,6 +774,17 @@ export default function AgentNewStudent() {
                   </small>
                 </dd>
               </div>
+              {!isCustomCourse
+                ? (form.extraChoices || []).map((choice, index) => (
+                    <div key={choice.institution || index} className="nf-review-wide">
+                      <dt>{index === 0 ? '2nd choice' : '3rd choice'}</dt>
+                      <dd>
+                        {choice.institutionName || choice.institution}
+                        <small>{(choice.programs || []).map((program) => program.name).join(' and ')}</small>
+                      </dd>
+                    </div>
+                  ))
+                : null}
               <div className="nf-review-wide">
                 <dt>Documents</dt>
                 <dd>
@@ -771,7 +805,20 @@ export default function AgentNewStudent() {
                   {!quote ? 'Calculating' : quote.waived ? '' : formatFee(quote.amount, quote.currency, quote.symbol)}
                 </span>
               </div>
-              {quote && !quote.waived ? <p className="nf-fee-note">Paid on the next step.</p> : null}
+              {quote && !quote.waived && !isCustomCourse && (form.extraChoices || []).length >= 2 ? (
+                <div className="nf-fee-row">
+                  <span>3rd choice school</span>
+                  <span>+₦{EXTRA_SCHOOL_FEE_NGN.toLocaleString('en-NG')}</span>
+                </div>
+              ) : null}
+              {quote && !quote.waived ? (
+                <p className="nf-fee-note">
+                  {(form.extraChoices || []).length
+                    ? `Covers ${1 + form.extraChoices.length} schools. `
+                    : ''}
+                  Paid on the next step, in full or small small.
+                </p>
+              ) : null}
             </div>
 
             {footer(

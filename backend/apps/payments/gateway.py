@@ -80,7 +80,7 @@ def _call(path, payload=None, method="GET"):
         return json.loads(response.read().decode())
 
 
-def initiate(payment, email, callback_url):
+def initiate(payment, email, callback_url, charge=None):
     """Ask Paystack for somewhere to send the applicant to pay.
 
     Returns the URL to redirect to, or None when there is no provider or the call
@@ -96,6 +96,13 @@ def initiate(payment, email, callback_url):
 
     reference = payment.new_gateway_reference()
     payment.save(update_fields=["gateway_reference"])
+    # The charge this attempt pays (pay small small, or the fee in full): it
+    # remembers the reference, so the money is counted at the amount asked for
+    # here however late Paystack confirms it.
+    if charge is not None:
+        charge.gateway_reference = reference
+        charge.save(update_fields=["gateway_reference"])
+    amount_ngn = charge.expected_ngn if charge is not None else payment.total_ngn
 
     try:
         data = _call(
@@ -104,7 +111,7 @@ def initiate(payment, email, callback_url):
                 # Paystack counts in kobo, and this is the whole total: the fee
                 # plus the gateway's own cut, which is what the applicant was
                 # shown.
-                "amount": minor_units(payment.total_ngn),
+                "amount": minor_units(amount_ngn),
                 "email": email,
                 "currency": "NGN",
                 "reference": reference,
@@ -112,6 +119,7 @@ def initiate(payment, email, callback_url):
                 "metadata": {
                     "application": payment.application.reference,
                     "payment": payment.reference,
+                    "charge": getattr(charge, "kind", "full"),
                 },
             },
             method="POST",
@@ -198,7 +206,22 @@ def transaction_is_settled(data):
     return bool(data) and data.get("status") == "success"
 
 
-def amount_covers(payment, minor):
+def expected_ngn(payment, reference=None):
+    """What the attempt with this reference asked for, in Naira.
+
+    The charge opened for that attempt says; a payment from before charges were
+    recorded is asked for whatever is still owed, as before.
+    """
+    from .models import PaymentCharge
+
+    if reference:
+        charge = PaymentCharge.objects.filter(payment=payment, gateway_reference=reference).first()
+        if charge is not None:
+            return charge.expected_ngn
+    return payment.total_ngn - Decimal(payment.paid_ngn or 0)
+
+
+def amount_covers(payment, minor, reference=None):
     """Whether what Paystack collected covers what was quoted.
 
     A signature proves the message came from Paystack. It does not prove the
@@ -213,7 +236,7 @@ def amount_covers(payment, minor):
         collected = (Decimal(minor) / 100).quantize(Decimal("0.01"))
     except (TypeError, ValueError, ArithmeticError):
         return False
-    return collected >= payment.total_ngn
+    return collected >= expected_ngn(payment, reference)
 
 
 def currency_is_expected(data):

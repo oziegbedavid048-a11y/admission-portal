@@ -701,3 +701,30 @@ a.ag-text-btn { text-decoration: none; }
 /* Paystack account check on the payout account. */
 .ap-name-check.is-ok { color: var(--g-pos, #0b7a4b); font-weight: 600; }
 .ap-name-check.is-bad { color: var(--g-neg); font-weight: 600; }
+
+/* ── 2nd and 3rd choice schools (ExtraChoices.jsx) ─────────────────── */
+.nf-choices-lede { margin: 24px 0 12px; font-weight: 600; color: var(--g-ink); }
+.nf-choices { display: grid; gap: 14px; }
+.nf-choice {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--g-line);
+  border-radius: var(--g-r-md);
+  background: var(--g-surface-2);
+  min-width: 0;
+}
+.nf-choice.has-error { border-color: var(--g-neg-line); }
+.nf-choice-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.nf-choice-title { display: block; font-size: 15px; color: var(--g-ink); }
+.nf-choice-note { display: block; margin-top: 2px; font-size: 13px; color: var(--g-ink-3); }
+.nf-choice-add { justify-self: start; }
+
+/* ── Pay in full or small small (PlanChooser.jsx), and the progress of a
+   fee paid small small (FeePayment.jsx) ─────────────────────────────── */
+.plan-chooser { margin-top: 4px; }
+.pay-progress { display: grid; gap: 14px; }
+@media (max-width: 640px) {
+  .pay-methods { grid-template-columns: 1fr; }
+  .nf-choice-add { justify-self: stretch; }
+}

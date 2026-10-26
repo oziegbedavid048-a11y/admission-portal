@@ -19,6 +19,10 @@ export default function ProgramPicker({
   selection = {},
   onChange,
   onNotify,
+  // A 2nd or 3rd choice must be a partner school: no typed-in course.
+  allowCustom = true,
+  // Several pickers on one page each need their own field ids.
+  idPrefix = 'picker',
 }) {
   const safeInstitutions = Array.isArray(institutions) ? institutions : [];
 
@@ -45,7 +49,7 @@ export default function ProgramPicker({
   const chosen = selection.programs || [];
   const isChosen = (program) => chosen.some((item) => item.id === program.id);
   const atLimit = chosen.length >= MAX_COURSES;
-  const isCustomMode = !safeInstitutions.length || Boolean(selection?.is_custom_course);
+  const isCustomMode = allowCustom && (!safeInstitutions.length || Boolean(selection?.is_custom_course));
 
   const pickInstitution = (slug) => {
     if (!slug) {
@@ -166,11 +170,11 @@ export default function ProgramPicker({
     <div className="picker-dropdown-mode">
       {/* 1. School Dropdown */}
       <div className="form-group">
-        <label className="form-label" htmlFor="picker_school">
+        <label className="form-label" htmlFor={`${idPrefix}_school`}>
           Institution / School <span className="req">*</span>
         </label>
         <select
-          id="picker_school"
+          id={`${idPrefix}_school`}
           className="form-control"
           value={selection.institution || ''}
           onChange={(e) => pickInstitution(e.target.value)}
@@ -187,7 +191,7 @@ export default function ProgramPicker({
       {/* 2. Course Dropdown */}
       <div className="form-group">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-          <label className="form-label" htmlFor="picker_course" style={{ margin: 0 }}>
+          <label className="form-label" htmlFor={`${idPrefix}_course`} style={{ margin: 0 }}>
             Course / Programme <span className="req">*</span>
           </label>
           {chosen.length > 0 && (
@@ -198,7 +202,7 @@ export default function ProgramPicker({
         </div>
 
         <select
-          id="picker_course"
+          id={`${idPrefix}_course`}
           className="form-control"
           value=""
           disabled={!institution || atLimit}
@@ -268,6 +272,7 @@ export default function ProgramPicker({
       )}
 
       {/* Clean Link: Type Manually */}
+      {allowCustom ? (
       <div style={{ marginTop: 12 }}>
         <button
           type="button"
@@ -293,6 +298,7 @@ export default function ProgramPicker({
           Can&apos;t find your institution or course? Type manually
         </button>
       </div>
+      ) : null}
     </div>
   );
 }

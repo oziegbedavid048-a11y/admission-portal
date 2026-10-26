@@ -89,6 +89,7 @@ class SupervisorScopedMixin:
                 "destination_country",
                 "origin_country",
                 "payment",
+                "fee_parent__payment",
             )
             .prefetch_related("programs", "letters")
             .order_by("-submitted_at")
@@ -151,7 +152,7 @@ class SupervisorOverviewView(SupervisorScopedMixin, APIView):
         paid = [
             s
             for s in students
-            if getattr(s, "payment", None) and s.payment.status == Payment.Status.PAID
+            if s.fee_payment is not None and s.fee_payment.status == Payment.Status.PAID
         ]
 
         # One stage per student, the furthest reached, so the stages add up to

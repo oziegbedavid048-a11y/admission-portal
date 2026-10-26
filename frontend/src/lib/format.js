@@ -233,6 +233,8 @@ export const STATUS_LABELS = {
   new: ['na', 'Not started'],
   Paid: ['completed', 'Paid'],
   waived: ['approved', 'Waived'],
+  // Pay small small: the deposit is in, the rest of the fee is owed.
+  part_paid: ['pending', 'Part paid'],
 };
 
 export function statusTone(status) {

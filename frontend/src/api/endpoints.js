@@ -121,14 +121,23 @@ export const applications = {
 export const payments = {
   quote: (reference) => api.get(`/payments/quote/${reference}/`),
   // Which provider collects the money is a server decision, not the browser's.
-  checkout: (reference, returnTo = 'portal') =>
-    api.post('/payments/checkout/', { application: reference, return_to: returnTo }),
+  // `plan` ("full" or "instalments") is taken before anything is paid; after
+  // that `pay` is "next" (the next instalment) or "balance" (everything left).
+  checkout: (reference, returnTo = 'portal', { plan, pay } = {}) =>
+    api.post('/payments/checkout/', {
+      application: reference,
+      return_to: returnTo,
+      ...(plan ? { plan } : {}),
+      ...(pay ? { pay } : {}),
+    }),
   // A bank transfer to one of the company accounts: the receipt goes to the
   // desk, and the fee counts as paid only once they confirm the money arrived.
-  transfer: (reference, { receipt, bank }) => {
+  transfer: (reference, { receipt, bank, plan, pay }) => {
     const form = new FormData();
     form.append('receipt', receipt);
     form.append('bank', bank);
+    if (plan) form.append('plan', plan);
+    if (pay) form.append('pay', pay);
     return api.post(`/payments/transfer/${reference}/`, form, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
@@ -151,7 +160,8 @@ export const payments = {
     api.get(`/payments/pay/${code}/`, {
       params: gatewayReference ? { reference: gatewayReference } : undefined,
     }),
-  startPayLink: (code) => api.post(`/payments/pay/${code}/`),
+  startPayLink: (code, { plan, pay } = {}) =>
+    api.post(`/payments/pay/${code}/`, { ...(plan ? { plan } : {}), ...(pay ? { pay } : {}) }),
 };
 
 export const partners = {

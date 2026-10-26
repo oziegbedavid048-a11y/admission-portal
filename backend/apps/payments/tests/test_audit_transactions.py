@@ -83,7 +83,7 @@ class CheckoutOutsideTransactionTests(TestCase):
         outer_depth = len(connection.atomic_blocks)
         depth_at_call = []
 
-        def initiate(payment, email, callback_url):
+        def initiate(payment, email, callback_url, charge=None):
             depth_at_call.append(len(connection.atomic_blocks))
             return "https://checkout.paystack.test/x"
 

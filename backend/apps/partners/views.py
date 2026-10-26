@@ -266,7 +266,7 @@ class AgentStudentViewSet(AgentScopedMixin, viewsets.ModelViewSet):
         return (
             Application.objects.filter(submitted_by_agent=self.agent)
             .select_related("institution", "origin_country", "destination_country")
-            .select_related("payment")
+            .select_related("payment", "fee_parent", "fee_parent__payment")
             .prefetch_related("programs", "documents", "commissions", "letters")
         )
 
@@ -289,6 +289,12 @@ class AgentStudentViewSet(AgentScopedMixin, viewsets.ModelViewSet):
             application, context=self.get_serializer_context()
         ).data
         payload["account_created"] = getattr(application, "account_created", False)
+        # Every school's file (a 2nd and 3rd choice too), so documents can be
+        # uploaded to each. The 1st choice holds the one fee for all of them.
+        payload["fee_schools"] = [
+            {"reference": app.reference, "choice_order": app.choice_order}
+            for app in [application, *application.covered_applications.order_by("choice_order")]
+        ]
         return Response(payload, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=["get"])
@@ -316,8 +322,9 @@ class AgentStudentViewSet(AgentScopedMixin, viewsets.ModelViewSet):
         from apps.applications.dossier import student_summary_pdf
 
         application = self.get_object()
-        payment = getattr(application, "payment", None)
-        if payment is None or payment.status not in {"paid", "waived"}:
+        # Ready once the work has started: paid, waived, or a deposit in.
+        payment = application.fee_payment
+        if payment is None or payment.status not in {"paid", "waived", "part_paid"}:
             return Response(
                 {"detail": "The summary is ready once the application fee is confirmed."},
                 status=status.HTTP_409_CONFLICT,
@@ -676,7 +683,7 @@ class AgentOverviewView(AgentScopedMixin, APIView):
 
         recent = (
             Application.objects.filter(submitted_by_agent=agent)
-            .select_related("institution", "destination_country", "origin_country", "payment")
+            .select_related("institution", "destination_country", "origin_country", "payment", "fee_parent__payment")
             .prefetch_related("programs", "documents", "commissions", "letters")
             .order_by("-submitted_at")[:5]
         )

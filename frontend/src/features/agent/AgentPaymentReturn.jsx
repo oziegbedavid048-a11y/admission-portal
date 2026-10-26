@@ -6,6 +6,7 @@ import { payments } from '../../api/endpoints';
 import { useToast } from '../../context/ToastContext';
 import { useAgent } from './AgentContext';
 import { downloadStudentSummary } from './studentSummary';
+import { formatNaira } from '../../lib/format';
 
 /**
  * Where Paystack sends an agent back after paying a student's fee.
@@ -38,6 +39,12 @@ export default function AgentPaymentReturn() {
       setResult(data);
       if (data.settled) {
         setState('settled');
+        reload?.().catch(() => null);
+        return;
+      }
+      // Pay small small: this payment is in, the rest of the fee is still owed.
+      if (data.received) {
+        setState('part');
         reload?.().catch(() => null);
         return;
       }
@@ -107,6 +114,24 @@ export default function AgentPaymentReturn() {
                 Download student summary
               </button>
               <button type="button" className="agent-btn agent-btn-secondary" onClick={() => navigate('/agent/students')}>
+                Go to students
+              </button>
+            </div>
+          </>
+        ) : null}
+
+        {state === 'part' ? (
+          <>
+            <span className="nf-done-mark" aria-hidden="true">
+              <Icon name="check" size={26} strokeWidth={2.4} />
+            </span>
+            <h2>Payment received</h2>
+            <p className="nf-done-lede">
+              Work on the application has started. {formatNaira(result?.balance_ngn)} of the application fee is
+              still to pay; pay it from the student&apos;s file. Your commission is added once the fee is fully paid.
+            </p>
+            <div className="nf-done-actions">
+              <button type="button" className="agent-btn agent-btn-primary" onClick={() => navigate('/agent/students')}>
                 Go to students
               </button>
             </div>

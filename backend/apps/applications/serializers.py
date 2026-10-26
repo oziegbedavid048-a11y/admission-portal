@@ -133,12 +133,18 @@ class ApplicationSerializer(serializers.ModelSerializer):
         source="get_verification_status_display", read_only=True
     )
     verification_summary = serializers.SerializerMethodField()
+    # One fee covers up to three schools: the 1st choice holds the payment.
+    fee_reference = serializers.CharField(source="fee_owner.reference", read_only=True)
+    fee_schools = serializers.SerializerMethodField()
 
     class Meta:
         model = Application
         fields = (
             "id",
             "reference",
+            "choice_order",
+            "fee_reference",
+            "fee_schools",
             "full_name",
             "email",
             "phone",
@@ -187,10 +193,23 @@ class ApplicationSerializer(serializers.ModelSerializer):
         return LetterSerializer(published, many=True, context=self.context).data
 
     def get_payment(self, obj):
+        """The fee's payment, held on the 1st choice for every school it covers."""
         from apps.payments.serializers import PaymentSerializer
 
-        payment = getattr(obj, "payment", None)
+        payment = obj.fee_payment
         return PaymentSerializer(payment).data if payment else None
+
+    def get_fee_schools(self, obj):
+        owner = obj.fee_owner
+        schools = [owner, *sorted(owner.covered_applications.all(), key=lambda app: (app.choice_order, app.pk))]
+        return [
+            {
+                "reference": app.reference,
+                "choice_order": app.choice_order,
+                "institution": app.institution.name if app.institution else app.custom_course_name,
+            }
+            for app in schools
+        ]
 
 
 class ApplicationContactSerializer(serializers.ModelSerializer):
@@ -217,6 +236,8 @@ def _country_name(value, empty_message):
 
 
 MAX_COURSES_PER_APPLICATION = 2
+# Besides the 1st choice: a 2nd (included in the fee) and a 3rd (extra).
+MAX_EXTRA_CHOICES = 2
 
 
 def open_application_at(applicant, institution):
@@ -261,6 +282,12 @@ class ApplicationCreateSerializer(serializers.Serializer):
     )
     gateway = serializers.CharField(max_length=40, required=False, default="Paystack")
     notes = serializers.CharField(required=False, allow_blank=True, default="")
+    # A 2nd and optionally a 3rd choice school, paid for under this one fee:
+    # [{"institution": "<slug>", "program_ids": [..]}]. The 2nd is included in
+    # the fee; a 3rd adds EXTRA_SCHOOL_FEE_NGN.
+    extra_choices = serializers.ListField(
+        child=serializers.DictField(), required=False, default=list, max_length=MAX_EXTRA_CHOICES
+    )
 
     def validate_origin_country(self, value):
         """A country from the list, or a new one added quietly.
@@ -313,8 +340,13 @@ class ApplicationCreateSerializer(serializers.Serializer):
                 raise serializers.ValidationError(
                     {"custom_course_name": "Please specify the course you want to study."}
                 )
+            if attrs.get("extra_choices"):
+                raise serializers.ValidationError(
+                    {"extra_choices": "A 2nd or 3rd choice school can only be added to a partner school application."}
+                )
             attrs["institution"] = None
             attrs["programs"] = []
+            attrs["extra"] = []
             return attrs
 
         institution = attrs.get("institution")
@@ -352,7 +384,42 @@ class ApplicationCreateSerializer(serializers.Serializer):
                 {"institution": "That institution is not in the chosen destination country."}
             )
         attrs["programs"] = programs
+        attrs["extra"] = self._extra_choices(attrs, institution)
         return attrs
+
+    def _extra_choices(self, attrs, first_institution):
+        """The 2nd and 3rd choice schools, checked like the 1st."""
+        chosen = attrs.get("extra_choices") or []
+        resolved = []
+        seen = {first_institution.pk}
+        for position, raw in enumerate(chosen, start=2):
+            label = "2nd" if position == 2 else "3rd"
+            slug = str(raw.get("institution") or "").strip()
+            school = Institution.objects.filter(slug=slug, is_active=True).select_related("country").first()
+            if school is None:
+                raise serializers.ValidationError({"extra_choices": f"Choose a partner institution for your {label} choice."})
+            if school.pk in seen:
+                raise serializers.ValidationError({"extra_choices": "Choose a different school for each choice."})
+            seen.add(school.pk)
+            try:
+                ids = list(dict.fromkeys(int(pid) for pid in (raw.get("program_ids") or [])))
+            except (TypeError, ValueError):
+                raise serializers.ValidationError({"extra_choices": f"Choose the courses for your {label} choice."})
+            if not ids:
+                raise serializers.ValidationError({"extra_choices": f"Select at least one course for your {label} choice."})
+            if len(ids) > MAX_COURSES_PER_APPLICATION:
+                raise serializers.ValidationError(
+                    {"extra_choices": f"You can select a maximum of {MAX_COURSES_PER_APPLICATION} courses per institution."}
+                )
+            courses = list(Program.objects.filter(id__in=ids, institution=school))
+            if len(courses) != len(ids):
+                raise serializers.ValidationError(
+                    {"extra_choices": f"Choose courses offered by your {label} choice school."}
+                )
+            order = {pid: index for index, pid in enumerate(ids)}
+            courses.sort(key=lambda course: order[course.id])
+            resolved.append((school, courses))
+        return resolved
 
     @transaction.atomic
     def create(self, validated_data):
@@ -365,14 +432,16 @@ class ApplicationCreateSerializer(serializers.Serializer):
 
         applicant = validated_data.pop("applicant", user)
         agent = validated_data.pop("agent", agent_profile)
-        existing = open_application_at(applicant, validated_data.get("institution"))
-        if existing is not None:
-            raise serializers.ValidationError(
-                {
-                    "institution": f"An application to {existing.institution.name} already exists "
-                    f"({existing.reference}). Choose a different school."
-                }
-            )
+        extra = validated_data.pop("extra", [])
+        for school in [validated_data.get("institution"), *(choice[0] for choice in extra)]:
+            existing = open_application_at(applicant, school)
+            if existing is not None:
+                raise serializers.ValidationError(
+                    {
+                        "institution": f"An application to {existing.institution.name} already exists "
+                        f"({existing.reference}). Choose a different school."
+                    }
+                )
         # Every email about a file goes to this address. For an applicant's own
         # file it is their account address, never one typed into the form:
         # otherwise anyone could have Gabstep mail any inbox they liked.
@@ -401,6 +470,37 @@ class ApplicationCreateSerializer(serializers.Serializer):
         if not is_custom and validated_data.get("programs"):
             application.programs.set(validated_data["programs"])
         application.build_default_stages()
+
+        # The 2nd and 3rd choices: their own files, paid for under this one.
+        for order, (school, courses) in enumerate(extra, start=2):
+            covered = Application.objects.create(
+                applicant=applicant,
+                submitted_by_agent=agent,
+                fee_parent=application,
+                choice_order=order,
+                full_name=application.full_name,
+                email=application.email,
+                phone=application.phone,
+                address=application.address,
+                origin_country=application.origin_country,
+                destination_country=school.country,
+                previous_schools=application.previous_schools,
+                qualification=application.qualification,
+                year_graduated=application.year_graduated,
+                grade_gpa=application.grade_gpa,
+                institution=school,
+                notes=application.notes,
+                status=Application.Status.SUBMITTED,
+            )
+            covered.programs.set(courses)
+            covered.build_default_stages()
+            choice = "2nd" if order == 2 else "3rd"
+            Notification.objects.create(
+                application=covered,
+                text=f"Application submitted for {school.name}, your {choice} choice, "
+                f"under the fee for {application.reference}.",
+                send_email=False,
+            )
 
         target_name = custom_name or (
             application.institution.name

@@ -18,6 +18,7 @@ const FILTERS = [
   { value: 'rejected', label: 'Declined' },
   { value: 'fee:unpaid', label: 'Fee not paid' },
   { value: 'fee:review', label: 'Payment awaiting confirmation' },
+  { value: 'fee:part_paid', label: 'Fee part paid' },
 ];
 
 /**
