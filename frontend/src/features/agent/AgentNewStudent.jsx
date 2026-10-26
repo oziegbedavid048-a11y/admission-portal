@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import SearchableSelect from '../../components/ui/SearchableSelect';
 import Icon from '../../lib/icons';
-import { formatFee } from '../../lib/format';
+import { formatStudent } from '../../lib/format';
 import { compressImageFile } from '../../lib/compress';
 import { errorMessage } from '../../api/client';
 import { applications, catalog, partners, payments } from '../../api/endpoints';
@@ -661,6 +661,7 @@ export default function AgentNewStudent() {
                   taken={[form.institution]}
                   onChange={(next) => update({ extraChoices: next })}
                   onNotify={(message, type) => toast.toast(message, type)}
+                  extraLabel={formatStudent(EXTRA_SCHOOL_FEE_NGN, quote?.student_currency)}
                 />
               </>
             ) : null}
@@ -802,13 +803,13 @@ export default function AgentNewStudent() {
               <div className="nf-fee-row nf-fee-total">
                 <span>{quote?.waived ? 'No fee for this university' : 'Application fee'}</span>
                 <span>
-                  {!quote ? 'Calculating' : quote.waived ? '' : formatFee(quote.amount, quote.currency, quote.symbol)}
+                  {!quote ? 'Calculating' : quote.waived ? '' : formatStudent(quote.amount_ngn, quote.student_currency)}
                 </span>
               </div>
               {quote && !quote.waived && !isCustomCourse && (form.extraChoices || []).length >= 2 ? (
                 <div className="nf-fee-row">
                   <span>3rd choice school</span>
-                  <span>+₦{EXTRA_SCHOOL_FEE_NGN.toLocaleString('en-NG')}</span>
+                  <span>+{formatStudent(EXTRA_SCHOOL_FEE_NGN, quote.student_currency)}</span>
                 </div>
               ) : null}
               {quote && !quote.waived ? (

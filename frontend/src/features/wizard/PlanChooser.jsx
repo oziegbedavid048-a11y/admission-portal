@@ -16,7 +16,7 @@ export function instalmentAmounts(totalNgn) {
   return [DEPOSIT_NGN, each, Math.round((total - DEPOSIT_NGN - each) * 100) / 100];
 }
 
-export default function PlanChooser({ totalNgn, plan, onChange, name = 'fee-plan' }) {
+export default function PlanChooser({ totalNgn, plan, onChange, name = 'fee-plan', money = formatNaira }) {
   const amounts = instalmentAmounts(totalNgn);
   if (amounts.length < 2) return null;
   const [deposit, second, third] = amounts;
@@ -28,7 +28,7 @@ export default function PlanChooser({ totalNgn, plan, onChange, name = 'fee-plan
         <input type="radio" name={name} value="full" checked={plan === 'full'} onChange={() => onChange('full')} />
         <span className="pay-method-text">
           <strong>Pay in full</strong>
-          <small>{formatNaira(totalNgn)} now.</small>
+          <small>{money(totalNgn)} now.</small>
         </span>
       </label>
       <label className={`pay-method${plan === 'instalments' ? ' is-selected' : ''}`}>
@@ -42,7 +42,7 @@ export default function PlanChooser({ totalNgn, plan, onChange, name = 'fee-plan
         <span className="pay-method-text">
           <strong>Pay small small</strong>
           <small>
-            {formatNaira(deposit)} now, {formatNaira(second)} a week later and {formatNaira(third)} a week after.
+            {money(deposit)} now, {money(second)} a week later and {money(third)} a week after.
             Work on your application starts once the first payment is in.
           </small>
         </span>

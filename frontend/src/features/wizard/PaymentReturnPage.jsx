@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import SiteHeader from '../../components/layout/SiteHeader';
 import Icon from '../../lib/icons';
+import { formatStudent } from '../../lib/format';
 import { payments } from '../../api/endpoints';
 import { useAuth } from '../../context/AuthContext';
 import { rememberSelectedApplication } from '../applicant/ApplicationContext';
@@ -125,7 +126,7 @@ export default function PaymentReturnPage() {
                 <p className="return-note">
                   Thank you. Work on your application has started.{' '}
                   {Number(result?.balance_ngn) > 0
-                    ? `₦${Number(result.balance_ngn).toLocaleString('en-NG')} of the application fee is still to pay. Your dashboard shows when the next payment is due.`
+                    ? `${formatStudent(result.balance_ngn, result.student_currency)} of the application fee is still to pay. Your dashboard shows when the next payment is due.`
                     : ''}
                 </p>
                 {continueLink}

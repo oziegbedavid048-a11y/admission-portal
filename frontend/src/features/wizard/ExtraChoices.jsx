@@ -18,19 +18,19 @@ import ProgramPicker from './ProgramPicker';
 export const EXTRA_SCHOOL_FEE_NGN = 100000;
 export const MAX_EXTRA_CHOICES = 2;
 
-const LABELS = [
+const titles = (extraLabel) => [
   { title: '2nd choice school', note: 'Included in your application fee' },
-  { title: '3rd choice school', note: 'Adds ₦100,000 to the application fee' },
+  { title: '3rd choice school', note: `Adds ${extraLabel} to the application fee` },
 ];
 
-function ChoiceRow({ index, choice, destinations, taken, onChange, onRemove, onNotify, error }) {
+function ChoiceRow({ index, choice, destinations, taken, onChange, onRemove, onNotify, error, extraLabel }) {
   const { institutions, loading } = useInstitutions(choice.country);
   // Schools already used elsewhere on this application are not offered.
   const available = useMemo(
     () => (institutions || []).filter((item) => item.slug === choice.institution || !taken.includes(item.slug)),
     [institutions, taken, choice.institution],
   );
-  const label = LABELS[index];
+  const label = titles(extraLabel)[index];
 
   return (
     <div className={`nf-choice${error ? ' has-error' : ''}`}>
@@ -86,7 +86,8 @@ function ChoiceRow({ index, choice, destinations, taken, onChange, onRemove, onN
   );
 }
 
-export default function ExtraChoices({ choices, destinations, taken = [], onChange, onNotify, errors = [] }) {
+// `extraLabel` is the 3rd school's price written in the student's currency.
+export default function ExtraChoices({ choices, destinations, taken = [], onChange, onNotify, errors = [], extraLabel = '₦100,000' }) {
   const usedSlugs = (except) => [
     ...taken,
     ...choices.filter((_, position) => position !== except).map((item) => item.institution).filter(Boolean),
@@ -109,13 +110,14 @@ export default function ExtraChoices({ choices, destinations, taken = [], onChan
           onRemove={() => removeChoice(index)}
           onNotify={onNotify}
           error={errors[index]}
+          extraLabel={extraLabel}
         />
       ))}
       {choices.length < MAX_EXTRA_CHOICES ? (
         <button type="button" className="agent-btn agent-btn-secondary nf-choice-add" onClick={addChoice}>
           {choices.length === 0
             ? '+ Add a 2nd choice school (included in the fee)'
-            : '+ Add a 3rd choice school (+₦100,000)'}
+            : `+ Add a 3rd choice school (+${extraLabel})`}
         </button>
       ) : null}
     </div>

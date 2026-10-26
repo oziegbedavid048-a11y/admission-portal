@@ -196,8 +196,15 @@ class ApplicationSerializer(serializers.ModelSerializer):
         """The fee's payment, held on the 1st choice for every school it covers."""
         from apps.payments.serializers import PaymentSerializer
 
+        from apps.payments.display import for_application
+
         payment = obj.fee_payment
-        return PaymentSerializer(payment).data if payment else None
+        if not payment:
+            return None
+        data = PaymentSerializer(payment).data
+        # The student sees the fee in their own country's currency only.
+        data["student_currency"] = for_application(obj)
+        return data
 
     def get_fee_schools(self, obj):
         owner = obj.fee_owner

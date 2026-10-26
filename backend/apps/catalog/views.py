@@ -121,8 +121,12 @@ def fee_quote(request):
         amount = origin.convert_from_ngn(fee_ngn)
         processing = origin.convert_from_ngn(gateway_fee_ngn)
 
+    from apps.payments.display import student_currency
+
     return Response(
         {
+            # What the student sees fees in: their own country's currency.
+            "student_currency": student_currency(origin),
             "origin": origin.name if origin else name,
             "currency": currency,
             "symbol": symbol,

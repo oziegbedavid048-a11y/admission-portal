@@ -256,3 +256,24 @@ export function downloadUrl(url) {
   if (!resolved || /^(blob:|data:)/i.test(resolved)) return resolved;
   return `${resolved}${resolved.includes('?') ? '&' : '?'}download=1`;
 }
+
+/**
+ * A fee amount (held in Naira) in the student's own country's currency:
+ * "₦50,000" for a Nigerian student, "GH₵500" for a Ghanaian one. `currency`
+ * is the { code, symbol, ngn_per_unit } the server sends with every fee, so
+ * every screen converts at the same rate and a total always matches its
+ * instalments. Without it, Naira.
+ */
+export function formatStudent(ngn, currency) {
+  const value = Number(ngn) || 0;
+  if (!currency || !currency.code || currency.code === 'NGN') return formatNaira(value);
+  const rate = Number(currency.ngn_per_unit) || 1;
+  const amount = Math.round((value / rate) * 100) / 100;
+  const text = amount.toLocaleString('en-US', {
+    minimumFractionDigits: Number.isInteger(amount) ? 0 : 2,
+    maximumFractionDigits: 2,
+  });
+  const symbol = currency.symbol || currency.code;
+  // A sign made only of letters ("D", "KSh") reads better with a space.
+  return /^[A-Za-z]+$/.test(symbol) ? `${symbol} ${text}` : `${symbol}${text}`;
+}

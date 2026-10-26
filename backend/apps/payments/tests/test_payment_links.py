@@ -276,3 +276,29 @@ class PaymentLinkLocalCurrencyTests(TestCase):
         body = self.page()
         self.assertEqual(body["status"], "due")
         self.assertNotIn("local_currency", body)
+
+
+class StudentCurrencyTests(TestCase):
+    """Fee screens show the student's own country's currency only."""
+
+    def test_currency_and_amounts_follow_the_students_country(self):
+        from apps.catalog.models import OriginCountry
+        from apps.payments.display import for_application, format_amount
+
+        OriginCountry.objects.filter(currency__iexact="GHS").update(ngn_per_unit=Decimal("100"))
+        ghana, _ = OriginCountry.objects.update_or_create(
+            name="Ghana", defaults={"currency": "GHS", "symbol": "GH₵", "ngn_per_unit": Decimal("100")}
+        )
+        student = make_application(make_user("kofi@example.com"))
+        nigerian = make_application(make_user("ada@example.com"))
+        student.origin_country = ghana
+        student.save(update_fields=["origin_country"])
+
+        with mock.patch("apps.catalog.fx.get_rates", return_value={}):
+            cedis = for_application(student)
+        self.assertEqual((cedis["code"], cedis["symbol"]), ("GHS", "GH₵"))
+        self.assertEqual(format_amount(Decimal("50000"), cedis), "GH₵500")
+        naira = for_application(nigerian)
+        self.assertEqual(naira["code"], "NGN")
+        self.assertEqual(format_amount(Decimal("50000"), naira), "₦50,000")
+        self.assertEqual(format_amount(Decimal("50000"), {"code": "GMD", "symbol": "D", "ngn_per_unit": "25"}), "D 2,000")

@@ -317,6 +317,10 @@ class QuoteView(APIView):
         payment = getattr(application, "payment", None)
         quote["plan"] = plans.plan_summary(payment) if payment is not None and payment.paid_ngn > 0 else None
         quote["payment_status"] = payment.status if payment is not None else ""
+        # Amounts are shown in the student's own country's currency only.
+        from .display import for_application
+
+        quote["student_currency"] = for_application(application)
         return Response(quote)
 
 
@@ -701,9 +705,13 @@ class PaymentStatusView(APIView):
             gateway_reference=attempt, status="paid"
         ).exists()
 
+        from .display import for_application
+
+        currency = for_application(application)
         if request.user.is_authenticated:
             return Response(
                 {
+                    "student_currency": currency,
                     "payment": PaymentSerializer(payment).data,
                     "settled": is_settled,
                     "part_paid": part_paid,
@@ -720,6 +728,7 @@ class PaymentStatusView(APIView):
                 "part_paid": part_paid,
                 "received": received,
                 "balance_ngn": payment.balance_ngn,
+                "student_currency": currency,
                 "settled_now": settled_now,
                 "display_total": payment.display_total,
                 "application": application.reference,

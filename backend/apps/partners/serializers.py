@@ -429,9 +429,13 @@ class AgentStudentSerializer(AdmittedByLetterMixin, serializers.ModelSerializer)
             return "Not paid"
         if payment.status == "waived":
             return "Waived"
+        # In the student's own country's currency, as every fee screen shows it.
+        from apps.payments.display import for_application, format_amount
+
+        currency = for_application(obj)
         if payment.paid_ngn and payment.paid_ngn < payment.amount_ngn:
-            return f"₦{payment.paid_ngn:,.0f} of ₦{payment.amount_ngn:,.0f}"
-        return f"₦{payment.amount_ngn:,.0f}" if payment.currency == "NGN" else payment.display_total
+            return f"{format_amount(payment.paid_ngn, currency)} of {format_amount(payment.amount_ngn, currency)}"
+        return format_amount(payment.amount_ngn, currency)
 
     def get_payment(self, obj):
         """How the fee stands, including a transfer the desk turned down."""

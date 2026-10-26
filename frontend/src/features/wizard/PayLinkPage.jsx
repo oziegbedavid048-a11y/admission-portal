@@ -4,7 +4,7 @@ import SiteHeader from '../../components/layout/SiteHeader';
 import Icon from '../../lib/icons';
 import { errorMessage } from '../../api/client';
 import { payments } from '../../api/endpoints';
-import { formatNaira } from '../../lib/format';
+import { formatStudent } from '../../lib/format';
 
 /**
  * The page behind a payment link an agent sends a student.
@@ -92,6 +92,8 @@ export default function PayLinkPage() {
     }
   };
 
+  // Every amount in the student's own country's currency, and only that.
+  const money = (ngn) => formatStudent(ngn, info?.student_currency);
   const options = info?.options || {};
   const partPaid = Number(options.paid_ngn) > 0;
   const picked = choice || (partPaid ? 'next' : 'full');
@@ -140,7 +142,7 @@ export default function PayLinkPage() {
                       <span style={{ width: `${Math.min(100, (Number(options.paid_ngn) / Number(info.amount_ngn || 1)) * 100)}%` }} />
                     </div>
                     <p>
-                      {formatNaira(options.paid_ngn)} of {formatNaira(info.amount_ngn)} paid
+                      {money(options.paid_ngn)} of {money(info.amount_ngn)} paid
                     </p>
                   </div>
                 ) : null}
@@ -154,16 +156,14 @@ export default function PayLinkPage() {
                           onSelect={() => setChoice('next')}
                           title="Next payment"
                           note={options.next?.due_on ? `Due ${dueDate(options.next.due_on)}` : ''}
-                          naira={nextAmount}
-                          local={options.next_local}
+                          amount={money(nextAmount)}
                         />
                       ) : null}
                       <Option
                         checked={picked === 'balance' || !offerNext}
                         onSelect={() => setChoice('balance')}
                         title="Full balance"
-                        naira={options.balance_ngn}
-                        local={options.balance_ngn_local}
+                        amount={money(options.balance_ngn)}
                       />
                     </>
                   ) : canSplit ? (
@@ -172,25 +172,22 @@ export default function PayLinkPage() {
                         checked={picked === 'full'}
                         onSelect={() => setChoice('full')}
                         title="Pay in full"
-                        naira={info.amount_ngn}
-                        local={info.local_display}
+                        amount={money(info.amount_ngn)}
                       />
                       <Option
                         checked={picked === 'instalments'}
                         onSelect={() => setChoice('instalments')}
                         title="Pay small small"
-                        note={`Then ${options.instalments.slice(1).map((amount) => formatNaira(amount)).join(' + ')}, one week apart`}
-                        naira={options.deposit_ngn}
-                        nairaNote="now"
-                        local={options.deposit_ngn_local}
+                        note={`Then ${options.instalments.slice(1).map((amount) => money(amount)).join(' + ')}, one week apart`}
+                        amount={money(options.deposit_ngn)}
+                        amountNote="now"
                       />
                     </>
                   ) : (
                     <div className="pl-total">
                       <span>Application fee</span>
                       <span className="pl-amount">
-                        <strong>{formatNaira(info.amount_ngn)}</strong>
-                        {info.local_display ? <small>{info.local_display}</small> : null}
+                        <strong>{money(info.amount_ngn)}</strong>
                       </span>
                     </div>
                   )}
@@ -199,15 +196,15 @@ export default function PayLinkPage() {
                 {info.card_available ? (
                   <button type="button" className="btn btn-accent btn-lg pl-pay" onClick={pay} disabled={busy}>
                     {busy ? <span className="spinner-sm" aria-hidden="true" /> : <Icon name="lock" size={16} strokeWidth={2} />}
-                    {busy ? 'Opening Paystack' : `Pay ${formatNaira(payingNow)}`}
+                    {busy ? 'Opening Paystack' : `Pay ${money(payingNow)}`}
                   </button>
                 ) : (
                   <p className="return-note">Card payments are not available right now. Please try again later.</p>
                 )}
                 {error ? <p className="pay-error" role="alert">{error}</p> : null}
                 <p className="pl-fine">
-                  Secure card payment by Paystack. Paystack adds its card fee at checkout.
-                  {info.local_display ? ' Charged in Naira.' : ''}
+                  Secure card payment by Paystack. Paystack adds its card fee at checkout
+                  {info.student_currency && info.student_currency.code !== 'NGN' ? ' and shows the amount in Naira' : ''}.
                 </p>
               </div>
             ) : null}
@@ -235,7 +232,7 @@ export default function PayLinkPage() {
                 <p className="return-note">
                   Thank you. Work on the application has started.{' '}
                   {info?.options?.balance_ngn
-                    ? `${formatNaira(info.options.balance_ngn)} of the application fee is still to pay${
+                    ? `${money(info.options.balance_ngn)} of the application fee is still to pay${
                         info.options.next?.due_on
                           ? `; the next payment is due ${new Date(info.options.next.due_on).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`
                           : ''
@@ -301,7 +298,7 @@ export default function PayLinkPage() {
 }
 
 /** One way to pay: a radio row with the amount on the right. */
-function Option({ checked, onSelect, title, note, naira, nairaNote, local }) {
+function Option({ checked, onSelect, title, note, amount, amountNote }) {
   return (
     <label className={`pl-option${checked ? ' is-selected' : ''}`}>
       <input type="radio" name="paylink-choice" checked={checked} onChange={onSelect} />
@@ -311,10 +308,9 @@ function Option({ checked, onSelect, title, note, naira, nairaNote, local }) {
       </span>
       <span className="pl-amount">
         <strong>
-          {formatNaira(naira)}
-          {nairaNote ? <em> {nairaNote}</em> : null}
+          {amount}
+          {amountNote ? <em> {amountNote}</em> : null}
         </strong>
-        {local ? <small>{local}</small> : null}
       </span>
     </label>
   );

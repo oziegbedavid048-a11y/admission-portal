@@ -226,8 +226,16 @@ class PublicPayView(APIView):
         payment = getattr(application, "payment", None)
         schools = plans.schools_on_fee(application)
         body["schools"] = [app.institution.name if app.institution else app.custom_course_name for app in schools]
+        # Every amount on the page is shown in the student's own currency only.
+        from .display import for_application
+
+        body["student_currency"] = for_application(application)
         if state == "paid" and payment is not None:
-            body["paid_total"] = f"₦{payment.amount_ngn:,.0f}" if payment.amount_ngn else payment.display_total
+            from .display import for_application, format_amount
+
+            body["paid_total"] = (
+                format_amount(payment.amount_ngn, for_application(application)) if payment.amount_ngn else payment.display_total
+            )
         if state == "due":
             quote = quote_for(application)
             body.update(

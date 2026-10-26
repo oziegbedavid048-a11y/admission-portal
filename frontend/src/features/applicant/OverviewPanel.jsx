@@ -4,7 +4,7 @@ import { applications, payments } from '../../api/endpoints';
 import { errorMessage } from '../../api/client';
 import { useToast } from '../../context/ToastContext';
 import Icon from '../../lib/icons';
-import { firstNameOf, formatNaira, timeAgo } from '../../lib/format';
+import { firstNameOf, formatStudent, timeAgo } from '../../lib/format';
 import PlanChooser from '../wizard/PlanChooser';
 import { rememberSelectedApplication, useApplication } from './ApplicationContext';
 import { useAuth } from '../../context/AuthContext';
@@ -52,6 +52,8 @@ export default function OverviewPanel() {
   // 3rd choice shows (and pays) that same fee.
   const payment = application.payment;
   const paidSoFar = Number(payment?.paid_ngn) || 0;
+  // Fee amounts in the applicant's own country's currency, and only that.
+  const money = (ngn) => formatStudent(ngn, payment?.student_currency);
   const feeDue = Boolean(payment) && ['pending', 'failed'].includes(payment.status) && paidSoFar <= 0;
   // Pay small small: the deposit is in and the rest is still owed.
   const partPaid = Boolean(payment) && payment.status === 'part_paid';
@@ -137,9 +139,9 @@ export default function OverviewPanel() {
           <div>
             <h2>Complete your application</h2>
             <p className="gx-muted">
-              Pay the {formatNaira(payment.amount_ngn)} application fee to complete your application.
+              Pay the {money(payment.amount_ngn)} application fee to complete your application.
             </p>
-            <PlanChooser totalNgn={payment.amount_ngn} plan={plan} onChange={setPlan} name="overview-plan" />
+            <PlanChooser totalNgn={payment.amount_ngn} plan={plan} onChange={setPlan} name="overview-plan" money={money} />
           </div>
           <button
             type="button"
@@ -148,7 +150,7 @@ export default function OverviewPanel() {
             disabled={paying}
           >
             {paying ? <span className="spinner-sm" aria-hidden="true" /> : null}
-            {paying ? 'Opening payment' : plan === 'instalments' ? 'Pay the first ₦100,000' : 'Complete application'}
+            {paying ? 'Opening payment' : plan === 'instalments' ? `Pay the first ${money(100000)}` : 'Complete application'}
             {paying ? null : <Icon name="arrowRight" size={17} strokeWidth={2} />}
           </button>
         </section>
@@ -157,20 +159,20 @@ export default function OverviewPanel() {
       {partPaid ? (
         <section className="gx-card gx-welcome gx-fee-card">
           <div>
-            <h2>Application fee: {formatNaira(paidSoFar)} of {formatNaira(payment.amount_ngn)} paid</h2>
+            <h2>Application fee: {money(paidSoFar)} of {money(payment.amount_ngn)} paid</h2>
             <p className="gx-muted">
               Work on your application has started.{' '}
               {nextDue
-                ? `Next payment: ${formatNaira(nextDue.amount_ngn)}${nextDue.due_on ? `, due ${new Date(nextDue.due_on).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}.`
+                ? `Next payment: ${money(nextDue.amount_ngn)}${nextDue.due_on ? `, due ${new Date(nextDue.due_on).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}.`
                 : ''}{' '}
-              You can also pay the {formatNaira(payment.balance_ngn)} balance at once.
+              You can also pay the {money(payment.balance_ngn)} balance at once.
             </p>
           </div>
           <div className="gx-fee-actions">
             {nextDue && Number(nextDue.amount_ngn) < Number(payment.balance_ngn) ? (
               <button type="button" className="gx-btn gx-btn-primary" onClick={() => pay({ pay: 'next' })} disabled={paying}>
                 {paying ? <span className="spinner-sm" aria-hidden="true" /> : null}
-                Pay {formatNaira(nextDue.amount_ngn)}
+                Pay {money(nextDue.amount_ngn)}
               </button>
             ) : null}
             <button
@@ -179,7 +181,7 @@ export default function OverviewPanel() {
               onClick={() => pay({ pay: 'balance' })}
               disabled={paying}
             >
-              Pay the balance ({formatNaira(payment.balance_ngn)})
+              Pay the balance ({money(payment.balance_ngn)})
             </button>
           </div>
         </section>

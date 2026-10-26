@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { errorMessage } from '../../api/client';
 import { payments } from '../../api/endpoints';
 import { compressImageFile } from '../../lib/compress';
-import { formatFee, formatNaira } from '../../lib/format';
+import { formatNaira, formatStudent } from '../../lib/format';
 import PlanChooser from '../wizard/PlanChooser';
 
 /**
@@ -111,7 +111,9 @@ export default function FeePayment({ reference, rejectedNote = '', onTransferSen
   const bank = accounts.find((account) => account.id === bankId) || null;
   // The application fee in the university's own currency. Paystack's checkout
   // shows the Naira charge, so it is not converted here.
-  const applicationFee = formatFee(quote.amount, quote.currency, quote.symbol);
+  // Fee amounts in the student's own country's currency, and only that.
+  const money = (ngn) => formatStudent(ngn, quote.student_currency);
+  const applicationFee = money(quote.amount_ngn);
   // A transfer is sent in Naira: the fee at today's rate, rounded up to ₦100.
   const transferTotal = formatNaira(
     progress || plan === 'instalments' ? Math.ceil(dueNow / 100) * 100 : (quote.transfer_amount_ngn ?? quote.amount_ngn),
@@ -207,7 +209,7 @@ export default function FeePayment({ reference, rejectedNote = '', onTransferSen
           <div className="pay-amount">
             <span>Paid so far</span>
             <strong>
-              {formatNaira(progress.paid_ngn)} of {formatNaira(progress.total_ngn)}
+              {money(progress.paid_ngn)} of {money(progress.total_ngn)}
             </strong>
           </div>
           {offerNext ? (
@@ -216,7 +218,7 @@ export default function FeePayment({ reference, rejectedNote = '', onTransferSen
               <label className={`pay-method${payWhat === 'next' ? ' is-selected' : ''}`}>
                 <input type="radio" name={`what-${reference}`} checked={payWhat === 'next'} onChange={() => setPayWhat('next')} />
                 <span className="pay-method-text">
-                  <strong>Next payment: {formatNaira(nextAmount)}</strong>
+                  <strong>Next payment: {money(nextAmount)}</strong>
                   <small>
                     {progress.next?.due_on
                       ? `Due ${new Date(progress.next.due_on).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}.`
@@ -227,17 +229,17 @@ export default function FeePayment({ reference, rejectedNote = '', onTransferSen
               <label className={`pay-method${payWhat === 'balance' ? ' is-selected' : ''}`}>
                 <input type="radio" name={`what-${reference}`} checked={payWhat === 'balance'} onChange={() => setPayWhat('balance')} />
                 <span className="pay-method-text">
-                  <strong>The whole balance: {formatNaira(balance)}</strong>
+                  <strong>The whole balance: {money(balance)}</strong>
                   <small>Clears the fee now; the commission is added once it is paid.</small>
                 </span>
               </label>
             </fieldset>
           ) : (
-            <p className="pay-hint">Balance to pay: {formatNaira(balance)}.</p>
+            <p className="pay-hint">Balance to pay: {money(balance)}.</p>
           )}
         </div>
       ) : (
-        <PlanChooser totalNgn={quote.amount_ngn} plan={plan} onChange={setPlan} name={`plan-${reference}`} />
+        <PlanChooser totalNgn={quote.amount_ngn} plan={plan} onChange={setPlan} name={`plan-${reference}`} money={money} />
       )}
 
       {canTransfer || canLink ? (
@@ -338,7 +340,7 @@ export default function FeePayment({ reference, rejectedNote = '', onTransferSen
         <div className="pay-panel">
           <div className="pay-amount">
             <span>{progress || plan === 'instalments' ? 'To pay now' : 'Application fee'}</span>
-            <strong>{progress || plan === 'instalments' ? formatNaira(dueNow) : applicationFee}</strong>
+            <strong>{progress || plan === 'instalments' ? money(dueNow) : applicationFee}</strong>
           </div>
           <p className="pay-hint">
             {Number(quote.school_count) > 1 ? `Covers ${quote.school_count} schools. ` : ''}

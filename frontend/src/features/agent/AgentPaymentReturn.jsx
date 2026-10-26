@@ -6,7 +6,7 @@ import { payments } from '../../api/endpoints';
 import { useToast } from '../../context/ToastContext';
 import { useAgent } from './AgentContext';
 import { downloadStudentSummary } from './studentSummary';
-import { formatNaira } from '../../lib/format';
+import { formatStudent } from '../../lib/format';
 
 /**
  * Where Paystack sends an agent back after paying a student's fee.
@@ -127,7 +127,7 @@ export default function AgentPaymentReturn() {
             </span>
             <h2>Payment received</h2>
             <p className="nf-done-lede">
-              Work on the application has started. {formatNaira(result?.balance_ngn)} of the application fee is
+              Work on the application has started. {formatStudent(result?.balance_ngn, result?.student_currency)} of the application fee is
               still to pay; pay it from the student&apos;s file. Your commission is added once the fee is fully paid.
             </p>
             <div className="nf-done-actions">

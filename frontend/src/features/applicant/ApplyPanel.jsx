@@ -9,7 +9,7 @@ import { useToast } from '../../context/ToastContext';
 import { useCatalog, useInstitutions } from '../../hooks/useCatalog';
 import Icon from '../../lib/icons';
 import { compressImageFile } from '../../lib/compress';
-import { formatFee, formatNaira, formatTuition } from '../../lib/format';
+import { formatStudent, formatTuition } from '../../lib/format';
 import EuropeanCvTip from '../../components/ui/EuropeanCvTip';
 import ProgramPicker from '../wizard/ProgramPicker';
 import ExtraChoices, { EXTRA_SCHOOL_FEE_NGN, choiceErrors, choicesPayload } from '../wizard/ExtraChoices';
@@ -187,6 +187,8 @@ export default function ApplyPanel() {
   // A 3rd choice school adds ₦100,000 to the 1st choice school's fee.
   const extraNgn = !isCustomCourse && (form.extraChoices || []).length >= 2 ? EXTRA_SCHOOL_FEE_NGN : 0;
   const totalNgn = (Number(quote?.amount_ngn) || 0) + extraNgn;
+  // Fee amounts in the applicant's own country's currency, and only that.
+  const money = (ngn) => formatStudent(ngn, quote?.student_currency);
 
   const validate = (index) => {
     const found = {};
@@ -648,6 +650,7 @@ export default function ApplyPanel() {
                   onChange={(next) => update({ extraChoices: next, choices: undefined })}
                   onNotify={(message, type) => toast.toast(message, type)}
                   errors={errors.choices || []}
+                  extraLabel={money(EXTRA_SCHOOL_FEE_NGN)}
                 />
               </>
             ) : null}
@@ -795,7 +798,7 @@ export default function ApplyPanel() {
                   {feeFree
                     ? 'No fee'
                     : quoteState === 'ready' && quote
-                      ? formatFee(Number(quote.amount) + Number(quote.processing_fee || 0), quote.currency, quote.symbol)
+                      ? money(Number(quote.amount_ngn) + Number(quote.processing_fee_ngn || 0))
                       : quoteState === 'failed'
                         ? (
                           <button type="button" className="nf-link-btn" onClick={loadQuote}>
@@ -808,7 +811,7 @@ export default function ApplyPanel() {
               {!feeFree && quoteState === 'ready' && quote?.processing_fee ? (
                 <div className="nf-fee-row">
                   <span>Includes card processing</span>
-                  <span>{formatFee(quote.processing_fee, quote.currency, quote.symbol)}</span>
+                  <span>{money(quote.processing_fee_ngn)}</span>
                 </div>
               ) : null}
               {!isCustomCourse && (form.extraChoices || []).length ? (
@@ -820,19 +823,19 @@ export default function ApplyPanel() {
               {!isCustomCourse && extraNgn ? (
                 <div className="nf-fee-row">
                   <span>3rd choice school</span>
-                  <span>+{formatNaira(extraNgn)}</span>
+                  <span>+{money(extraNgn)}</span>
                 </div>
               ) : null}
               {!feeFree && quoteState === 'ready' && quote ? (
                 <div className="nf-fee-row nf-fee-total">
                   <span>Total to pay</span>
-                  <span>{formatNaira(totalNgn)}</span>
+                  <span>{money(totalNgn)}</span>
                 </div>
               ) : null}
             </div>
 
             {!feeFree && quoteState === 'ready' && quote ? (
-              <PlanChooser totalNgn={totalNgn} plan={plan} onChange={setPlan} name="apply-plan" />
+              <PlanChooser totalNgn={totalNgn} plan={plan} onChange={setPlan} name="apply-plan" money={money} />
             ) : null}
 
             {footer(
