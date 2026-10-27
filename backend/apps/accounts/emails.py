@@ -56,6 +56,19 @@ def _send_mail_now(subject, text_content, html_content, recipient_list, attachme
     credentials email is the one that matters: the caller records that it was sent
     and throws the password away, so it has to know rather than assume.
     """
+    from .checks import _prints_instead_of_sending
+
+    if not settings.DEBUG and _prints_instead_of_sending():
+        # In production with no provider configured, "sending" only prints the
+        # message to the log. Counting that as sent left sign-ups waiting for a
+        # verification link that never left the server, unable to sign in.
+        # Reported as not sent, the caller does what it does for any failed
+        # send (a sign-up is opened without the link) and this line says why.
+        logger.error(
+            "Email NOT sent (no email provider configured; set EMAIL_PROVIDER_API_KEY): %r to %s",
+            subject, recipient_list,
+        )
+        return False
     try:
         message = EmailMultiAlternatives(
             subject=subject,

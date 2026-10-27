@@ -114,6 +114,20 @@ def check_email_is_configured(app_configs, **kwargs):
     finds out until someone asks why they never got their password.
     """
     issues = []
+    if not settings.DEBUG and _prints_instead_of_sending():
+        # No provider key and no SMTP password: Django falls back to printing
+        # mail to the log. Every verification link, password and status
+        # update is then "sent" without leaving the server.
+        issues.append(
+            Warning(
+                "No email provider is configured, so mail is only printed to the server "
+                "log and never delivered: sign-ups get no verification link.",
+                hint="Set EMAIL_PROVIDER_API_KEY (ZeptoMail) or EMAIL_HOST_PASSWORD (SMTP) "
+                "in the environment.",
+                id="accounts.W004",
+            )
+        )
+        return issues
     if settings.DEBUG or "smtp" not in settings.EMAIL_BACKEND:
         return issues
 
@@ -127,3 +141,9 @@ def check_email_is_configured(app_configs, **kwargs):
             )
         )
     return issues
+
+
+def _prints_instead_of_sending():
+    """Whether the mail backend only prints or discards mail (console, dummy)."""
+    backend = (settings.EMAIL_BACKEND or "").lower()
+    return backend.endswith(("console.emailbackend", "dummy.emailbackend"))

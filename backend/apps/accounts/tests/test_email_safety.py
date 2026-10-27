@@ -3,7 +3,9 @@
 from unittest import mock
 
 from django.core import mail
-from django.test import TestCase
+from django.test import TestCase, override_settings
+
+from apps.accounts.models import User
 from rest_framework.test import APIClient
 
 from apps.accounts import emails
@@ -86,3 +88,25 @@ class ApplicationRecipientTests(TestCase):
         for message in mail.outbox:
             for body, _ in message.alternatives:
                 self.assertNotIn('<a href="https://evil.example">', body)
+
+
+class NoEmailProviderTests(TestCase):
+    """With no provider in production, mail is reported as not sent."""
+
+    @override_settings(DEBUG=False, EMAIL_BACKEND="django.core.mail.backends.console.EmailBackend")
+    def test_a_sign_up_is_not_left_waiting_for_a_link_that_never_left(self):
+        from apps.accounts.verification import send_or_waive
+
+        user = User.objects.create_user(email="new@example.com", password="Strong-pass-123", email_verified=False)
+        with self.assertLogs("apps.accounts.emails", level="ERROR") as logs:
+            waiting = send_or_waive(user)
+        self.assertFalse(waiting)
+        user.refresh_from_db()
+        self.assertTrue(user.email_verified)  # can sign in rather than be locked out
+        self.assertIn("no email provider configured", "\n".join(logs.output))
+
+    @override_settings(DEBUG=False, EMAIL_BACKEND="django.core.mail.backends.console.EmailBackend")
+    def test_the_deploy_check_warns(self):
+        from apps.accounts.checks import check_email_is_configured
+
+        self.assertIn("accounts.W004", [issue.id for issue in check_email_is_configured(None)])
