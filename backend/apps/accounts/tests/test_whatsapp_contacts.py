@@ -17,7 +17,7 @@ class WhatsAppContactsTests(TestCase):
     def test_nigeria_is_there_from_the_start(self):
         self.assertEqual(
             self.client.get(URL).json(),
-            [{"country": "Nigeria", "phone": "+234 805 900 0074", "link": "https://wa.me/2348059000074"}],
+            [{"country": "Nigeria", "phone": "+234 915 555 6655", "link": "https://wa.me/2349155556655"}],
         )
 
     def test_a_number_added_in_the_admin_shows_and_an_inactive_one_does_not(self):
@@ -31,3 +31,13 @@ class WhatsAppContactsTests(TestCase):
     def test_a_number_without_a_country_code_is_refused(self):
         with self.assertRaises(ValidationError):
             WhatsAppContact(country="Ghana", phone="0200").full_clean()
+
+
+class NigeriaNumberMigrationTests(TestCase):
+    def test_nigeria_uses_the_new_support_number(self):
+        from apps.accounts.models import WhatsAppContact
+
+        nigeria = WhatsAppContact.objects.get(country="Nigeria")
+        self.assertEqual(nigeria.phone, "+234 915 555 6655")
+        self.assertEqual(nigeria.digits, "2349155556655")
+        self.assertTrue(nigeria.is_active)
