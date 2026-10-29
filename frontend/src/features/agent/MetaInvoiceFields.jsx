@@ -5,13 +5,15 @@ import { partners } from '../../api/endpoints';
  * The Meta ads invoice an Ads funding loan pays (agents in Nigeria).
  *
  * In Ads Manager, "Add funds" by bank transfer gives an invoice with an
- * account number, the name "Meta Ads", a bank (usually OPay), the amount and
- * an expiry time. The agent copies those here with their Ads Manager link.
+ * account number, the name "Meta Ads", a bank (usually OPay) and the amount. The agent copies those here with their Ads Manager link.
  * The account is checked with Paystack as it is typed, and the server checks
  * it again: only an account in Meta's name is accepted, and Gabstep pays the
  * invoice directly once the desk approves.
  *
- * `value` is { link, bankCode, accountNumber, expiresDate, expiresTime };
+ * The invoice's expiry is not asked for: the server treats a request as
+ * payable for 12 hours, within which the desk approves it.
+ *
+ * `value` is { link, bankCode, accountNumber };
  * `onChange(next)` gets the whole object back.
  */
 
@@ -75,7 +77,7 @@ export default function MetaInvoiceFields({ value, onChange }) {
     <div className="meta-invoice">
       <p className="meta-invoice-intro">
         In Ads Manager, choose <strong>Add funds</strong> by bank transfer and copy the invoice details below. We pay
-        Meta directly once your request is approved.
+        Meta directly once your request is approved. Submit straight after creating the invoice.
       </p>
 
       <div className="agent-form-group">
@@ -138,32 +140,6 @@ export default function MetaInvoiceFields({ value, onChange }) {
         </p>
       ) : null}
 
-      <div className="meta-invoice-grid">
-        <div className="agent-form-group">
-          <label className="agent-form-label" htmlFor="meta-expires-date">
-            Invoice expires on *
-          </label>
-          <input
-            id="meta-expires-date"
-            type="date"
-            className="agent-form-control"
-            value={value.expiresDate || ''}
-            onChange={(event) => set({ expiresDate: event.target.value })}
-          />
-        </div>
-        <div className="agent-form-group">
-          <label className="agent-form-label" htmlFor="meta-expires-time">
-            at *
-          </label>
-          <input
-            id="meta-expires-time"
-            type="time"
-            className="agent-form-control"
-            value={value.expiresTime || ''}
-            onChange={(event) => set({ expiresTime: event.target.value })}
-          />
-        </div>
-      </div>
     </div>
   );
 }
@@ -175,12 +151,5 @@ export function metaInvoiceProblem(value) {
   }
   if (!value.bankCode) return 'Choose the bank on your Meta invoice.';
   if (!/^\d{10}$/.test(value.accountNumber || '')) return 'Enter the 10-digit account number on your Meta invoice.';
-  if (!value.expiresDate || !value.expiresTime) return 'Enter when your Meta invoice expires.';
   return '';
-}
-
-/** The invoice's expiry as an ISO time, read in the agent's own time zone. */
-export function metaInvoiceExpiry(value) {
-  const at = new Date(`${value.expiresDate}T${value.expiresTime}`);
-  return Number.isNaN(at.getTime()) ? null : at.toISOString();
 }

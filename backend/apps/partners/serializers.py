@@ -294,11 +294,19 @@ class LoanSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 {"meta_account_number": "Enter the 10-digit account number and bank from your Meta invoice."}
             )
+        # Agents are not asked when the invoice expires (it confused them). Meta
+        # invoices expire within the day, so the request is treated as good
+        # for META_INVOICE_HOURS from now; the desk must approve within that,
+        # and an older one is never paid (loan_payouts.approve_and_send).
+        from django.conf import settings
+
         expires = attrs.get("invoice_expires_at")
-        if expires is None or expires <= timezone.now() + timedelta(minutes=30):
+        if expires is not None and expires <= timezone.now():
             raise serializers.ValidationError(
-                {"invoice_expires_at": "This Meta invoice has expired or expires too soon. Create a new invoice in Ads Manager."}
+                {"invoice_expires_at": "This Meta invoice has expired. Create a new invoice in Ads Manager."}
             )
+        window = timezone.now() + timedelta(hours=int(getattr(settings, "META_INVOICE_HOURS", 12) or 12))
+        attrs["invoice_expires_at"] = min(expires, window) if expires else window
         try:
             name = paystack.resolve_account(number, code)
             bank = paystack.bank_name_for(code)

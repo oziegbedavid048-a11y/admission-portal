@@ -517,6 +517,9 @@ PAYOUT_HOLD_HOURS_AFTER_BANK_CHANGE = int(env("PAYOUT_HOLD_HOURS_AFTER_BANK_CHAN
 # exact account names to accept as Meta's, comma separated, for a new name
 # Meta starts using; "Meta ..."/"Facebook ..." and EBANX's are accepted anyway.
 META_ACCOUNT_NAMES = env("META_ACCOUNT_NAMES", "")
+# How long after an Ads funding request its Meta invoice is treated as still
+# payable: the desk must approve within this, or nothing is paid.
+META_INVOICE_HOURS = int(env("META_INVOICE_HOURS", "12"))
 
 # The account an applicant transfers the fee to when no online provider is
 # configured. These were hardcoded into the checkout dialog as placeholder

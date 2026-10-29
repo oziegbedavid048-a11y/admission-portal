@@ -96,8 +96,23 @@ class MetaInvoiceLoanTests(TestCase):
     def test_an_expired_invoice_is_refused(self):
         expired = (timezone.now() - timedelta(minutes=1)).isoformat()
         self.assertEqual(self.request_loan(invoice_expires_at=expired).status_code, 400)
-        self.assertEqual(self.request_loan(invoice_expires_at=None).status_code, 400)
         self.assertFalse(Loan.objects.exists())
+
+    def test_without_an_expiry_the_request_is_good_for_twelve_hours(self):
+        before = timezone.now()
+        response = self.request_loan(invoice_expires_at=None)
+        self.assertEqual(response.status_code, 201, response.content)
+        expires = Loan.objects.get().invoice_expires_at
+        self.assertTrue(before + timedelta(hours=11, minutes=59) <= expires <= timezone.now() + timedelta(hours=12))
+
+    def test_approval_after_the_window_pays_nothing(self):
+        body = {k: v for k, v in {"invoice_expires_at": None}.items()}
+        self.request_loan(**body)
+        Loan.objects.update(invoice_expires_at=timezone.now() - timedelta(minutes=1))
+        send = mock.patch(f"{P}.send_transfer").start()
+        loan = self.approve(Loan.objects.get())
+        send.assert_not_called()
+        self.assertEqual(loan.status, Loan.Status.PENDING)
 
     # ── The desk approves; Paystack pays Meta ─────────────────────────
 

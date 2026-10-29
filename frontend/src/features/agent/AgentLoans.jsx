@@ -7,7 +7,7 @@ import { partners } from '../../api/endpoints';
 import { useToast } from '../../context/ToastContext';
 import { useAgent } from './AgentContext';
 import { LedgerDate, LedgerStatus, ShowMore, loanStatus, useShowMore } from './Ledger';
-import MetaInvoiceFields, { metaInvoiceExpiry, metaInvoiceProblem } from './MetaInvoiceFields';
+import MetaInvoiceFields, { metaInvoiceProblem } from './MetaInvoiceFields';
 
 // The range is set in Naira (₦10,000 to ₦80,000). Outside Nigeria the server
 // sends it in the agent's currency at today's rate, as loan_min and loan_max.
@@ -61,7 +61,7 @@ export default function AgentLoans() {
   const [purpose, setPurpose] = useState('');
   // Agents in Nigeria: the loan pays a Meta ads invoice directly.
   const metaMode = Boolean(wallet?.ads_paid_to_meta);
-  const [invoice, setInvoice] = useState({ link: '', bankCode: '', accountNumber: '', expiresDate: '', expiresTime: '' });
+  const [invoice, setInvoice] = useState({ link: '', bankCode: '', accountNumber: '' });
   const [busy, setBusy] = useState(false);
   const [repayOpen, setRepayOpen] = useState(false);
   const [repayAmount, setRepayAmount] = useState('');
@@ -157,7 +157,6 @@ export default function AgentLoans() {
               ad_account_link: invoice.link,
               meta_bank_code: invoice.bankCode,
               meta_account_number: invoice.accountNumber,
-              invoice_expires_at: metaInvoiceExpiry(invoice),
             }
           : {
               requested_amount: amount,
@@ -168,7 +167,7 @@ export default function AgentLoans() {
       setLoans((current) => [data, ...current]);
       setPurpose('');
       setAmount(PRESETS[1] || MIN);
-      setInvoice({ link: '', bankCode: invoice.bankCode, accountNumber: '', expiresDate: '', expiresTime: '' });
+      setInvoice({ link: '', bankCode: invoice.bankCode, accountNumber: '' });
       toast.success(
         metaMode
           ? `${money(amount)} requested. Once approved, we pay your Meta invoice directly.`
