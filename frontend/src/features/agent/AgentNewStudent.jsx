@@ -17,7 +17,15 @@ import { downloadStudentSummary } from './studentSummary';
 
 const STEPS = ['Student details', 'Academic background', 'University and course', 'Documents', 'Review and register'];
 
-const QUALIFICATIONS = ["Bachelor's Degree", "Master's Degree", 'HND', 'OND', 'SSCE / High School'];
+const QUALIFICATIONS = [
+  "Bachelor's Degree",
+  "Master's Degree",
+  'Postgraduate Diploma',
+  'HND',
+  'OND',
+  'Certificate',
+  'SSCE / High School',
+];
 
 const BLANK = {
   fullName: '',

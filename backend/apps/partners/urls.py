@@ -12,6 +12,7 @@ from .views import (
     AgentOverviewView,
     AgentProfileView,
     AgentLettersView,
+    SchoolCourseSheetView,
     AgentStudentViewSet,
     CommissionListView,
     LoanViewSet,
@@ -36,6 +37,9 @@ urlpatterns = [
     path("wallet/history/", WalletHistoryView.as_view(), name="agent-wallet-history"),
     path("commissions/", CommissionListView.as_view(), name="agent-commissions"),
     path("letters/", AgentLettersView.as_view(), name="agent-letters"),
+    # A school's course list to share with students (PDF; the portal also
+    # turns it into an image).
+    path("schools/<slug:slug>/courses.pdf", SchoolCourseSheetView.as_view(), name="agent-school-courses"),
     path("banks/", BankListView.as_view(), name="agent-banks"),
     path("banks/resolve/", BankResolveView.as_view(), name="agent-bank-resolve"),
     path("certificate/", AgentCertificateView.as_view(), name="agent-certificate"),

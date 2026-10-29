@@ -32,7 +32,15 @@ import { rememberSelectedApplication, useApplication } from './ApplicationContex
  */
 
 const STEPS = ['Your details', 'Education', 'University and course', 'Documents', 'Review and pay'];
-const QUALIFICATIONS = ['SSCE / High School', 'OND', 'HND', "Bachelor's Degree", "Master's Degree"];
+const QUALIFICATIONS = [
+  'SSCE / High School',
+  'Certificate',
+  'OND',
+  'HND',
+  "Bachelor's Degree",
+  'Postgraduate Diploma',
+  "Master's Degree",
+];
 const ACCEPT = '.pdf,.jpg,.jpeg,.png,.webp,.heic,.heif,application/pdf,image/*';
 const SLOTS = [
   { slot: 'passport', kind: 'passport', name: 'International passport data page', label: 'Passport data page', icon: 'passport' },

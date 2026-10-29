@@ -37,6 +37,8 @@ class Application(models.Model):
         HND = "HND", "HND (Higher National Diploma)"
         BACHELORS = "Bachelor's Degree", "Bachelor's Degree"
         MASTERS = "Master's Degree", "Master's Degree"
+        POSTGRADUATE_DIPLOMA = "Postgraduate Diploma", "Postgraduate Diploma"
+        CERTIFICATE = "Certificate", "Certificate"
 
     reference = models.CharField(
         max_length=16, unique=True, default=generate_reference, editable=False

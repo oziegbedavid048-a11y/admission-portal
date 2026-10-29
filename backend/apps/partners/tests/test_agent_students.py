@@ -73,3 +73,33 @@ class AgentStudentEmailTests(TestCase):
         rival = APIClient()
         rival.force_authenticate(other_user)
         self.assertEqual(self.file("tobi@example.com", client=rival).status_code, 400)
+
+
+class SchoolCourseSheetTests(TestCase):
+    """Agents download a school's course list as a PDF."""
+
+    def test_an_agent_gets_the_pdf_and_others_do_not(self):
+        from apps.catalog.models import Institution
+
+        user, _agent = make_agent("sheet@example.com")
+        client = APIClient()
+        client.force_authenticate(user)
+        school = Institution.objects.get(slug="inseec")  # 267 courses: several pages
+        response = client.get(f"/api/partners/schools/{school.slug}/courses.pdf")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "application/pdf")
+        self.assertTrue(response.content.startswith(b"%PDF"))
+        from io import BytesIO
+
+        from pypdf import PdfReader
+
+        reader = PdfReader(BytesIO(response.content))
+        self.assertGreater(len(reader.pages), 3)
+        text = reader.pages[0].extract_text()
+        self.assertIn("INSEEC", text)
+        self.assertIn("Tuition / year", text)
+
+        self.assertEqual(client.get("/api/partners/schools/no-such-school/courses.pdf").status_code, 404)
+        applicant = APIClient()
+        applicant.force_authenticate(make_user("app@example.com"))
+        self.assertEqual(applicant.get(f"/api/partners/schools/{school.slug}/courses.pdf").status_code, 403)

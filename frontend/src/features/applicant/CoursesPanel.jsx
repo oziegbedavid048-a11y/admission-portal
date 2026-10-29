@@ -62,6 +62,8 @@ export function CourseBrowser({
   feeOrigin,
   appliedSchools = [],
   onOpenApplied,
+  // Extra actions for the open school, e.g. the agent's course-list download.
+  schoolActions = null,
 }) {
   const { user } = useAuth();
   const [params, setParams] = useSearchParams();
@@ -294,6 +296,8 @@ export function CourseBrowser({
                 </dl>
               </div>
             </section>
+
+            {schoolActions ? schoolActions(school) : null}
 
             <section className="gx-card" aria-labelledby="course-list-title">
               <div className="gx-card-head">

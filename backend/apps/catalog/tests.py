@@ -48,7 +48,8 @@ class OmnesSchoolsMigrationTests(TestCase):
         from apps.catalog.catalogue_omnes import OMNES_SCHOOLS
         from apps.catalog.models import Institution
 
-        expected = {"ece-engineering-school": 11, "esce": 3, "inseec": 16, "heip": 13, "sup-de-pub": 26}
+        # The first list (26 Oct) plus the full 2026/2027 list for three (29 Oct).
+        expected = {"ece-engineering-school": 11 + 18, "esce": 3 + 15, "inseec": 16 + 251, "heip": 13, "sup-de-pub": 26}
         self.assertEqual({school["slug"] for school in OMNES_SCHOOLS}, set(expected))
         for slug, count in expected.items():
             school = Institution.objects.get(slug=slug)
@@ -67,3 +68,18 @@ class OmnesSchoolsMigrationTests(TestCase):
         self.assertEqual(response.status_code, 200)
         slugs = {row["slug"] for row in (response.json() if isinstance(response.json(), list) else response.json()["results"])}
         self.assertTrue({"ece-engineering-school", "esce", "inseec", "heip", "sup-de-pub"} <= slugs)
+
+    def test_the_full_list_reads_as_supplied(self):
+        from decimal import Decimal
+
+        from apps.catalog.models import Institution
+
+        inseec = Institution.objects.get(slug="inseec")
+        course = inseec.programs.get(name="MSc - Marseille - M1 - Audit & Contrôle de Gestion")
+        self.assertEqual((course.level, course.duration, course.tuition), ("masters", "2 years", Decimal("12990.00")))
+        self.assertIn("€13,", course.note)  # the instalment price
+        self.assertIn("Marseille campus", course.note)
+        third_year = inseec.programs.get(name="Bachelor - Beaune - B3 - Oenotourisme")
+        self.assertEqual(third_year.duration, "1 year (enters 3rd year)")
+        ece = Institution.objects.get(slug="ece-engineering-school")
+        self.assertTrue(ece.programs.filter(name="MSc CGE - Paris - M1 - Cybersecurity Manager - 100% English").exists())

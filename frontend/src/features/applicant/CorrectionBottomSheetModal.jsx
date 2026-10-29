@@ -11,7 +11,9 @@ const QUALIFICATIONS = [
   'OND',
   'HND',
   "Bachelor's Degree",
+  'Postgraduate Diploma',
   "Master's Degree",
+  'Certificate',
 ];
 
 export default function CorrectionBottomSheetModal({

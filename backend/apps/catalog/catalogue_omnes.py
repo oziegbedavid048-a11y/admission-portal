@@ -167,4 +167,14 @@ SUP_DE_PUB = {
     ],
 }
 
+# The full 2026/2027 list for three of them (catalogue_omnes_full.py), kept
+# in the seed too so a re-seed with --prune does not drop them.
+from apps.catalog.catalogue_omnes_full import ECE_COURSES, ESCE_COURSES, INSEEC_COURSES  # noqa: E402
+
+for _school, _extra in ((ECE, ECE_COURSES), (ESCE, ESCE_COURSES), (INSEEC, INSEEC_COURSES)):
+    _school["courses"] = _school["courses"] + list(_extra)
+    _prices = [row[3] for row in _school["courses"] if row[3] is not None]
+    _school["tuition_summary"] = f"€{min(_prices):,.0f} - €{max(_prices):,.0f} / year"
+INSEEC["location"] = "Paris, Bordeaux, Lyon, Marseille and other campuses, France"
+
 OMNES_SCHOOLS = [ECE, ESCE, INSEEC, HEIP, SUP_DE_PUB]

@@ -179,6 +179,8 @@ export const partners = {
   createStudent: (payload) => api.post('/partners/students/', payload),
   studentStages: (reference) => api.get(`/partners/students/${reference}/stages/`),
   // One-page PDF: name, origin, destination and application reference.
+  // One school's course list as a PDF, to share with students.
+  schoolCourses: (slug) => api.get(`/partners/schools/${slug}/courses.pdf`, { responseType: 'blob' }),
   studentSummary: (reference) =>
     api.get(`/partners/students/${reference}/summary/`, { responseType: 'blob' }),
   drafts: () => api.get('/partners/drafts/'),

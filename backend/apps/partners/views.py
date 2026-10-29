@@ -528,6 +528,30 @@ class BankResolveView(APIView):
             return Response({"detail": "The account could not be checked right now. Please try again."}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
 
+class SchoolCourseSheetView(AgentScopedMixin, APIView):
+    """One partner school's course list as a PDF, for the agent to share.
+
+    The Courses page offers it as a PDF, and as an image the portal draws from
+    this same PDF, so both always match.
+    """
+
+    def get(self, request, slug):
+        from django.http import Http404, HttpResponse
+
+        from apps.catalog.course_sheet import course_sheet_pdf
+        from apps.catalog.models import Institution
+
+        institution = (
+            Institution.objects.filter(slug=slug, is_active=True).select_related("country").first()
+        )
+        if institution is None:
+            raise Http404
+        response = HttpResponse(course_sheet_pdf(institution), content_type="application/pdf")
+        response["Content-Disposition"] = f'attachment; filename="{institution.slug}-courses.pdf"'
+        response["Cache-Control"] = "private, no-store"
+        return response
+
+
 class AgentLettersView(AgentScopedMixin, APIView):
     """Every letter issued to any of this agent's students, newest first."""
 

@@ -728,3 +728,21 @@ a.ag-text-btn { text-decoration: none; }
   .pay-methods { grid-template-columns: 1fr; }
   .nf-choice-add { justify-self: stretch; }
 }
+
+/* ── Download a school's course list (CourseSheetDownload.jsx) ─────── */
+.course-sheet {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+}
+.course-sheet-text { display: grid; gap: 2px; min-width: 0; }
+.course-sheet-text strong { font-size: clamp(0.9375rem, 3.6vw, 1rem); color: var(--g-ink); overflow-wrap: anywhere; }
+.course-sheet-text span { font-size: 0.8125rem; color: var(--g-ink-3); }
+.course-sheet-actions { display: flex; gap: 10px; }
+.course-sheet-actions .agent-btn { display: inline-flex; align-items: center; gap: 8px; }
+@media (max-width: 520px) {
+  .course-sheet-actions { width: 100%; }
+  .course-sheet-actions .agent-btn { flex: 1; justify-content: center; }
+}
