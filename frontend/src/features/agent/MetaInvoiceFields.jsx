@@ -2,16 +2,14 @@ import { useEffect, useState } from 'react';
 import { partners } from '../../api/endpoints';
 
 /**
- * The Meta ads invoice an Ads funding loan pays (agents in Nigeria).
+ * The Meta ads invoice an approved Ads funding loan pays (agents in Nigeria).
  *
- * In Ads Manager, "Add funds" by bank transfer gives an invoice with an
- * account number, the name "Meta Ads", a bank (usually OPay) and the amount. The agent copies those here with their Ads Manager link.
- * The account is checked with Paystack as it is typed, and the server checks
- * it again: only an account in Meta's name is accepted, and Gabstep pays the
- * invoice directly once the desk approves.
- *
- * The invoice's expiry is not asked for: the server treats a request as
- * payable for 12 hours, within which the desk approves it.
+ * Once the desk approves, the agent chooses "Add funds" by bank transfer in
+ * Ads Manager for the approved amount, which gives an invoice with an account
+ * number, the name "Meta Ads" and a bank (usually OPay). The agent copies
+ * those here with their Ads Manager link and presses Pay. The account is
+ * checked with Paystack as it is typed, and the server checks it again: only
+ * an account in Meta's name is paid, at once, so the invoice cannot expire.
  *
  * `value` is { link, bankCode, accountNumber };
  * `onChange(next)` gets the whole object back.
@@ -26,7 +24,7 @@ const isMetaName = (name) => {
   return words.includes('EBANX') && (words.includes('META') || words.includes('FACEBOOK'));
 };
 
-export default function MetaInvoiceFields({ value, onChange }) {
+export default function MetaInvoiceFields({ value, onChange, amount }) {
   const [banks, setBanks] = useState([]);
   const [check, setCheck] = useState({ state: 'idle', name: '' });
   const set = (patch) => onChange({ ...value, ...patch });
@@ -76,8 +74,8 @@ export default function MetaInvoiceFields({ value, onChange }) {
   return (
     <div className="meta-invoice">
       <p className="meta-invoice-intro">
-        In Ads Manager, choose <strong>Add funds</strong> by bank transfer and copy the invoice details below. We pay
-        Meta directly once your request is approved. Submit straight after creating the invoice.
+        In Ads Manager, choose <strong>Add funds</strong> by bank transfer for exactly <strong>{amount}</strong>, then
+        copy the invoice details below and press Pay. We pay Meta straight away.
       </p>
 
       <div className="agent-form-group">
@@ -136,7 +134,7 @@ export default function MetaInvoiceFields({ value, onChange }) {
               ? `✓ ${check.name}: this is Meta's account.`
               : check.state === 'other'
                 ? `This account is in the name of ${check.name}, not Meta. Use the account on your Meta invoice.`
-                : 'The account could not be checked right now. It is checked again when you submit.'}
+                : 'The account could not be checked right now. It is checked again when you pay.'}
         </p>
       ) : null}
 
@@ -144,7 +142,7 @@ export default function MetaInvoiceFields({ value, onChange }) {
   );
 }
 
-/** What is missing before the request can be sent, or ''. */
+/** What is missing before the invoice can be paid, or ''. */
 export function metaInvoiceProblem(value) {
   if (!/facebook\.com/i.test(value.link || '') || !/[?&]act=\d+/.test(value.link || '')) {
     return 'Paste your Ads Manager link (it contains act= and your ad account number).';

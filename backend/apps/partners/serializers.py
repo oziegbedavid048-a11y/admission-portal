@@ -192,6 +192,63 @@ class AgentProfileSerializer(serializers.ModelSerializer):
         return updated
 
 
+class PayMetaInvoiceSerializer(serializers.Serializer):
+    """The Meta invoice an approved Ads funding loan pays (agents in Nigeria).
+
+    The Ads Manager link must be Facebook's with an ad account id, and the
+    account number must resolve through Paystack to an account in Meta's name
+    (loan_payouts.is_meta_account_name). Anything else is refused and nothing
+    is paid.
+    """
+
+    ad_account_link = serializers.CharField(max_length=500)
+    meta_bank_code = serializers.CharField(max_length=12)
+    meta_account_number = serializers.CharField(max_length=10)
+
+    def validate(self, attrs):
+        from urllib.parse import parse_qs, urlparse
+
+        from . import paystack_transfers as paystack
+        from .loan_payouts import is_meta_account_name
+
+        link = attrs["ad_account_link"].strip()
+        parsed = urlparse(link)
+        host = (parsed.hostname or "").lower()
+        account_id = (parse_qs(parsed.query).get("act") or [""])[0]
+        if parsed.scheme not in ("http", "https") or not (host == "facebook.com" or host.endswith(".facebook.com")) or not account_id.isdigit():
+            raise serializers.ValidationError(
+                {"ad_account_link": "Paste your Ads Manager link from Facebook (it contains act= and your ad account number)."}
+            )
+        number = attrs["meta_account_number"].strip()
+        code = attrs["meta_bank_code"].strip()
+        if not (number.isdigit() and len(number) == 10) or not code:
+            raise serializers.ValidationError(
+                {"meta_account_number": "Enter the 10-digit account number and bank from your Meta invoice."}
+            )
+        try:
+            name = paystack.resolve_account(number, code)
+            bank = paystack.bank_name_for(code)
+        except paystack.PaystackRejected:
+            raise serializers.ValidationError(
+                {"meta_account_number": "Paystack could not find this account at that bank. Check the invoice details."}
+            )
+        except paystack.PaystackUnreachable:
+            raise serializers.ValidationError(
+                {"meta_account_number": "The account could not be checked right now. Please try again in a moment."}
+            )
+        if not is_meta_account_name(name):
+            raise serializers.ValidationError(
+                {"meta_account_number": f"This account is in the name of {name}, not Meta. Use the account on your Meta ads invoice."}
+            )
+        return {
+            "ad_account_link": link,
+            "meta_bank_code": code,
+            "meta_account_number": number,
+            "meta_account_name": name[:120],
+            "meta_bank_name": (bank or "")[:120],
+        }
+
+
 class LoanSerializer(serializers.ModelSerializer):
     reference = serializers.CharField(read_only=True)
     ad_account_link = serializers.URLField(
@@ -202,6 +259,8 @@ class LoanSerializer(serializers.ModelSerializer):
     meta_bank_code = serializers.CharField(max_length=12, required=False, allow_blank=True)
     meta_account_number = serializers.CharField(max_length=10, required=False, allow_blank=True)
     invoice_expires_at = serializers.DateTimeField(required=False, allow_null=True)
+    # Approved for a Meta invoice the agent has not paid yet: the dashboard asks for it.
+    awaiting_invoice = serializers.BooleanField(read_only=True)
 
     class Meta:
         model = Loan
@@ -223,6 +282,7 @@ class LoanSerializer(serializers.ModelSerializer):
             "meta_account_name",
             "invoice_expires_at",
             "failure_reason",
+            "awaiting_invoice",
         )
         read_only_fields = (
             "id", "reference", "approved_amount", "status", "status_display", "currency", "requested_at",
@@ -257,76 +317,15 @@ class LoanSerializer(serializers.ModelSerializer):
         return self._meta_invoice(attrs)
 
     def _meta_invoice(self, attrs):
-        """For an agent in Nigeria: the Meta invoice it pays, confirmed with Paystack.
+        """A request is only an amount and a platform.
 
-        The account number must resolve (through Paystack) to an account whose
-        name belongs to Meta/Facebook ("Meta Ads" on EBANX invoices), the Ads
-        Manager link must be Facebook's with an ad account id, and the invoice
-        must not have expired. Otherwise the request is refused here, before
-        the desk ever sees it.
+        For an agent in Nigeria the Meta invoice is given after the desk
+        approves (PayMetaInvoiceSerializer), so it can be paid the moment it is
+        created and never expires while waiting for a review. Any invoice
+        details sent with the request are ignored.
         """
-        from datetime import timedelta
-        from urllib.parse import parse_qs, urlparse
-
-        from django.utils import timezone
-
-        from . import paystack_transfers as paystack
-        from .loan_payouts import is_meta_account_name, meta_invoice_offered
-
-        agent = self.context["agent"]
-        if not meta_invoice_offered(agent):
-            for field in ("meta_bank_code", "meta_account_number", "invoice_expires_at"):
-                attrs.pop(field, None)
-            return attrs
-
-        link = (attrs.get("ad_account_link") or "").strip()
-        parsed = urlparse(link)
-        host = (parsed.hostname or "").lower()
-        account_id = (parse_qs(parsed.query).get("act") or [""])[0]
-        if not (host == "facebook.com" or host.endswith(".facebook.com")) or not account_id.isdigit():
-            raise serializers.ValidationError(
-                {"ad_account_link": "Paste your Ads Manager link from Facebook (it contains act= and your ad account number)."}
-            )
-
-        number = (attrs.get("meta_account_number") or "").strip()
-        code = (attrs.get("meta_bank_code") or "").strip()
-        if not (number.isdigit() and len(number) == 10) or not code:
-            raise serializers.ValidationError(
-                {"meta_account_number": "Enter the 10-digit account number and bank from your Meta invoice."}
-            )
-        # Agents are not asked when the invoice expires (it confused them). Meta
-        # invoices expire within the day, so the request is treated as good
-        # for META_INVOICE_HOURS from now; the desk must approve within that,
-        # and an older one is never paid (loan_payouts.approve_and_send).
-        from django.conf import settings
-
-        expires = attrs.get("invoice_expires_at")
-        if expires is not None and expires <= timezone.now():
-            raise serializers.ValidationError(
-                {"invoice_expires_at": "This Meta invoice has expired. Create a new invoice in Ads Manager."}
-            )
-        window = timezone.now() + timedelta(hours=int(getattr(settings, "META_INVOICE_HOURS", 12) or 12))
-        attrs["invoice_expires_at"] = min(expires, window) if expires else window
-        try:
-            name = paystack.resolve_account(number, code)
-            bank = paystack.bank_name_for(code)
-        except paystack.PaystackRejected:
-            raise serializers.ValidationError(
-                {"meta_account_number": "Paystack could not find this account at that bank. Check the invoice details."}
-            )
-        except paystack.PaystackUnreachable:
-            raise serializers.ValidationError(
-                {"meta_account_number": "The account could not be checked right now. Please try again in a moment."}
-            )
-        if not is_meta_account_name(name):
-            raise serializers.ValidationError(
-                {"meta_account_number": f"This account is in the name of {name}, not Meta. Use the account on your Meta ads invoice."}
-            )
-        attrs["meta_account_number"] = number
-        attrs["meta_bank_code"] = code
-        attrs["meta_account_name"] = name[:120]
-        attrs["meta_bank_name"] = (bank or "")[:120]
-        attrs["ad_account_link"] = link
+        for field in ("meta_bank_code", "meta_account_number", "invoice_expires_at"):
+            attrs.pop(field, None)
         return attrs
 
     def validate_purpose(self, value):

@@ -662,8 +662,49 @@ def send_letter_issued_email(letter):
 # ── Ads funding ───────────────────────────────────────────────────────
 
 
+def send_loan_ready_for_invoice_email(loan):
+    """Approved, nothing paid yet: the agent gives the Meta invoice and pays."""
+    user = loan.agent.user
+    amount = _money(loan.approved_amount, loan.currency)
+    _send(
+        subject=f"Ads funding approved: {amount}. Add your Meta invoice to pay",
+        recipients=[user.email],
+        greeting=f"Hello {_first_name(user.full_name, 'there')},",
+        paragraphs=[
+            "Your ads funding request has been approved.",
+            f"In Ads Manager, choose Add funds by bank transfer for exactly {amount}. Then open your "
+            "Ads funding page, enter the invoice's bank and account number, and press Pay. We pay "
+            "Meta straight away.",
+            "There is no interest. Your earnings and withdrawals are not affected.",
+        ],
+        facts=[
+            ("Reference", loan.reference),
+            ("Approved amount", amount),
+            ("Platform", loan.purpose),
+        ],
+        action=("Pay your Meta invoice", _url("/agent/loans")),
+    )
+
+
 def send_loan_approved_email(loan):
     user = loan.agent.user
+    if loan.pays_meta:
+        _send(
+            subject=f"Meta invoice paid: {_money(loan.approved_amount, loan.currency)}",
+            recipients=[user.email],
+            greeting=f"Hello {_first_name(user.full_name, 'there')},",
+            paragraphs=[
+                "Your ads funding has been paid into your Meta ads invoice.",
+                "There is no interest. Your earnings and withdrawals are not affected.",
+            ],
+            facts=[
+                ("Reference", loan.reference),
+                ("Amount", _money(loan.approved_amount, loan.currency)),
+                ("Paid to", f"{loan.meta_account_name} · {loan.meta_account_number}"),
+            ],
+            action=("View your funding", _url("/agent/loans")),
+        )
+        return
     _send(
         subject=f"Ads funding approved: {_money(loan.approved_amount, loan.currency)}",
         recipients=[user.email],

@@ -5,13 +5,15 @@ The rules, in the order a loan meets them:
 1. Only an agent in Nigeria with a Naira wallet, while Paystack is connected,
    gives a Meta invoice (``meta_invoice_offered``). Everyone else is funded
    by staff by hand, as before.
-2. When the request is made, Paystack resolves the invoice's account number
-   and the name must belong to Meta/Facebook ("Meta Ads" for EBANX invoices),
-   the amount must be within the funding range, and the invoice must not have
-   expired. Anything else is refused before the desk ever sees it.
-3. Nothing is paid until the desk approves ("Approve and pay Meta through
-   Paystack" in the admin). Approval hands the loan to Paystack under a
-   reference fixed for that loan, so it can never be paid twice.
+2. The agent asks for an amount and a platform only. The desk approves it
+   ("Approve for Meta" in the admin, ``approve_for_invoice``): nothing is paid,
+   the loan's Paystack reference is fixed, and the agent is emailed.
+3. The agent then creates the Meta invoice for exactly the approved amount,
+   gives its details on the dashboard and presses Pay (``pay_invoice``).
+   Paystack resolves the account and the name must belong to Meta/Facebook
+   ("Meta Ads" for EBANX invoices); then it is paid at once, under the
+   reference fixed for that loan, so it can never be paid twice. Paying the
+   moment the invoice exists means it cannot expire while waiting for review.
 4. The loan only counts against the agent (their loan balance) when Paystack
    says the transfer succeeded. Failed or reversed means nothing is owed.
 5. A refusal is only treated as "nothing sent" after Paystack confirms it
@@ -137,11 +139,57 @@ def approve_and_send(loan, approved_by):
     return send(locked)
 
 
+def approve_for_invoice(loan, approved_by):
+    """The desk's approval of a request with no invoice yet. Pays nothing.
+
+    Fixes the amount and the Paystack reference, and emails the agent to give
+    the Meta invoice. Returns the loan.
+    """
+    from apps.accounts.emails import send_loan_ready_for_invoice_email
+
+    with transaction.atomic():
+        locked = Loan.objects.select_for_update().get(pk=loan.pk)
+        if locked.status != STATUS.PENDING or locked.pays_meta:
+            return locked
+        locked.status = STATUS.APPROVED
+        locked.approved_amount = locked.requested_amount
+        locked.approved_by = approved_by
+        locked.invoice_expires_at = None
+        locked.review_reason = ""
+        locked.paystack_reference = f"{PREFIX}{locked.pk}-{timezone.now():%Y%m%d%H%M%S}"
+        locked.save(update_fields=[
+            "status", "approved_amount", "approved_by", "invoice_expires_at", "review_reason", "paystack_reference",
+        ])
+        transaction.on_commit(lambda: send_loan_ready_for_invoice_email(locked))
+    return locked
+
+
+def pay_invoice(loan, details):
+    """The agent's Pay: store the checked Meta invoice and send it through Paystack.
+
+    ``details`` comes from PayMetaInvoiceSerializer (already resolved to an
+    account in Meta's name). Only an approved loan waiting for its invoice is
+    paid; anything else is returned untouched. Returns the loan.
+    """
+    with transaction.atomic():
+        locked = Loan.objects.select_for_update().get(pk=loan.pk)
+        if not locked.awaiting_invoice:
+            return locked
+        for field in ("ad_account_link", "meta_bank_code", "meta_account_number", "meta_account_name", "meta_bank_name"):
+            setattr(locked, field, details[field])
+        locked.review_reason = ""
+        locked.save(update_fields=[
+            "ad_account_link", "meta_bank_code", "meta_account_number", "meta_account_name", "meta_bank_name",
+            "review_reason",
+        ])
+    return send(locked)
+
+
 def send(loan):
     """Hand an approved loan to Paystack. Safe to call again (fixed reference)."""
     with transaction.atomic():
         locked = Loan.objects.select_for_update().get(pk=loan.pk)
-        if locked.status != STATUS.APPROVED or not locked.paystack_reference:
+        if locked.status != STATUS.APPROVED or not locked.paystack_reference or not locked.pays_meta:
             return locked
         locked.status = STATUS.SENDING
         locked.sent_at = timezone.now()

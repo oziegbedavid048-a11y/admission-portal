@@ -201,6 +201,8 @@ export const partners = {
   deleteDraftFile: (id, fileId) => api.delete(`/partners/drafts/${id}/files/${fileId}/`),
   loans: () => api.get('/partners/loans/'),
   requestLoan: (payload) => api.post('/partners/loans/', payload),
+  // Approved Ads funding (agents in Nigeria): pay the Meta invoice now.
+  payMetaInvoice: (id, payload) => api.post(`/partners/loans/${id}/pay-meta/`, payload),
   // Pay Ads funding back out of the available balance.
   repayLoan: (amount) => api.post('/partners/loans/repay/', { amount }),
   withdrawals: () => api.get('/partners/withdrawals/'),

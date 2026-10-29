@@ -72,6 +72,9 @@ export default function AgentLoans() {
   const available = Number(wallet?.available_balance) || 0;
   const repayable = Math.min(owed, available);
   const inReview = loans.some((loan) => loan.status === 'pending');
+  // Approved for a Meta invoice the agent has not paid yet.
+  const awaiting = loans.find((loan) => loan.awaiting_invoice);
+  const [paying, setPaying] = useState(false);
   const blocked = owed > 0 || loans.some((loan) => OPEN_STATUSES.includes(loan.status));
 
   const openRepay = () => {
@@ -129,48 +132,61 @@ export default function AgentLoans() {
     };
   }, []);
 
+  const payMeta = async (event) => {
+    event.preventDefault();
+    const problem = metaInvoiceProblem(invoice);
+    if (problem) {
+      toast.warning(problem);
+      return;
+    }
+    setPaying(true);
+    try {
+      const { data } = await partners.payMetaInvoice(awaiting.id, {
+        ad_account_link: invoice.link,
+        meta_bank_code: invoice.bankCode,
+        meta_account_number: invoice.accountNumber,
+      });
+      setLoans((current) => current.map((loan) => (loan.id === data.id ? data : loan)));
+      if (data.status === 'disbursed') {
+        toast.success(`${money(data.approved_amount)} paid to your Meta invoice.`);
+        partners.wallet().then(({ data: next }) => setWallet(next)).catch(() => null);
+      } else if (data.status === 'sending') {
+        toast.success('Payment to Meta is on its way. This page updates when it lands.');
+      } else if (data.status === 'failed') {
+        toast.error('Paystack could not pay this Meta invoice. Nothing is owed.');
+      } else if (data.awaiting_invoice) {
+        toast.error(data.failure_reason || 'Paystack did not send it. Check the invoice and try again.');
+      } else {
+        toast.success('Payment is queued and goes to Meta shortly.');
+      }
+      setInvoice({ link: invoice.link, bankCode: invoice.bankCode, accountNumber: '' });
+    } catch (error) {
+      toast.error(errorMessage(error, 'Could not pay that invoice.'));
+    } finally {
+      setPaying(false);
+    }
+  };
+
   const submit = async (event) => {
     event.preventDefault();
     if (!purpose) {
       toast.warning('Choose an advertising platform.');
       return;
     }
-    if (metaMode) {
-      const problem = metaInvoiceProblem(invoice);
-      if (problem) {
-        toast.warning(problem);
-        return;
-      }
-      if (!amount || amount < MIN || amount > MAX) {
-        toast.warning(`Enter the invoice amount, from ${money(MIN)} to ${money(MAX)}.`);
-        return;
-      }
-    }
 
     setBusy(true);
     try {
-      const { data } = await partners.requestLoan(
-        metaMode
-          ? {
-              requested_amount: amount,
-              purpose,
-              ad_account_link: invoice.link,
-              meta_bank_code: invoice.bankCode,
-              meta_account_number: invoice.accountNumber,
-            }
-          : {
-              requested_amount: amount,
-              purpose,
-              ad_account_link: 'https://business.facebook.com/adsmanager',
-            },
-      );
+      const { data } = await partners.requestLoan({
+        requested_amount: amount,
+        purpose,
+        ad_account_link: 'https://business.facebook.com/adsmanager',
+      });
       setLoans((current) => [data, ...current]);
       setPurpose('');
       setAmount(PRESETS[1] || MIN);
-      setInvoice({ link: '', bankCode: invoice.bankCode, accountNumber: '' });
       toast.success(
         metaMode
-          ? `${money(amount)} requested. Once approved, we pay your Meta invoice directly.`
+          ? `${money(amount)} requested. Once approved, we email you to add your Meta invoice and pay.`
           : `${money(amount)} requested. We review the campaign and disburse within 24 hours.`,
       );
     } catch (error) {
@@ -223,7 +239,41 @@ export default function AgentLoans() {
         </section>
       ) : null}
 
-      {blocked ? (
+      {awaiting ? (
+        <section className="agent-card">
+          <div className="agent-card-header">
+            <h2 className="agent-card-title">
+              <span className="agent-icon accent" aria-hidden="true">
+                <Icon name="wallet" size={18} />
+              </span>
+              Approved: pay your Meta invoice
+            </h2>
+          </div>
+          <form onSubmit={payMeta}>
+            <div className="payout-calc-box" style={{ margin: '0 0 20px' }}>
+              <div className="payout-calc-row total">
+                <span>Approved amount</span>
+                <strong>{money(awaiting.approved_amount)}</strong>
+              </div>
+              <div className="payout-calc-row">
+                <span>Reference</span>
+                <strong>{awaiting.reference}</strong>
+              </div>
+            </div>
+            {awaiting.failure_reason ? (
+              <p className="meta-invoice-check is-other" role="alert">
+                The last attempt was not sent: {awaiting.failure_reason}
+              </p>
+            ) : null}
+            <MetaInvoiceFields value={invoice} onChange={setInvoice} amount={money(awaiting.approved_amount)} />
+            <button type="submit" className="agent-btn agent-btn-primary" disabled={paying} style={{ marginTop: 20 }}>
+              {paying ? <span className="spinner-sm" aria-hidden="true" /> : null}
+              <Icon name="payout" size={18} />
+              Pay Meta now
+            </button>
+          </form>
+        </section>
+      ) : blocked ? (
         <section className="agent-card">
           <div className="agent-empty-state">
             <p>{inReview ? 'Request in review' : 'Repay to request again'}</p>
@@ -237,23 +287,6 @@ export default function AgentLoans() {
       ) : (
       <section className="agent-card">
         <form onSubmit={submit}>
-          {metaMode ? (
-            <div className="agent-form-group">
-              <label className="agent-form-label" htmlFor="loan-invoice-amount">
-                Invoice amount *
-              </label>
-              <input
-                id="loan-invoice-amount"
-                className="agent-form-control"
-                inputMode="numeric"
-                value={amount ? String(amount) : ''}
-                onChange={(event) => setAmount(Number(event.target.value.replace(/\D/g, '')) || 0)}
-              />
-              <small className="agent-card-note">
-                Exactly as on the invoice, from {money(MIN)} to {money(MAX)}.
-              </small>
-            </div>
-          ) : (
           <div className="loan-hero-module">
             <div className="loan-amount-hero">
               <div className="loan-amount-eyebrow">Requested budget</div>
@@ -298,7 +331,6 @@ export default function AgentLoans() {
               </div>
             </div>
           </div>
-          )}
 
           <div className="agent-form-group" style={{ marginTop: 20 }}>
             <label className="agent-form-label" htmlFor="loan-purpose">
@@ -319,14 +351,12 @@ export default function AgentLoans() {
             </select>
           </div>
 
-          {metaMode ? <MetaInvoiceFields value={invoice} onChange={setInvoice} /> : null}
-
           <div className="payout-calc-box" style={{ margin: '20px 0' }}>
             <div className="payout-calc-row">
               <span>Paid to</span>
               <strong>
                 {metaMode
-                  ? 'Your Meta ads invoice'
+                  ? 'Your Meta ads invoice, after approval'
                   : `${profile?.bank_name || ''} (${profile?.account_number || ''})`}
               </strong>
             </div>

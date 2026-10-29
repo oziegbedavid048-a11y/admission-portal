@@ -1,8 +1,8 @@
 """Ads funding paid straight into a Meta ads invoice through Paystack.
 
-The agent gives the invoice (account, bank, amount, expiry) and their Ads
-Manager link; Paystack confirms the account is Meta's before the desk sees
-it; the desk approves; Paystack pays Meta; only then is the loan owed.
+The agent asks for an amount only; the desk approves (nothing is paid); the
+agent then gives the Meta invoice and presses Pay; Paystack confirms the
+account is Meta's and pays it at once; only then is the loan owed.
 """
 
 from datetime import timedelta
@@ -45,16 +45,17 @@ class MetaInvoiceLoanTests(TestCase):
         self.addCleanup(mock.patch.stopall)
 
     def request_loan(self, **overrides):
+        body = {"requested_amount": "10000", "purpose": "Facebook Ads", **overrides}
+        return self.client.post("/api/partners/loans/", body, format="json")
+
+    def pay(self, loan, **overrides):
         body = {
-            "requested_amount": "10000",
-            "purpose": "Facebook Ads",
             "ad_account_link": ADS_LINK,
             "meta_bank_code": "999992",
             "meta_account_number": "5624424318",
-            "invoice_expires_at": (timezone.now() + timedelta(hours=6)).isoformat(),
             **overrides,
         }
-        return self.client.post("/api/partners/loans/", body, format="json")
+        return self.client.post(f"/api/partners/loans/{loan.pk}/pay-meta/", body, format="json")
 
     def owed(self):
         return Wallet.objects.get(pk=self.wallet.pk).loan_balance
@@ -69,70 +70,100 @@ class MetaInvoiceLoanTests(TestCase):
         loan.refresh_from_db()
         return loan
 
-    # ── The request ───────────────────────────────────────────────────
+    def approved_loan(self):
+        self.assertEqual(self.request_loan().status_code, 201)
+        return self.approve(Loan.objects.get())
 
-    def test_a_meta_invoice_confirmed_by_paystack_goes_to_the_desk(self):
+    # ── The request: an amount only ──────────────────────────────────
+
+    def test_a_request_needs_only_an_amount_and_goes_to_the_desk(self):
         response = self.request_loan()
         self.assertEqual(response.status_code, 201, response.content)
         loan = Loan.objects.get()
         self.assertEqual(loan.status, Loan.Status.PENDING)
-        self.assertEqual((loan.meta_account_name, loan.meta_bank_name, loan.meta_account_number), ("Meta Ads", "OPay", "5624424318"))
-        self.resolve.assert_called_once_with("5624424318", "999992")
-        self.assertEqual(self.owed(), Decimal("0"))  # nothing owed before Meta is paid
+        self.assertFalse(loan.pays_meta)
+        self.resolve.assert_not_called()
+        self.assertEqual(self.owed(), Decimal("0"))
         self.assertTrue(self.client.get("/api/partners/wallet/").json()["ads_paid_to_meta"])
 
-    def test_an_account_that_is_not_metas_is_refused(self):
-        self.resolve.return_value = "John Doe"
-        response = self.request_loan()
-        self.assertEqual(response.status_code, 400)
-        self.assertIn("not Meta", str(response.json()))
-        self.assertFalse(Loan.objects.exists())
+    def test_invoice_details_sent_with_the_request_are_ignored(self):
+        self.request_loan(meta_bank_code="999992", meta_account_number="1234567890")
+        self.assertFalse(Loan.objects.get().pays_meta)
 
-    def test_the_link_must_be_facebook_ads_manager(self):
-        for link in ("https://example.com/adsmanager?act=123", "https://business.facebook.com/adsmanager", "https://facebook.com.evil.com/?act=1"):
-            self.assertEqual(self.request_loan(ad_account_link=link).status_code, 400, link)
-        self.assertFalse(Loan.objects.exists())
+    # ── The desk approves: nothing is paid, the agent is emailed ──────
 
-    def test_an_expired_invoice_is_refused(self):
-        expired = (timezone.now() - timedelta(minutes=1)).isoformat()
-        self.assertEqual(self.request_loan(invoice_expires_at=expired).status_code, 400)
-        self.assertFalse(Loan.objects.exists())
-
-    def test_without_an_expiry_the_request_is_good_for_twelve_hours(self):
-        before = timezone.now()
-        response = self.request_loan(invoice_expires_at=None)
-        self.assertEqual(response.status_code, 201, response.content)
-        expires = Loan.objects.get().invoice_expires_at
-        self.assertTrue(before + timedelta(hours=11, minutes=59) <= expires <= timezone.now() + timedelta(hours=12))
-
-    def test_approval_after_the_window_pays_nothing(self):
-        body = {k: v for k, v in {"invoice_expires_at": None}.items()}
-        self.request_loan(**body)
-        Loan.objects.update(invoice_expires_at=timezone.now() - timedelta(minutes=1))
+    def test_approval_pays_nothing_and_emails_the_agent(self):
         send = mock.patch(f"{P}.send_transfer").start()
-        loan = self.approve(Loan.objects.get())
+        email = mock.patch("apps.accounts.emails.send_loan_ready_for_invoice_email").start()
+        with self.captureOnCommitCallbacks(execute=True):
+            loan = self.approved_loan()
         send.assert_not_called()
-        self.assertEqual(loan.status, Loan.Status.PENDING)
+        self.assertEqual(loan.status, Loan.Status.APPROVED)
+        self.assertEqual(loan.approved_amount, Decimal("10000"))
+        self.assertTrue(loan.paystack_reference.startswith("gabstep-ln-"))
+        self.assertTrue(loan.awaiting_invoice)
+        self.assertEqual(self.owed(), Decimal("0"))
+        self.assertTrue(self.client.get("/api/partners/loans/").json()[0]["awaiting_invoice"])
+        email.assert_called_once()
 
-    # ── The desk approves; Paystack pays Meta ─────────────────────────
-
-    def test_approval_pays_meta_and_only_then_is_the_loan_owed(self):
+    def test_a_request_cannot_be_paid_before_approval(self):
         self.request_loan()
+        send = mock.patch(f"{P}.send_transfer").start()
+        self.assertEqual(self.pay(Loan.objects.get()).status_code, 400)
+        send.assert_not_called()
+
+    # ── The agent gives the invoice and presses Pay ──────────────────
+
+    def test_pay_sends_meta_the_approved_amount_and_only_then_is_it_owed(self):
+        loan = self.approved_loan()
         send = mock.patch(f"{P}.send_transfer", return_value={"status": "success", "transfer_code": "TRF_1"}).start()
-        loan = self.approve(Loan.objects.get())
+        response = self.pay(loan)
+        self.assertEqual(response.status_code, 200, response.content)
+        loan.refresh_from_db()
         self.assertEqual(loan.status, Loan.Status.DISBURSED)
+        self.assertEqual((loan.meta_account_name, loan.meta_bank_name, loan.meta_account_number), ("Meta Ads", "OPay", "5624424318"))
         amount, recipient, reference, _reason = send.call_args[0]
         self.assertEqual((amount, recipient, reference), (Decimal("10000.00"), "RCP_meta", loan.paystack_reference))
         self.assertEqual(self.owed(), Decimal("10000"))
-        # Approving again changes nothing and pays nothing.
-        self.approve(loan)
+        # Pressing Pay again pays nothing more.
+        self.assertEqual(self.pay(loan).status_code, 400)
         send.assert_called_once()
 
+    def test_an_account_that_is_not_metas_is_refused(self):
+        loan = self.approved_loan()
+        self.resolve.return_value = "John Doe"
+        send = mock.patch(f"{P}.send_transfer").start()
+        response = self.pay(loan)
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("not Meta", str(response.json()))
+        send.assert_not_called()
+        loan.refresh_from_db()
+        self.assertEqual((loan.status, loan.meta_account_number), (Loan.Status.APPROVED, ""))
+
+    def test_the_link_must_be_facebook_ads_manager(self):
+        loan = self.approved_loan()
+        send = mock.patch(f"{P}.send_transfer").start()
+        for link in ("https://example.com/adsmanager?act=123", "https://business.facebook.com/adsmanager",
+                     "https://facebook.com.evil.com/?act=1", "javascript://facebook.com/?act=1"):
+            self.assertEqual(self.pay(loan, ad_account_link=link).status_code, 400, link)
+        send.assert_not_called()
+
+    def test_another_agent_cannot_pay_this_loan(self):
+        loan = self.approved_loan()
+        other = User.objects.create_user(email="other@example.com", role=User.Role.AGENT, country="Nigeria")
+        Wallet.objects.create(agent=AgentProfile.objects.create(user=other), currency="NGN")
+        self.client.force_authenticate(other)
+        send = mock.patch(f"{P}.send_transfer").start()
+        self.assertEqual(self.pay(loan).status_code, 404)
+        send.assert_not_called()
+
     def test_a_low_paystack_balance_holds_it_and_sends_it_once_later(self):
-        self.request_loan()
+        loan = self.approved_loan()
         mock.patch(f"{P}.send_transfer", side_effect=paystack.PaystackRejected("Your balance is not enough")).start()
-        loan = self.approve(Loan.objects.get())
+        self.pay(loan)
+        loan.refresh_from_db()
         self.assertEqual((loan.status, loan.review_reason), (Loan.Status.APPROVED, LOW_BALANCE_NOTE))
+        self.assertFalse(loan.awaiting_invoice)  # sent again by itself, not by the agent
         self.assertEqual(self.owed(), Decimal("0"))
         reference = loan.paystack_reference
         Loan.objects.filter(pk=loan.pk).update(sent_at=timezone.now() - timedelta(hours=1))
@@ -146,10 +177,24 @@ class MetaInvoiceLoanTests(TestCase):
         self.assertEqual(send.call_args[0][2], reference)
         self.assertEqual(self.owed(), Decimal("10000"))
 
+    def test_a_refused_payment_lets_the_agent_give_a_new_invoice(self):
+        loan = self.approved_loan()
+        mock.patch(f"{P}.send_transfer", side_effect=paystack.PaystackRejected("Invalid account")).start()
+        self.pay(loan)
+        loan.refresh_from_db()
+        self.assertEqual(loan.status, Loan.Status.APPROVED)
+        self.assertTrue(loan.awaiting_invoice)
+        send = mock.patch(f"{P}.send_transfer", return_value={"status": "success"}).start()
+        self.assertEqual(self.pay(loan, meta_account_number="8012345678").status_code, 200)
+        loan.refresh_from_db()
+        self.assertEqual((loan.status, loan.meta_account_number), (Loan.Status.DISBURSED, "8012345678"))
+        self.assertEqual(send.call_args[0][2], loan.paystack_reference)
+
     def test_a_failed_payment_to_meta_is_not_owed_and_a_new_request_is_allowed(self):
-        self.request_loan()
+        loan = self.approved_loan()
         mock.patch(f"{P}.send_transfer", return_value={"status": "failed"}).start()
-        loan = self.approve(Loan.objects.get())
+        self.pay(loan)
+        loan.refresh_from_db()
         self.assertEqual(loan.status, Loan.Status.FAILED)
         self.assertEqual(self.owed(), Decimal("0"))
         self.assertEqual(self.request_loan().status_code, 201)
@@ -157,34 +202,25 @@ class MetaInvoiceLoanTests(TestCase):
     def test_a_reversal_after_payment_removes_what_was_owed(self):
         from apps.partners.loan_payouts import apply_status
 
-        self.request_loan()
+        loan = self.approved_loan()
         mock.patch(f"{P}.send_transfer", return_value={"status": "success"}).start()
-        loan = self.approve(Loan.objects.get())
+        self.pay(loan)
+        loan.refresh_from_db()
         self.assertEqual(self.owed(), Decimal("10000"))
         apply_status(loan, {"status": "reversed"})
         apply_status(loan, {"status": "reversed"})  # a repeat changes nothing
         loan.refresh_from_db()
         self.assertEqual((loan.status, self.owed()), (Loan.Status.FAILED, Decimal("0")))
 
-    def test_an_invoice_that_expired_before_approval_is_not_paid(self):
-        self.request_loan()
-        Loan.objects.update(invoice_expires_at=timezone.now() - timedelta(minutes=5))
-        send = mock.patch(f"{P}.send_transfer").start()
-        loan = self.approve(Loan.objects.get())
-        send.assert_not_called()
-        self.assertEqual(loan.status, Loan.Status.PENDING)
-        self.assertIn("expired", loan.review_reason)
-
-    def test_the_staff_disburse_action_never_touches_a_meta_invoice_loan(self):
-        self.request_loan()
-        loan = Loan.objects.get()
+    def test_the_staff_disburse_action_never_touches_an_approved_meta_loan(self):
+        loan = self.approved_loan()
         staff = User.objects.create_superuser(email="desk@example.com", password="pw-123456")
         desk = APIClient()
         desk.force_login(staff)
         with mock.patch("apps.partners.admin.send_loan_approved_email"):
             desk.post(reverse("admin:partners_loan_changelist"), {"action": "action_approve_and_disburse", "_selected_action": [loan.pk]})
         loan.refresh_from_db()
-        self.assertEqual(loan.status, Loan.Status.PENDING)
+        self.assertEqual(loan.status, Loan.Status.APPROVED)
         self.assertEqual(self.owed(), Decimal("0"))
 
     # ── Outside Nigeria: as before ─────────────────────────────────────
@@ -196,7 +232,8 @@ class MetaInvoiceLoanTests(TestCase):
             "/api/partners/loans/", {"requested_amount": "10000", "purpose": "Facebook Ads"}, format="json"
         )
         self.assertEqual(response.status_code, 201, response.content)
-        loan = Loan.objects.get()
+        loan = self.approve(Loan.objects.get())
+        self.assertEqual(loan.status, Loan.Status.PENDING)  # Meta approval skips it
         self.assertFalse(loan.pays_meta)
         self.resolve.assert_not_called()
 
@@ -228,34 +265,25 @@ class MetaAccountNameTests(TestCase):
 
 
 @override_settings(PAYSTACK_SECRET_KEY=KEY, PAYSTACK_PAYOUTS_ENABLED=True)
-class MetaAccountRecheckTests(MetaInvoiceLoanTests):
-    """The account is checked again with Paystack the moment it is paid."""
-
-    def test_an_account_no_longer_metas_at_payment_is_not_paid(self):
-        self.request_loan()
-        self.resolve.return_value = "Ade Stores"  # the invoice account changed hands
-        send = mock.patch(f"{P}.send_transfer").start()
-        loan = self.approve(Loan.objects.get())
-        send.assert_not_called()
-        self.assertEqual(loan.status, Loan.Status.PENDING)
-        self.assertIn("not Meta", loan.review_reason)
-        self.assertEqual(self.owed(), Decimal("0"))
-
+class MetaInvoiceAtAnotherBankTests(MetaInvoiceLoanTests):
     def test_a_meta_invoice_at_another_bank_is_accepted(self):
+        loan = self.approved_loan()
         self.resolve.return_value = "META ADS"
-        response = self.request_loan(meta_bank_code="100002", meta_account_number="8012345678")  # e.g. Paga
-        self.assertEqual(response.status_code, 201, response.content)
+        mock.patch(f"{P}.send_transfer", return_value={"status": "success"}).start()
+        response = self.pay(loan, meta_bank_code="100002", meta_account_number="8012345678")  # e.g. Paga
+        self.assertEqual(response.status_code, 200, response.content)
 
 
 @override_settings(PAYSTACK_SECRET_KEY=KEY, PAYSTACK_PAYOUTS_ENABLED=False)
 class MetaInvoiceWithoutAutomaticWithdrawalsTests(MetaInvoiceLoanTests):
-    """The Meta invoice form does not depend on automatic withdrawals being on."""
+    """The Meta invoice flow does not depend on automatic withdrawals being on."""
 
-    def test_the_form_is_offered_and_approval_pays_meta(self):
+    def test_the_form_is_offered_and_pay_pays_meta(self):
         self.assertTrue(self.client.get("/api/partners/wallet/").json()["ads_paid_to_meta"])
-        self.assertEqual(self.request_loan().status_code, 201)
+        loan = self.approved_loan()
         mock.patch(f"{P}.send_transfer", return_value={"status": "success"}).start()
-        loan = self.approve(Loan.objects.get())
+        self.pay(loan)
+        loan.refresh_from_db()
         self.assertEqual(loan.status, Loan.Status.DISBURSED)
 
 

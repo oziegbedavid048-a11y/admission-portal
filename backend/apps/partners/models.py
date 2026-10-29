@@ -538,6 +538,22 @@ class Loan(models.Model):
         """Whether this loan is paid to a Meta invoice through Paystack."""
         return bool(self.meta_account_number and self.meta_bank_code)
 
+    @property
+    def awaiting_invoice(self):
+        """Approved to pay a Meta invoice, waiting for the agent to give it and press Pay.
+
+        Also true after Paystack refused an earlier attempt (nothing was sent),
+        so the agent can give a fresh invoice. Not while a low Paystack balance
+        holds it: check_payouts sends that one again by itself.
+        """
+        from .payouts import LOW_BALANCE_NOTE
+
+        return (
+            self.status == self.Status.APPROVED
+            and bool(self.paystack_reference)
+            and self.review_reason != LOW_BALANCE_NOTE
+        )
+
     class Meta:
         ordering = ("-requested_at",)
         indexes = [

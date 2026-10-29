@@ -34,6 +34,7 @@ from .serializers import (
     AgentStudentSerializer,
     CommissionSerializer,
     LoanSerializer,
+    PayMetaInvoiceSerializer,
     ReleaseFromSavingsSerializer,
     RepayLoanSerializer,
     StudentDraftFileSerializer,
@@ -233,6 +234,19 @@ class LoanViewSet(AgentScopedMixin, viewsets.ModelViewSet):
                 raise drf_serializers.ValidationError({"detail": reason})
             wallet.sync_currency()
             serializer.save(agent=self.agent, currency=wallet.currency)
+
+    @action(detail=True, methods=["post"], url_path="pay-meta")
+    def pay_meta(self, request, pk=None):
+        """Pay an approved loan's Meta invoice through Paystack, now."""
+        from .loan_payouts import pay_invoice
+
+        loan = self.get_object()
+        if not loan.awaiting_invoice:
+            raise drf_serializers.ValidationError({"detail": "This funding is not waiting for a Meta invoice."})
+        serializer = PayMetaInvoiceSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        loan = pay_invoice(loan, serializer.validated_data)
+        return Response(LoanSerializer(loan).data)
 
     @action(detail=False, methods=["post"])
     def repay(self, request):
