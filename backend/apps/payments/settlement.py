@@ -115,7 +115,7 @@ def _charge_to_apply(locked, gateway_name, gateway_reference):
     if gateway_reference:
         return rows.filter(gateway_reference=gateway_reference).first()
     if gateway_name == Payment.Gateway.TRANSFER:
-        return rows.filter(status=PaymentCharge.Status.REVIEW).order_by("-created_at").first()
+        return rows.filter(status=PaymentCharge.Status.REVIEW).order_by("-created_at", "-pk").first()
     return None
 
 

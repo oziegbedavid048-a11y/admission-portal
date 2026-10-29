@@ -187,7 +187,7 @@ class PaymentToConfirmAdmin(RealDataOnlyAdmin, admin.ModelAdmin):
     @admin.display(description="Amount", ordering="amount_ngn")
     def amount_due(self, obj):
         """What this receipt is for: the whole fee, or one instalment of it."""
-        charge = obj.charges.filter(status="review").order_by("-created_at").first()
+        charge = obj.charges.filter(status="review").order_by("-created_at", "-pk").first()
         if charge is not None:
             label = charge.get_kind_display()
             if obj.plan == Payment.Plan.INSTALMENTS:

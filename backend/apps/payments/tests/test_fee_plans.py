@@ -105,7 +105,7 @@ class FeePlanTests(TestCase):
     def pay_open_charge(self, application):
         """Complete the charge the last checkout opened."""
         payment = Payment.objects.get(application=application.fee_owner)
-        charge = payment.charges.filter(status="pending").order_by("-created_at").first()
+        charge = payment.charges.filter(status="pending").order_by("-created_at", "-pk").first()
         self.webhook(payment, charge.gateway_reference, charge.expected_ngn)
         payment.refresh_from_db()
         return payment, charge
@@ -347,3 +347,28 @@ class FeePlanTests(TestCase):
         self.assertEqual(payment.status, Payment.Status.PART_PAID)
         texts = list(first.notifications.values_list("text", flat=True))
         self.assertTrue(any("₦50,000" in text and "due" in text for text in texts))
+
+
+class SameInstantChargesTests(TestCase):
+    """Two charges stamped at the same instant: the newer one is always chosen."""
+
+    def test_settlement_takes_the_newest_receipt_even_with_equal_timestamps(self):
+        from apps.applications.tests.factories import make_application
+        from apps.payments.settlement import _charge_to_apply
+
+        payment = Payment.objects.create(
+            application=make_application(make_user("tie@example.com")),
+            amount=NGN("200000"), amount_ngn=NGN("200000"), status=Payment.Status.REVIEW,
+        )
+        stamp = timezone.now()
+        older = PaymentCharge.objects.create(
+            payment=payment, kind="deposit", amount_ngn=NGN("100000"), expected_ngn=NGN("100000"),
+            gateway=Payment.Gateway.TRANSFER, status="review",
+        )
+        newer = PaymentCharge.objects.create(
+            payment=payment, kind="balance", amount_ngn=NGN("200000"), expected_ngn=NGN("200000"),
+            gateway=Payment.Gateway.TRANSFER, status="review",
+        )
+        PaymentCharge.objects.filter(pk__in=[older.pk, newer.pk]).update(created_at=stamp)
+        for _ in range(5):
+            self.assertEqual(_charge_to_apply(payment, Payment.Gateway.TRANSFER, None).pk, newer.pk)
