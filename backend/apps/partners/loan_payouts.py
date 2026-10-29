@@ -2,8 +2,8 @@
 
 The rules, in the order a loan meets them:
 
-1. Only an agent in Nigeria with a Naira wallet, while automatic payouts are
-   on, gives a Meta invoice (``meta_invoice_offered``). Everyone else is funded
+1. Only an agent in Nigeria with a Naira wallet, while Paystack is connected,
+   gives a Meta invoice (``meta_invoice_offered``). Everyone else is funded
    by staff by hand, as before.
 2. When the request is made, Paystack resolves the invoice's account number
    and the name must belong to Meta/Facebook ("Meta Ads" for EBANX invoices),
@@ -28,7 +28,7 @@ from django.utils import timezone
 
 from . import paystack_transfers as paystack
 from .models import Loan, Wallet
-from .payouts import LOW_BALANCE_NOTE, NIGERIA, UNKNOWN, is_low_balance, payouts_enabled
+from .payouts import LOW_BALANCE_NOTE, NIGERIA, UNKNOWN, is_low_balance
 
 logger = logging.getLogger(__name__)
 
@@ -37,8 +37,13 @@ PREFIX = "gabstep-ln-"
 
 
 def meta_invoice_offered(agent):
-    """Whether this agent's Ads funding is paid to a Meta invoice through Paystack."""
-    if not payouts_enabled():
+    """Whether this agent's Ads funding is paid to a Meta invoice through Paystack.
+
+    Only needs Paystack to be connected: it does not wait for automatic
+    withdrawals (PAYSTACK_PAYOUTS_ENABLED) to be switched on, because nothing
+    is paid without the desk's approval anyway.
+    """
+    if not paystack.is_configured():
         return False
     if (agent.user.country or "").strip().lower() != NIGERIA:
         return False

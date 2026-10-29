@@ -230,3 +230,26 @@ class MetaAccountRecheckTests(MetaInvoiceLoanTests):
         self.resolve.return_value = "META ADS"
         response = self.request_loan(meta_bank_code="100002", meta_account_number="8012345678")  # e.g. Paga
         self.assertEqual(response.status_code, 201, response.content)
+
+
+@override_settings(PAYSTACK_SECRET_KEY=KEY, PAYSTACK_PAYOUTS_ENABLED=False)
+class MetaInvoiceWithoutAutomaticWithdrawalsTests(MetaInvoiceLoanTests):
+    """The Meta invoice form does not depend on automatic withdrawals being on."""
+
+    def test_the_form_is_offered_and_approval_pays_meta(self):
+        self.assertTrue(self.client.get("/api/partners/wallet/").json()["ads_paid_to_meta"])
+        self.assertEqual(self.request_loan().status_code, 201)
+        mock.patch(f"{P}.send_transfer", return_value={"status": "success"}).start()
+        loan = self.approve(Loan.objects.get())
+        self.assertEqual(loan.status, Loan.Status.DISBURSED)
+
+
+@override_settings(PAYSTACK_SECRET_KEY="")
+class MetaInvoiceWithoutPaystackTests(TestCase):
+    def test_without_paystack_the_staff_flow_stays(self):
+        user = User.objects.create_user(email="ng@example.com", role=User.Role.AGENT, country="Nigeria")
+        Wallet.objects.create(agent=AgentProfile.objects.create(user=user), currency="NGN")
+        client = APIClient()
+        client.force_authenticate(user)
+        self.assertFalse(client.get("/api/partners/wallet/").json()["ads_paid_to_meta"])
+
