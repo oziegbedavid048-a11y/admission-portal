@@ -7,6 +7,7 @@ import { partners } from '../../api/endpoints';
 import { useToast } from '../../context/ToastContext';
 import { useAgent } from './AgentContext';
 import { LedgerDate, LedgerStatus, ShowMore, loanStatus, useShowMore } from './Ledger';
+import MetaInvoiceFields, { metaInvoiceExpiry, metaInvoiceProblem } from './MetaInvoiceFields';
 
 // The range is set in Naira (₦10,000 to ₦80,000). Outside Nigeria the server
 // sends it in the agent's currency at today's rate, as loan_min and loan_max.
@@ -35,8 +36,11 @@ const PLATFORMS = [
   'Offline Campus Outreach',
 ];
 
+// A Meta invoice pays Meta's ads only.
+const META_PLATFORMS = ['Facebook Ads', 'Instagram Ads'];
+
 // Statuses that mean a loan is still in play. A new request waits until none is.
-const OPEN_STATUSES = ['pending', 'approved', 'disbursed'];
+const OPEN_STATUSES = ['pending', 'approved', 'sending', 'disbursed'];
 
 export default function AgentLoans() {
   const { profile, wallet, setWallet, money, symbol, currency } = useAgent();
@@ -55,6 +59,9 @@ export default function AgentLoans() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [MIN, MAX]);
   const [purpose, setPurpose] = useState('');
+  // Agents in Nigeria: the loan pays a Meta ads invoice directly.
+  const metaMode = Boolean(wallet?.ads_paid_to_meta);
+  const [invoice, setInvoice] = useState({ link: '', bankCode: '', accountNumber: '', expiresDate: '', expiresTime: '' });
   const [busy, setBusy] = useState(false);
   const [repayOpen, setRepayOpen] = useState(false);
   const [repayAmount, setRepayAmount] = useState('');
@@ -128,18 +135,45 @@ export default function AgentLoans() {
       toast.warning('Choose an advertising platform.');
       return;
     }
+    if (metaMode) {
+      const problem = metaInvoiceProblem(invoice);
+      if (problem) {
+        toast.warning(problem);
+        return;
+      }
+      if (!amount || amount < MIN || amount > MAX) {
+        toast.warning(`Enter the invoice amount, from ${money(MIN)} to ${money(MAX)}.`);
+        return;
+      }
+    }
 
     setBusy(true);
     try {
-      const { data } = await partners.requestLoan({
-        requested_amount: amount,
-        purpose,
-        ad_account_link: 'https://business.facebook.com/adsmanager',
-      });
+      const { data } = await partners.requestLoan(
+        metaMode
+          ? {
+              requested_amount: amount,
+              purpose,
+              ad_account_link: invoice.link,
+              meta_bank_code: invoice.bankCode,
+              meta_account_number: invoice.accountNumber,
+              invoice_expires_at: metaInvoiceExpiry(invoice),
+            }
+          : {
+              requested_amount: amount,
+              purpose,
+              ad_account_link: 'https://business.facebook.com/adsmanager',
+            },
+      );
       setLoans((current) => [data, ...current]);
       setPurpose('');
       setAmount(PRESETS[1] || MIN);
-      toast.success(`${money(amount)} requested. We review the campaign and disburse within 24 hours.`);
+      setInvoice({ link: '', bankCode: invoice.bankCode, accountNumber: '', expiresDate: '', expiresTime: '' });
+      toast.success(
+        metaMode
+          ? `${money(amount)} requested. Once approved, we pay your Meta invoice directly.`
+          : `${money(amount)} requested. We review the campaign and disburse within 24 hours.`,
+      );
     } catch (error) {
       toast.error(errorMessage(error, 'Could not submit that request.'));
     } finally {
@@ -204,6 +238,23 @@ export default function AgentLoans() {
       ) : (
       <section className="agent-card">
         <form onSubmit={submit}>
+          {metaMode ? (
+            <div className="agent-form-group">
+              <label className="agent-form-label" htmlFor="loan-invoice-amount">
+                Invoice amount *
+              </label>
+              <input
+                id="loan-invoice-amount"
+                className="agent-form-control"
+                inputMode="numeric"
+                value={amount ? String(amount) : ''}
+                onChange={(event) => setAmount(Number(event.target.value.replace(/\D/g, '')) || 0)}
+              />
+              <small className="agent-card-note">
+                Exactly as on the invoice, from {money(MIN)} to {money(MAX)}.
+              </small>
+            </div>
+          ) : (
           <div className="loan-hero-module">
             <div className="loan-amount-hero">
               <div className="loan-amount-eyebrow">Requested budget</div>
@@ -248,6 +299,7 @@ export default function AgentLoans() {
               </div>
             </div>
           </div>
+          )}
 
           <div className="agent-form-group" style={{ marginTop: 20 }}>
             <label className="agent-form-label" htmlFor="loan-purpose">
@@ -260,7 +312,7 @@ export default function AgentLoans() {
               onChange={(event) => setPurpose(event.target.value)}
             >
               <option value="" />
-              {PLATFORMS.map((item) => (
+              {(metaMode ? META_PLATFORMS : PLATFORMS).map((item) => (
                 <option key={item} value={item}>
                   {item}
                 </option>
@@ -268,11 +320,15 @@ export default function AgentLoans() {
             </select>
           </div>
 
+          {metaMode ? <MetaInvoiceFields value={invoice} onChange={setInvoice} /> : null}
+
           <div className="payout-calc-box" style={{ margin: '20px 0' }}>
             <div className="payout-calc-row">
               <span>Paid to</span>
               <strong>
-                {profile?.bank_name} ({profile?.account_number})
+                {metaMode
+                  ? 'Your Meta ads invoice'
+                  : `${profile?.bank_name || ''} (${profile?.account_number || ''})`}
               </strong>
             </div>
             <div className="payout-calc-row">

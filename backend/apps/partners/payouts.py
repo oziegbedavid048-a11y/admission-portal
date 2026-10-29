@@ -318,6 +318,13 @@ def find_by_reference(reference):
 def handle_webhook(event, data):
     """A Paystack transfer.* webhook. The signature is already verified."""
     reference = (data or {}).get("reference") or ""
+    if reference.startswith("gabstep-ln-"):
+        # An Ads funding loan paid to a Meta invoice (loan_payouts.py).
+        from .loan_payouts import handle_webhook as handle_loan_webhook
+
+        with transaction.atomic():
+            handle_loan_webhook(event, data)
+        return
     withdrawal = find_by_reference(reference) if reference else None
     if withdrawal is None:
         logger.warning("Transfer webhook for an unknown reference %r.", reference)

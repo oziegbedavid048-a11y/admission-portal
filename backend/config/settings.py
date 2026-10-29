@@ -513,6 +513,10 @@ PAYSTACK_PAYOUTS_ENABLED = env_bool("PAYSTACK_PAYOUTS_ENABLED", False)
 # Withdrawals pause this many hours after an agent or sales manager points
 # payouts at a different bank account (0 turns the pause off).
 PAYOUT_HOLD_HOURS_AFTER_BANK_CHANGE = int(env("PAYOUT_HOLD_HOURS_AFTER_BANK_CHANGE", "24"))
+# Ads funding pays Meta ads invoices (apps/partners/loan_payouts.py). Extra
+# exact account names to accept as Meta's, comma separated, for a new name
+# Meta starts using; "Meta ..."/"Facebook ..." and EBANX's are accepted anyway.
+META_ACCOUNT_NAMES = env("META_ACCOUNT_NAMES", "")
 
 # The account an applicant transfers the fee to when no online provider is
 # configured. These were hardcoded into the checkout dialog as placeholder

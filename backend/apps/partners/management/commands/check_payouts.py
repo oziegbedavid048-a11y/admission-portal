@@ -43,3 +43,12 @@ class Command(BaseCommand):
         # once it is topped up, each under its own unchanging reference.
         resent = resend_low_balance()
         self.stdout.write(f"Tried {resent} payout(s) held for a low Paystack balance again.")
+
+        # Ads funding paid to Meta invoices: the same two jobs.
+        from apps.partners import loan_payouts
+        from apps.partners.models import Loan
+
+        loans = list(Loan.objects.filter(status=Loan.Status.SENDING, sent_at__lte=cutoff))
+        moved = sum(1 for loan in loans if loan_payouts.check(loan).status != Loan.Status.SENDING)
+        self.stdout.write(f"Checked {len(loans)} ads funding payment(s); {moved} updated.")
+        self.stdout.write(f"Tried {loan_payouts.resend_low_balance()} ads funding payment(s) held for a low balance again.")

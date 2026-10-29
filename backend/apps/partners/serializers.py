@@ -44,6 +44,7 @@ class WalletSerializer(serializers.ModelSerializer):
     symbol = serializers.CharField(read_only=True)
     loan_min = serializers.SerializerMethodField()
     loan_max = serializers.SerializerMethodField()
+    ads_paid_to_meta = serializers.SerializerMethodField()
 
     class Meta:
         model = Wallet
@@ -63,6 +64,7 @@ class WalletSerializer(serializers.ModelSerializer):
             "withdrawal_hold_until",
             "loan_min",
             "loan_max",
+            "ads_paid_to_meta",
             "updated_at",
         )
         read_only_fields = fields
@@ -81,6 +83,12 @@ class WalletSerializer(serializers.ModelSerializer):
 
     def get_loan_max(self, obj):
         return obj.loan_limits[1]
+
+    def get_ads_paid_to_meta(self, obj):
+        """Whether Ads funding is paid straight to a Meta invoice (Nigeria)."""
+        from .loan_payouts import meta_invoice_offered
+
+        return meta_invoice_offered(obj.agent)
 
 
 class AgentProfileSerializer(serializers.ModelSerializer):
@@ -189,6 +197,11 @@ class LoanSerializer(serializers.ModelSerializer):
     ad_account_link = serializers.URLField(
         required=False, allow_blank=True, default="https://business.facebook.com/adsmanager"
     )
+    status_display = serializers.CharField(source="get_status_display", read_only=True)
+    # The Meta ads invoice it pays (agents in Nigeria, see loan_payouts.py).
+    meta_bank_code = serializers.CharField(max_length=12, required=False, allow_blank=True)
+    meta_account_number = serializers.CharField(max_length=10, required=False, allow_blank=True)
+    invoice_expires_at = serializers.DateTimeField(required=False, allow_null=True)
 
     class Meta:
         model = Loan
@@ -200,12 +213,20 @@ class LoanSerializer(serializers.ModelSerializer):
             "purpose",
             "ad_account_link",
             "status",
+            "status_display",
             "currency",
             "requested_at",
             "disbursed_at",
+            "meta_bank_code",
+            "meta_bank_name",
+            "meta_account_number",
+            "meta_account_name",
+            "invoice_expires_at",
+            "failure_reason",
         )
         read_only_fields = (
-            "id", "reference", "approved_amount", "status", "currency", "requested_at", "disbursed_at",
+            "id", "reference", "approved_amount", "status", "status_display", "currency", "requested_at",
+            "disbursed_at", "meta_bank_name", "meta_account_name", "failure_reason",
         )
 
     def validate_requested_amount(self, value):
@@ -233,6 +254,71 @@ class LoanSerializer(serializers.ModelSerializer):
         reason = loan_block_reason(self.context["agent"])
         if reason:
             raise serializers.ValidationError(reason)
+        return self._meta_invoice(attrs)
+
+    def _meta_invoice(self, attrs):
+        """For an agent in Nigeria: the Meta invoice it pays, confirmed with Paystack.
+
+        The account number must resolve (through Paystack) to an account whose
+        name belongs to Meta/Facebook ("Meta Ads" on EBANX invoices), the Ads
+        Manager link must be Facebook's with an ad account id, and the invoice
+        must not have expired. Otherwise the request is refused here, before
+        the desk ever sees it.
+        """
+        from datetime import timedelta
+        from urllib.parse import parse_qs, urlparse
+
+        from django.utils import timezone
+
+        from . import paystack_transfers as paystack
+        from .loan_payouts import is_meta_account_name, meta_invoice_offered
+
+        agent = self.context["agent"]
+        if not meta_invoice_offered(agent):
+            for field in ("meta_bank_code", "meta_account_number", "invoice_expires_at"):
+                attrs.pop(field, None)
+            return attrs
+
+        link = (attrs.get("ad_account_link") or "").strip()
+        parsed = urlparse(link)
+        host = (parsed.hostname or "").lower()
+        account_id = (parse_qs(parsed.query).get("act") or [""])[0]
+        if not (host == "facebook.com" or host.endswith(".facebook.com")) or not account_id.isdigit():
+            raise serializers.ValidationError(
+                {"ad_account_link": "Paste your Ads Manager link from Facebook (it contains act= and your ad account number)."}
+            )
+
+        number = (attrs.get("meta_account_number") or "").strip()
+        code = (attrs.get("meta_bank_code") or "").strip()
+        if not (number.isdigit() and len(number) == 10) or not code:
+            raise serializers.ValidationError(
+                {"meta_account_number": "Enter the 10-digit account number and bank from your Meta invoice."}
+            )
+        expires = attrs.get("invoice_expires_at")
+        if expires is None or expires <= timezone.now() + timedelta(minutes=30):
+            raise serializers.ValidationError(
+                {"invoice_expires_at": "This Meta invoice has expired or expires too soon. Create a new invoice in Ads Manager."}
+            )
+        try:
+            name = paystack.resolve_account(number, code)
+            bank = paystack.bank_name_for(code)
+        except paystack.PaystackRejected:
+            raise serializers.ValidationError(
+                {"meta_account_number": "Paystack could not find this account at that bank. Check the invoice details."}
+            )
+        except paystack.PaystackUnreachable:
+            raise serializers.ValidationError(
+                {"meta_account_number": "The account could not be checked right now. Please try again in a moment."}
+            )
+        if not is_meta_account_name(name):
+            raise serializers.ValidationError(
+                {"meta_account_number": f"This account is in the name of {name}, not Meta. Use the account on your Meta ads invoice."}
+            )
+        attrs["meta_account_number"] = number
+        attrs["meta_bank_code"] = code
+        attrs["meta_account_name"] = name[:120]
+        attrs["meta_bank_name"] = (bank or "")[:120]
+        attrs["ad_account_link"] = link
         return attrs
 
     def validate_purpose(self, value):

@@ -746,3 +746,14 @@ a.ag-text-btn { text-decoration: none; }
   .course-sheet-actions { width: 100%; }
   .course-sheet-actions .agent-btn { flex: 1; justify-content: center; }
 }
+
+/* ── Meta ads invoice on an Ads funding request (MetaInvoiceFields.jsx) ── */
+.meta-invoice { display: grid; gap: 4px; margin-top: 20px; padding: 16px; border: 1px solid var(--g-line); border-radius: var(--g-r-md); background: var(--g-surface-2); }
+.meta-invoice-intro { margin: 0 0 12px; font-size: 0.875rem; line-height: 1.5; color: var(--g-ink-2); }
+.meta-invoice-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.meta-invoice-check { margin: -4px 0 12px; font-size: 0.8125rem; font-weight: 600; overflow-wrap: anywhere; }
+.meta-invoice-check.is-meta { color: var(--g-accent); }
+.meta-invoice-check.is-other { color: var(--g-neg); }
+.meta-invoice-check.is-checking,
+.meta-invoice-check.is-unknown { color: var(--g-ink-3); }
+@media (max-width: 520px) { .meta-invoice-grid { grid-template-columns: 1fr; } }

@@ -389,15 +389,25 @@ class LoanAdmin(RealDataOnlyAdmin, admin.ModelAdmin):
 
     test_user_paths = ("agent__user",)
 
-    list_display = ("reference", "agent", "requested", "purpose", "campaign", "status_badge", "requested_at")
+    list_display = ("reference", "agent", "requested", "purpose", "campaign", "meta_account", "status_badge", "requested_at")
     list_filter = ("status", "purpose", "requested_at")
     search_fields = ("agent__user__full_name", "agent__user__email", "purpose")
     autocomplete_fields = ("agent",)
     date_hierarchy = "requested_at"
     # Status moves only through the actions, which also move the agent's loan
     # balance. Set by hand it changed the status and left the balance behind.
-    readonly_fields = ("reference", "status", "currency", "requested_at", "disbursed_at", "campaign")
-    actions = ("action_approve_and_disburse", "action_mark_repaid", "action_decline")
+    readonly_fields = (
+        "reference", "status", "currency", "requested_at", "disbursed_at", "campaign",
+        "meta_account", "invoice_expires_at", "paystack_reference", "transfer_code",
+        "review_reason", "failure_reason", "approved_by", "sent_at",
+    )
+    actions = (
+        "action_approve_and_pay_meta",
+        "action_check_paystack",
+        "action_approve_and_disburse",
+        "action_mark_repaid",
+        "action_decline",
+    )
 
     def has_delete_permission(self, request, obj=None):
         """Funding that was paid out or repaid is a record of money and stays.
@@ -409,7 +419,11 @@ class LoanAdmin(RealDataOnlyAdmin, admin.ModelAdmin):
     fieldsets = (
         (None, {"fields": ("reference", "agent", "status", "currency")}),
         ("Request", {"fields": ("requested_amount", "purpose", "ad_account_link", "campaign")}),
-        ("Disbursement", {"fields": ("approved_amount", "requested_at", "disbursed_at")}),
+        ("Meta invoice (paid through Paystack)", {"fields": ("meta_account", "invoice_expires_at")}),
+        ("Disbursement", {"fields": (
+            "approved_amount", "requested_at", "disbursed_at", "approved_by", "sent_at",
+            "paystack_reference", "transfer_code", "review_reason", "failure_reason",
+        )}),
     )
 
     def get_queryset(self, request):
@@ -433,19 +447,64 @@ class LoanAdmin(RealDataOnlyAdmin, admin.ModelAdmin):
             Loan.Status.DISBURSED: "ok",
             Loan.Status.REPAID: "ok",
             Loan.Status.DECLINED: "bad",
+            Loan.Status.FAILED: "bad",
             Loan.Status.PENDING: "wait",
+            Loan.Status.SENDING: "info",
         }.get(obj.status, "idle")
         return _pill(obj.get_status_display(), tone)
 
-    @admin.action(description="Approve and disburse the full amount")
+    @admin.display(description="Meta invoice account")
+    def meta_account(self, obj):
+        if not obj.pays_meta:
+            return "None (paid by staff)"
+        expiry = f", expires {timezone.localtime(obj.invoice_expires_at):%d %b %H:%M}" if obj.invoice_expires_at else ""
+        return f"{obj.meta_account_name} · {obj.meta_bank_name or obj.meta_bank_code} · {obj.meta_account_number}{expiry}"
+
+    @admin.action(description="Approve and pay Meta through Paystack")
+    def action_approve_and_pay_meta(self, request, queryset):
+        """Approve Meta-invoice requests and pay the invoice. Nothing else."""
+        from .loan_payouts import approve_and_send
+
+        paid = sending = held = 0
+        for loan in queryset.filter(status__in=(Loan.Status.PENDING, Loan.Status.APPROVED)):
+            if not loan.pays_meta:
+                continue
+            result = approve_and_send(loan, request.user)
+            if result.status == Loan.Status.DISBURSED:
+                paid += 1
+            elif result.status == Loan.Status.SENDING:
+                sending += 1
+            else:
+                held += 1
+                self.message_user(
+                    request,
+                    f"{result.reference} not paid: {result.review_reason or result.failure_reason or 'see the request'}",
+                    messages.WARNING,
+                )
+        if paid or sending:
+            self.message_user(request, f"{_plural(paid, 'loan')} paid to Meta and {_plural(sending, 'loan')} on the way.", messages.SUCCESS)
+        if not (paid or sending or held):
+            self.message_user(request, "Nothing to pay: choose requests in review that have a Meta invoice.", messages.INFO)
+
+    @admin.action(description="Check with Paystack")
+    def action_check_paystack(self, request, queryset):
+        from .loan_payouts import check
+
+        checked = 0
+        for loan in queryset.filter(status=Loan.Status.SENDING):
+            check(loan)
+            checked += 1
+        self.message_user(request, f"{_plural(checked, 'loan')} checked with Paystack.", messages.INFO)
+
+    @admin.action(description="Approve and disburse (paid by staff, no Meta invoice)")
     @transaction.atomic
     def action_approve_and_disburse(self, request, queryset):
         released = Decimal("0")
         count = 0
         # Locked, so two staff approving at once cannot release a loan twice.
         loans = locked_loans(queryset).exclude(
-            status__in=(Loan.Status.DISBURSED, Loan.Status.REPAID)
-        )
+            status__in=(Loan.Status.DISBURSED, Loan.Status.REPAID, Loan.Status.SENDING, Loan.Status.FAILED)
+        ).filter(meta_account_number="")
         released_by_currency = {}
         for loan in loans:
             loan.status = Loan.Status.DISBURSED

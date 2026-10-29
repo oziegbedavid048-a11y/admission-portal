@@ -473,14 +473,28 @@ class Commission(models.Model):
 
 
 class Loan(models.Model):
-    """Interest-free ads funding, repaid out of later withdrawals."""
+    """Interest-free ads funding, repaid out of later withdrawals.
+
+    For agents in Nigeria (when automatic payouts are on) the money never
+    reaches the agent: it pays a Meta ads invoice directly. The agent enters
+    the invoice's account (Meta's partner EBANX issues one per invoice, e.g.
+    "Meta Ads" at OPay), its amount and expiry, and their Ads Manager link.
+    Paystack confirms the account belongs to Meta before the desk sees the
+    request; the desk approves; Paystack pays the invoice; and only when
+    Paystack confirms the transfer is the loan counted against the agent.
+    """
 
     class Status(models.TextChoices):
         PENDING = "pending", "In review"
         APPROVED = "approved", "Approved"
+        # Approved and handed to Paystack; waiting for Paystack's answer.
+        SENDING = "sending", "Paying Meta"
         DISBURSED = "disbursed", "Disbursed"
         REPAID = "repaid", "Repaid"
         DECLINED = "declined", "Declined"
+        # Paystack could not pay the Meta invoice (expired, reversed): nothing
+        # is owed, and the agent may request again.
+        FAILED = "failed", "Payment to Meta failed"
 
     MIN_AMOUNT = Decimal("10000")
     MAX_AMOUNT = Decimal("80000")
@@ -501,6 +515,28 @@ class Loan(models.Model):
     )
     requested_at = models.DateTimeField(auto_now_add=True)
     disbursed_at = models.DateTimeField(null=True, blank=True)
+
+    # The Meta ads invoice it pays (agents in Nigeria). The account name is
+    # Paystack's, never what was typed; it must belong to Meta/Facebook.
+    meta_bank_code = models.CharField(max_length=12, blank=True)
+    meta_bank_name = models.CharField(max_length=120, blank=True)
+    meta_account_number = models.CharField(max_length=10, blank=True)
+    meta_account_name = models.CharField(max_length=120, blank=True)
+    invoice_expires_at = models.DateTimeField(null=True, blank=True)
+    # The Paystack transfer to that invoice, as for agent payouts.
+    paystack_reference = models.CharField(max_length=40, unique=True, null=True, blank=True)
+    transfer_code = models.CharField(max_length=40, blank=True)
+    review_reason = models.CharField(max_length=200, blank=True)
+    failure_reason = models.CharField(max_length=300, blank=True)
+    approved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    sent_at = models.DateTimeField(null=True, blank=True)
+
+    @property
+    def pays_meta(self):
+        """Whether this loan is paid to a Meta invoice through Paystack."""
+        return bool(self.meta_account_number and self.meta_bank_code)
 
     class Meta:
         ordering = ("-requested_at",)
@@ -552,7 +588,7 @@ def loan_block_reason(agent, wallet=None):
     One loan at a time: nothing new while a request is in review, while a loan
     is approved or out, or while any of it is still owed.
     """
-    if agent.loans.filter(status=Loan.Status.PENDING).exists():
+    if agent.loans.filter(status__in=(Loan.Status.PENDING, Loan.Status.SENDING)).exists():
         return (
             "You already have a funding request in review. The desk will come back "
             "to you on that one before you can raise another."

@@ -40,6 +40,9 @@ const LOAN_STATUS = {
   disbursed: ['good', 'Disbursed'],
   repaid: ['muted', 'Repaid'],
   declined: ['bad', 'Declined'],
+  // Paid to a Meta invoice through Paystack (agents in Nigeria).
+  sending: ['wait', 'Paying Meta'],
+  failed: ['bad', 'Payment to Meta failed'],
 };
 
 export function loanStatus(status) {
