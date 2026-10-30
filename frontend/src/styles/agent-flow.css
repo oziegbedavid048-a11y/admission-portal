@@ -756,4 +756,11 @@ a.ag-text-btn { text-decoration: none; }
 .meta-invoice-check.is-other { color: var(--g-neg); }
 .meta-invoice-check.is-checking,
 .meta-invoice-check.is-unknown { color: var(--g-ink-3); }
+.meta-invoice-name { display: flex; flex-direction: column; gap: 2px; margin: -4px 0 12px; padding: 12px 14px; border: 1px solid var(--g-line, rgba(0,0,0,.12)); border-radius: 12px; background: var(--g-surface, #fff); }
+.meta-invoice-name span { font-size: 0.75rem; color: var(--g-ink-3); }
+.meta-invoice-name strong { font-size: 1rem; overflow-wrap: anywhere; }
+.meta-invoice-name.is-meta strong { color: var(--g-accent); }
+.meta-invoice-name.is-other strong { color: var(--g-neg); }
+.meta-invoice-confirm { display: flex; align-items: flex-start; gap: 10px; margin: 0 0 12px; font-size: 0.875rem; font-weight: 600; cursor: pointer; }
+.meta-invoice-confirm input { width: 18px; height: 18px; margin-top: 1px; flex: none; accent-color: var(--g-accent); }
 @media (max-width: 520px) { .meta-invoice-grid { grid-template-columns: 1fr; } }

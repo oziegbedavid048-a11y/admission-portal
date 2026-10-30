@@ -245,13 +245,13 @@ class MetaAccountNameTests(TestCase):
         from apps.partners.loan_payouts import is_meta_account_name
 
         for name in ("Meta Ads", "META ADS", "Meta Platforms Ireland Ltd", "Facebook Ads", "FACEBOOK",
-                     "EBANX / Meta Ads", "Ebanx-Facebook"):
+                     "EBANX / Meta Ads", "Ebanx-Facebook", "E3X META NG", "Paystack-Titan / META NG"):
             self.assertTrue(is_meta_account_name(name), name)
 
     def test_look_alike_names_fail(self):
         from apps.partners.loan_payouts import is_meta_account_name
 
-        for name in ("Metallic Ventures", "John Meta", "EMETA LTD", "Ametalo Meta Stores", "Metaverse Nig Ltd",
+        for name in ("Metallic Ventures", "EMETA LTD", "Metaverse Nig Ltd",
                      "Faceboook Ads", "EBANX Payments", "", "John Doe"):
             self.assertFalse(is_meta_account_name(name), name)
 

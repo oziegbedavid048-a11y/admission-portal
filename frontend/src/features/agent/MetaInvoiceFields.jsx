@@ -16,12 +16,10 @@ import { partners } from '../../api/endpoints';
  */
 
 // The same rule as the server (loan_payouts.is_meta_account_name), which is
-// the one that counts: "Meta"/"Facebook" leading the name, or beside EBANX.
+// the one that counts: "Meta" or "Facebook" as a whole word anywhere in the name.
 const isMetaName = (name) => {
   const words = (name || '').toUpperCase().split(/[^A-Z0-9]+/).filter(Boolean);
-  if (!words.length) return false;
-  if (words[0] === 'META' || words[0] === 'FACEBOOK') return true;
-  return words.includes('EBANX') && (words.includes('META') || words.includes('FACEBOOK'));
+  return words.includes('META') || words.includes('FACEBOOK');
 };
 
 export default function MetaInvoiceFields({ value, onChange, amount }) {
@@ -50,8 +48,10 @@ export default function MetaInvoiceFields({ value, onChange, amount }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Check the account with Paystack once ten digits and a bank are in.
+  // Check the account with Paystack once ten digits and a bank are in. A new
+  // account clears the agent's confirmation of the name.
   useEffect(() => {
+    if (value.confirmedName) onChange({ ...value, confirmedName: '' });
     if (!value.bankCode || !/^\d{10}$/.test(value.accountNumber || '')) {
       setCheck({ state: 'idle', name: '' });
       return undefined;
@@ -126,15 +126,29 @@ export default function MetaInvoiceFields({ value, onChange, amount }) {
         </div>
       </div>
 
-      {check.state !== 'idle' ? (
+      {check.state === 'meta' || check.state === 'other' ? (
+        <div className={`meta-invoice-name is-${check.state}`} role="status">
+          <span>Account name</span>
+          <strong>{check.name}</strong>
+        </div>
+      ) : null}
+
+      {check.state === 'meta' ? (
+        <label className="meta-invoice-confirm">
+          <input
+            type="checkbox"
+            checked={value.confirmedName === check.name}
+            onChange={(event) => set({ confirmedName: event.target.checked ? check.name : '' })}
+          />
+          <span>This is the same account name shown on my Meta invoice.</span>
+        </label>
+      ) : check.state !== 'idle' ? (
         <p className={`meta-invoice-check is-${check.state}`} role="status">
           {check.state === 'checking'
             ? 'Checking the account with Paystack…'
-            : check.state === 'meta'
-              ? `✓ ${check.name}: this is Meta's account.`
-              : check.state === 'other'
-                ? `This account is in the name of ${check.name}, not Meta. Use the account on your Meta invoice.`
-                : 'The account could not be checked right now. It is checked again when you pay.'}
+            : check.state === 'other'
+              ? 'This name does not have Meta in it. Use the account on your Meta invoice.'
+              : 'The account could not be checked right now. Check the number and bank, then try again.'}
         </p>
       ) : null}
 
@@ -149,5 +163,6 @@ export function metaInvoiceProblem(value) {
   }
   if (!value.bankCode) return 'Choose the bank on your Meta invoice.';
   if (!/^\d{10}$/.test(value.accountNumber || '')) return 'Enter the 10-digit account number on your Meta invoice.';
+  if (!value.confirmedName) return 'Confirm the account name matches the name on your Meta invoice.';
   return '';
 }

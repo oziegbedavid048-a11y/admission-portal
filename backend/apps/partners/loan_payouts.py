@@ -56,14 +56,13 @@ def meta_invoice_offered(agent):
 def is_meta_account_name(name):
     """Whether a bank account name, as Paystack returns it, is Meta's.
 
-    Meta's invoice accounts change bank and number (OPay, Paga and others),
-    but the name is Meta's: "Meta Ads", "Meta Platforms", "Facebook ...", or
-    EBANX (Meta's payment partner) with Meta in it. A name merely *containing*
-    the letters "meta" is not enough: "Metallic Ventures" or "John Meta" would
-    let anyone open an account and have Gabstep pay it. So "Meta"/"Facebook"
-    must be a whole word that leads the name, or appear beside "EBANX". Exact
-    names the desk adds in META_ACCOUNT_NAMES (comma separated) are accepted
-    too, for a new name Meta starts using.
+    Meta's invoice accounts change bank, number and name ("Meta Ads",
+    "E3X META NG", "EBANX / Meta Ads", "Facebook ..."), but the name always
+    has Meta in it. So "Meta" or "Facebook" as a whole word anywhere in the
+    name is accepted; letters inside another word ("Metallic Ventures") are
+    not. The agent also sees the resolved name and confirms it matches their
+    invoice before paying. Exact names the desk adds in META_ACCOUNT_NAMES
+    (comma separated) are accepted too.
     """
     import re
 
@@ -79,9 +78,7 @@ def is_meta_account_name(name):
     }
     if " ".join(words) in extra:
         return True
-    if words[0] in ("META", "FACEBOOK"):
-        return True
-    return "EBANX" in words and bool({"META", "FACEBOOK"} & set(words))
+    return bool({"META", "FACEBOOK"} & set(words))
 
 
 def still_meta(loan):
