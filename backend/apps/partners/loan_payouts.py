@@ -172,12 +172,11 @@ def pay_invoice(loan, details):
         locked = Loan.objects.select_for_update().get(pk=loan.pk)
         if not locked.awaiting_invoice:
             return locked
-        for field in ("ad_account_link", "meta_bank_code", "meta_account_number", "meta_account_name", "meta_bank_name"):
+        for field in ("meta_bank_code", "meta_account_number", "meta_account_name", "meta_bank_name"):
             setattr(locked, field, details[field])
         locked.review_reason = ""
         locked.save(update_fields=[
-            "ad_account_link", "meta_bank_code", "meta_account_number", "meta_account_name", "meta_bank_name",
-            "review_reason",
+            "meta_bank_code", "meta_account_number", "meta_account_name", "meta_bank_name", "review_reason",
         ])
     return send(locked)
 

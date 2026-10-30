@@ -61,7 +61,7 @@ export default function AgentLoans() {
   const [purpose, setPurpose] = useState('');
   // Agents in Nigeria: the loan pays a Meta ads invoice directly.
   const metaMode = Boolean(wallet?.ads_paid_to_meta);
-  const [invoice, setInvoice] = useState({ link: '', bankCode: '', accountNumber: '' });
+  const [invoice, setInvoice] = useState({ bankCode: '', accountNumber: '' });
   const [busy, setBusy] = useState(false);
   const [repayOpen, setRepayOpen] = useState(false);
   const [repayAmount, setRepayAmount] = useState('');
@@ -142,7 +142,6 @@ export default function AgentLoans() {
     setPaying(true);
     try {
       const { data } = await partners.payMetaInvoice(awaiting.id, {
-        ad_account_link: invoice.link,
         meta_bank_code: invoice.bankCode,
         meta_account_number: invoice.accountNumber,
       });
@@ -159,7 +158,7 @@ export default function AgentLoans() {
       } else {
         toast.success('Payment is queued and goes to Meta shortly.');
       }
-      setInvoice({ link: invoice.link, bankCode: invoice.bankCode, accountNumber: '' });
+      setInvoice({ bankCode: invoice.bankCode, accountNumber: '' });
     } catch (error) {
       toast.error(errorMessage(error, 'Could not pay that invoice.'));
     } finally {

@@ -195,30 +195,19 @@ class AgentProfileSerializer(serializers.ModelSerializer):
 class PayMetaInvoiceSerializer(serializers.Serializer):
     """The Meta invoice an approved Ads funding loan pays (agents in Nigeria).
 
-    The Ads Manager link must be Facebook's with an ad account id, and the
-    account number must resolve through Paystack to an account in Meta's name
+    No Ads Manager link is asked for: the invoice account itself is what is
+    paid. The account number must resolve through Paystack to an account in Meta's name
     (loan_payouts.is_meta_account_name). Anything else is refused and nothing
     is paid.
     """
 
-    ad_account_link = serializers.CharField(max_length=500)
     meta_bank_code = serializers.CharField(max_length=12)
     meta_account_number = serializers.CharField(max_length=10)
 
     def validate(self, attrs):
-        from urllib.parse import parse_qs, urlparse
-
         from . import paystack_transfers as paystack
         from .loan_payouts import is_meta_account_name
 
-        link = attrs["ad_account_link"].strip()
-        parsed = urlparse(link)
-        host = (parsed.hostname or "").lower()
-        account_id = (parse_qs(parsed.query).get("act") or [""])[0]
-        if parsed.scheme not in ("http", "https") or not (host == "facebook.com" or host.endswith(".facebook.com")) or not account_id.isdigit():
-            raise serializers.ValidationError(
-                {"ad_account_link": "Paste your Ads Manager link from Facebook (it contains act= and your ad account number)."}
-            )
         number = attrs["meta_account_number"].strip()
         code = attrs["meta_bank_code"].strip()
         if not (number.isdigit() and len(number) == 10) or not code:
@@ -241,7 +230,6 @@ class PayMetaInvoiceSerializer(serializers.Serializer):
                 {"meta_account_number": f"This account is in the name of {name}, not Meta. Use the account on your Meta ads invoice."}
             )
         return {
-            "ad_account_link": link,
             "meta_bank_code": code,
             "meta_account_number": number,
             "meta_account_name": name[:120],

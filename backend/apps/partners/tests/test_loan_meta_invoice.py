@@ -23,7 +23,6 @@ from apps.partners.payouts import LOW_BALANCE_NOTE
 
 KEY = "sk_test_simulated"
 P = "apps.partners.paystack_transfers"
-ADS_LINK = "https://adsmanager.facebook.com/adsmanager/manage/campaigns?act=290226488340854"
 NOT_FOUND = paystack.PaystackRejected("Transfer not found")
 
 
@@ -50,7 +49,6 @@ class MetaInvoiceLoanTests(TestCase):
 
     def pay(self, loan, **overrides):
         body = {
-            "ad_account_link": ADS_LINK,
             "meta_bank_code": "999992",
             "meta_account_number": "5624424318",
             **overrides,
@@ -140,13 +138,15 @@ class MetaInvoiceLoanTests(TestCase):
         loan.refresh_from_db()
         self.assertEqual((loan.status, loan.meta_account_number), (Loan.Status.APPROVED, ""))
 
-    def test_the_link_must_be_facebook_ads_manager(self):
+    def test_no_ads_manager_link_is_needed_to_pay(self):
         loan = self.approved_loan()
-        send = mock.patch(f"{P}.send_transfer").start()
-        for link in ("https://example.com/adsmanager?act=123", "https://business.facebook.com/adsmanager",
-                     "https://facebook.com.evil.com/?act=1", "javascript://facebook.com/?act=1"):
-            self.assertEqual(self.pay(loan, ad_account_link=link).status_code, 400, link)
-        send.assert_not_called()
+        mock.patch(f"{P}.send_transfer", return_value={"status": "success"}).start()
+        response = self.client.post(
+            f"/api/partners/loans/{loan.pk}/pay-meta/",
+            {"meta_bank_code": "999992", "meta_account_number": "5624424318"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.content)
 
     def test_another_agent_cannot_pay_this_loan(self):
         loan = self.approved_loan()

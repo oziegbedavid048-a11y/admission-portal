@@ -7,11 +7,11 @@ import { partners } from '../../api/endpoints';
  * Once the desk approves, the agent chooses "Add funds" by bank transfer in
  * Ads Manager for the approved amount, which gives an invoice with an account
  * number, the name "Meta Ads" and a bank (usually OPay). The agent copies
- * those here with their Ads Manager link and presses Pay. The account is
+ * those here and presses Pay. The account is
  * checked with Paystack as it is typed, and the server checks it again: only
  * an account in Meta's name is paid, at once, so the invoice cannot expire.
  *
- * `value` is { link, bankCode, accountNumber };
+ * `value` is { bankCode, accountNumber, confirmedName };
  * `onChange(next)` gets the whole object back.
  */
 
@@ -77,20 +77,6 @@ export default function MetaInvoiceFields({ value, onChange, amount }) {
         In Ads Manager, choose <strong>Add funds</strong> by bank transfer for exactly <strong>{amount}</strong>, then
         copy the invoice details below and press Pay. We pay Meta straight away.
       </p>
-
-      <div className="agent-form-group">
-        <label className="agent-form-label" htmlFor="meta-link">
-          Ads Manager link *
-        </label>
-        <input
-          id="meta-link"
-          className="agent-form-control"
-          inputMode="url"
-          placeholder="https://adsmanager.facebook.com/...act=..."
-          value={value.link || ''}
-          onChange={(event) => set({ link: event.target.value.trim() })}
-        />
-      </div>
 
       <div className="meta-invoice-grid">
         <div className="agent-form-group">
@@ -158,9 +144,6 @@ export default function MetaInvoiceFields({ value, onChange, amount }) {
 
 /** What is missing before the invoice can be paid, or ''. */
 export function metaInvoiceProblem(value) {
-  if (!/facebook\.com/i.test(value.link || '') || !/[?&]act=\d+/.test(value.link || '')) {
-    return 'Paste your Ads Manager link (it contains act= and your ad account number).';
-  }
   if (!value.bankCode) return 'Choose the bank on your Meta invoice.';
   if (!/^\d{10}$/.test(value.accountNumber || '')) return 'Enter the 10-digit account number on your Meta invoice.';
   if (!value.confirmedName) return 'Confirm the account name matches the name on your Meta invoice.';
