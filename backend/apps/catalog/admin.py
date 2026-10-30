@@ -5,7 +5,9 @@ show, so the screens are built for editing in bulk: order and visibility are
 editable straight from the list, and the filters match the ones agents use.
 """
 
+from django import forms
 from django.contrib import admin, messages
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db.models import Count
 from django.utils.html import format_html
 
@@ -13,7 +15,7 @@ from config.admin_ui import muted, pill
 
 from . import admin_import  # noqa: F401  (registers the Add Course screen)
 from .forms import AddCourseForm
-from .models import DestinationCountry, FaqItem, Institution, OriginCountry, Program
+from .models import DestinationCountry, FaqItem, Institution, LandingReview, OriginCountry, Program
 
 
 class HiddenFromIndex:
@@ -326,3 +328,143 @@ class FaqItemAdmin(HiddenFromIndex, admin.ModelAdmin):
     list_display_links = ("question",)
     list_editable = ("display_order", "is_active")
     search_fields = ("question", "answer")
+
+
+class LandingReviewForm(forms.ModelForm):
+    """Upload, blur, save: only the blurred picture is ever stored.
+
+    ``source`` is the file the admin chooses. The blur tool reads it in the
+    browser and empties the field before the form is sent, so the original
+    never reaches the server; ``redacted`` carries the blurred picture instead.
+    """
+
+    source = forms.FileField(
+        label="Image or PDF",
+        required=False,
+        help_text="A photo, screenshot or PDF (the first page is used).",
+        widget=forms.ClearableFileInput(attrs={"accept": "image/jpeg,image/png,image/webp,application/pdf"}),
+    )
+    redacted = forms.CharField(required=False, widget=forms.HiddenInput)
+    blur_count = forms.IntegerField(required=False, widget=forms.HiddenInput)
+    nothing_private = forms.BooleanField(
+        label="This image has nothing private on it",
+        required=False,
+        help_text="Tick only for photos with no names, numbers or addresses on them.",
+    )
+
+    class Meta:
+        model = LandingReview
+        fields = ("kind", "title", "detail", "focus", "display_order", "is_active")
+
+    def clean(self):
+        from .landing_reviews import redacted_image
+
+        data = super().clean()
+        redacted = data.get("redacted")
+        if not redacted:
+            if not self.instance.pk:
+                raise forms.ValidationError("Choose an image or PDF, blur anything private, then save.")
+            return data
+        if not (data.get("blur_count") or 0) and not data.get("nothing_private"):
+            raise forms.ValidationError(
+                "Drag boxes over every name, passport or ID number and address, "
+                'or tick "This image has nothing private on it".'
+            )
+        try:
+            data["redacted_file"] = redacted_image(redacted)
+        except DjangoValidationError as exc:
+            raise forms.ValidationError(exc.messages)
+        return data
+
+
+@admin.register(LandingReview)
+class LandingReviewAdmin(admin.ModelAdmin):
+    form = LandingReviewForm
+    change_form_template = "admin/catalog/landingreview/change_form.html"
+    list_display = ("thumbnail", "title", "detail", "kind", "display_order", "is_active")
+    list_display_links = ("thumbnail", "title")
+    list_editable = ("display_order", "is_active")
+    list_filter = ("kind", "is_active")
+    search_fields = ("title", "detail")
+    actions = ("action_show", "action_hide")
+    fieldsets = (
+        ("Image", {"fields": ("source", "nothing_private", "redacted", "blur_count")}),
+        ("Card", {"fields": ("kind", "title", "detail", "focus")}),
+        ("Landing page", {"fields": ("display_order", "is_active")}),
+    )
+
+    class Media:
+        css = {"all": ("admin/landing_reviews/blur.css",)}
+        js = ("admin/landing_reviews/blur.js",)
+
+    @admin.display(description="Image")
+    def thumbnail(self, obj):
+        if not obj.image:
+            return muted("None")
+        return format_html(
+            '<img src="{}" alt="" style="width:96px;height:64px;object-fit:cover;border-radius:6px;">', obj.image.url
+        )
+
+    def get_urls(self):
+        from django.urls import path
+
+        return [
+            path(
+                "pdf-preview/",
+                self.admin_site.admin_view(self.pdf_preview),
+                name="catalog_landingreview_pdf_preview",
+            ),
+            *super().get_urls(),
+        ]
+
+    def pdf_preview(self, request):
+        """The first page of a PDF as a picture for the blur tool. Nothing is kept."""
+        from django.http import HttpResponse, HttpResponseNotAllowed, JsonResponse
+
+        from .landing_reviews import pdf_first_page
+
+        if request.method != "POST":
+            return HttpResponseNotAllowed(["POST"])
+        if not (self.has_add_permission(request) or self.has_change_permission(request)):
+            return JsonResponse({"error": "Not allowed."}, status=403)
+        upload = request.FILES.get("file")
+        if upload is None:
+            return JsonResponse({"error": "Choose a PDF."}, status=400)
+        try:
+            picture = pdf_first_page(upload)
+        except DjangoValidationError as exc:
+            return JsonResponse({"error": " ".join(exc.messages)}, status=400)
+        response = HttpResponse(picture, content_type="image/png")
+        response["Cache-Control"] = "no-store"
+        return response
+
+    def save_model(self, request, obj, form, change):
+        new_file = form.cleaned_data.get("redacted_file")
+        old_name = obj.image.name if change and new_file else ""
+        if new_file:
+            obj.image.save(new_file.name, new_file, save=False)
+        super().save_model(request, obj, form, change)
+        if old_name and old_name != obj.image.name:
+            obj.image.storage.delete(old_name)
+
+    def delete_model(self, request, obj):
+        name = obj.image.name
+        super().delete_model(request, obj)
+        if name:
+            obj.image.storage.delete(name)
+
+    def delete_queryset(self, request, queryset):
+        names = [name for name in queryset.values_list("image", flat=True) if name]
+        super().delete_queryset(request, queryset)
+        for name in names:
+            LandingReview._meta.get_field("image").storage.delete(name)
+
+    @admin.action(description="Show on landing page")
+    def action_show(self, request, queryset):
+        count = queryset.update(is_active=True)
+        self.message_user(request, f"{count} shown on the landing page.", messages.SUCCESS)
+
+    @admin.action(description="Hide from landing page")
+    def action_hide(self, request, queryset):
+        count = queryset.update(is_active=False)
+        self.message_user(request, f"{count} hidden from the landing page.", messages.SUCCESS)

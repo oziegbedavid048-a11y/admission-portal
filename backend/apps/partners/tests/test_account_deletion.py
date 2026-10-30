@@ -10,6 +10,11 @@ from apps.accounts.models import SupportTicket, User
 from apps.applications.models import Application, Document, Letter, Notification
 from apps.applications.tests.factories import make_application, make_user
 from apps.filestore.models import StoredFile
+
+
+def account_files():
+    """Stored files other than the home page's review images, which belong to no account."""
+    return StoredFile.objects.exclude(name__startswith="landing-reviews/").count()
 from apps.partners.models import (
     AgentContract,
     AgentProfile,
@@ -111,7 +116,7 @@ class DeleteAgentTests(DeletionBase):
         self.assertFalse(AgentContract.objects.exists())
         self.assertFalse(SupportTicket.objects.exists())
         self.assertFalse(User.objects.filter(email__startswith="student").exists())
-        self.assertEqual(StoredFile.objects.count(), 0)
+        self.assertEqual(account_files(), 0)
         # Only the staff account is left.
         self.assertEqual(list(User.objects.values_list("email", flat=True)), ["desk@example.com"])
 
@@ -174,7 +179,7 @@ class DeleteApplicantTests(DeletionBase):
         self.assertFalse(Payment.objects.exists())
         self.assertFalse(Document.objects.exists())
         self.assertFalse(Letter.objects.exists())
-        self.assertEqual(StoredFile.objects.count(), 0)
+        self.assertEqual(account_files(), 0)
 
     def test_deleting_from_the_users_screen_works_too(self):
         response = self.post_delete("accounts_user", self.applicant.pk)

@@ -4,6 +4,7 @@ from .models import (
     DestinationCountry,
     FaqItem,
     Institution,
+    LandingReview,
     OriginCountry,
     Program,
 )
@@ -112,6 +113,19 @@ class InstitutionListSerializer(InstitutionSerializer):
 
     class Meta(InstitutionSerializer.Meta):
         fields = tuple(f for f in InstitutionSerializer.Meta.fields if f != "programs")
+
+
+class LandingReviewSerializer(serializers.ModelSerializer):
+    image = serializers.SerializerMethodField()
+
+    class Meta:
+        model = LandingReview
+        fields = ("id", "kind", "title", "detail", "focus", "image")
+
+    def get_image(self, obj):
+        request = self.context.get("request")
+        url = obj.image.url
+        return request.build_absolute_uri(url) if request else url
 
 
 class FaqItemSerializer(serializers.ModelSerializer):

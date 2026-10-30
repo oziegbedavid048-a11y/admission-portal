@@ -10,12 +10,13 @@ from rest_framework.response import Response
 from apps.applications.constants import APPLICATION_FEE_NGN
 from apps.payments.fees import processing_fee_ngn
 
-from .models import DestinationCountry, FaqItem, Institution, OriginCountry, Program, currency_symbol
+from .models import DestinationCountry, FaqItem, Institution, LandingReview, OriginCountry, Program, currency_symbol
 from .fx import get_rates
 from .serializers import (
     DestinationCountrySerializer,
     FaqItemSerializer,
     InstitutionSerializer,
+    LandingReviewSerializer,
     OriginCountrySerializer,
     ProgramCatalogSerializer,
 )
@@ -65,6 +66,19 @@ class InstitutionViewSet(ReadOnlyPublicViewSet):
         if country:
             queryset = queryset.filter(country__name__iexact=country)
         return queryset
+
+
+class LandingReviewViewSet(viewsets.ReadOnlyModelViewSet):
+    """The visas, offer letters and photos above the Google reviews on the home page.
+
+    Not cached with the catalogue: a review the desk adds or hides in the admin
+    shows on the next page load.
+    """
+
+    queryset = LandingReview.objects.filter(is_active=True)
+    serializer_class = LandingReviewSerializer
+    permission_classes = (AllowAny,)
+    pagination_class = None
 
 
 class FaqViewSet(ReadOnlyPublicViewSet):

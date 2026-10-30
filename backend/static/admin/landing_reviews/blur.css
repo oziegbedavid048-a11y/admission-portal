@@ -1,0 +1,54 @@
+/* The blur tool on the landing page review screen (see blur.js). */
+.lr-blur {
+  margin: 0 0 16px;
+  padding: 16px;
+  border: 1px solid var(--hairline-color, #e5e7eb);
+  border-radius: 10px;
+  background: var(--darkened-bg, #f8f9f8);
+}
+
+.lr-blur[hidden] {
+  display: none;
+}
+
+.lr-blur-help {
+  margin: 0 0 12px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.lr-blur-stage {
+  position: relative;
+}
+
+.lr-blur-canvas {
+  display: block;
+  max-width: 100%;
+  max-height: 70vh;
+  border-radius: 8px;
+  background: #fff;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.lr-blur-status {
+  margin: 8px 0 0;
+  font-weight: 600;
+}
+
+.lr-blur-status:empty {
+  display: none;
+}
+
+.lr-blur-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.lr-blur-count {
+  margin-left: 4px;
+  font-weight: 600;
+}

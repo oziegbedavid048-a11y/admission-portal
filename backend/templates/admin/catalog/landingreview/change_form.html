@@ -1,0 +1,25 @@
+{% extends "admin/change_form.html" %}
+
+{% block after_field_sets %}
+  {{ block.super }}
+  {# The blur tool (static/admin/landing_reviews/blur.js) moves itself under the file field. #}
+  <div id="lr-blur"
+       class="lr-blur"
+       data-preview-url="{% url 'admin:catalog_landingreview_pdf_preview' %}"
+       data-current="{% if original.image %}{{ original.image.url }}{% endif %}"
+       hidden>
+    <p class="lr-blur-help">
+      Drag a box over every <strong>name, passport or visa number, ID number, address and the code lines</strong>
+      at the bottom of a visa. Each box is blurred permanently before saving. The original file is never stored.
+    </p>
+    <div class="lr-blur-stage">
+      <canvas class="lr-blur-canvas" aria-label="Image to blur"></canvas>
+      <p class="lr-blur-status" role="status"></p>
+    </div>
+    <div class="lr-blur-tools">
+      <button type="button" class="button" data-action="undo">Undo last box</button>
+      <button type="button" class="button" data-action="clear">Remove all boxes</button>
+      <span class="lr-blur-count">0 boxes</span>
+    </div>
+  </div>
+{% endblock %}

@@ -60,7 +60,7 @@ const REVIEWS = [
 ];
 
 const ALL_REVIEWS_URL = 'https://www.google.com/search?q=gabstep+reviews';
-const SLIDE_EVERY_MS = 5000;
+const SLIDE_EVERY_MS = 3000;
 
 function GoogleMark({ size = 20 }) {
   return (

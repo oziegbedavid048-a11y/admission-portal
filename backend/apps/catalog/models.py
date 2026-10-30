@@ -11,7 +11,7 @@ from django.core.validators import MinValueValidator
 from django.db import models
 
 
-from apps.applications.uploads import institution_cover_path
+from apps.applications.uploads import _stored_name, institution_cover_path
 
 class OriginCountry(models.Model):
     """A country an applicant can apply from, and the currency they pay in.
@@ -313,6 +313,54 @@ class FaqItem(models.Model):
 
     def __str__(self):
         return self.question
+
+
+def landing_review_path(instance, filename):
+    return _stored_name("landing-reviews", filename)
+
+
+class LandingReview(models.Model):
+    """A visa, offer letter or photo shown above the Google reviews on the home page.
+
+    Only the redacted image is ever stored: the admin's blur tool covers names,
+    passport numbers, addresses and IDs in the browser, and the original file
+    never reaches the database (see apps/catalog/landing_reviews.py).
+    """
+
+    class Kind(models.TextChoices):
+        VISA = "visa", "Visa"
+        OFFER = "offer", "Offer letter"
+        PHOTO = "photo", "Photo"
+
+    class Focus(models.TextChoices):
+        TOP = "top", "Top"
+        CENTER = "center", "Middle"
+        BOTTOM = "bottom", "Bottom"
+
+    kind = models.CharField(max_length=10, choices=Kind.choices, default=Kind.VISA)
+    title = models.CharField(max_length=60, help_text='Short, e.g. "Student visa" or "Interior Decorating".')
+    detail = models.CharField(
+        max_length=80,
+        help_text='Include the country, e.g. "Canada · 2023" or "Sheridan College, Canada · $2,000 scholarship".',
+    )
+    image = models.FileField(upload_to=landing_review_path)
+    focus = models.CharField(
+        max_length=10,
+        choices=Focus.choices,
+        default=Focus.TOP,
+        help_text="Which part of the image the card shows when it has to crop.",
+    )
+    display_order = models.PositiveSmallIntegerField(default=0)
+    is_active = models.BooleanField("show on landing page", default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("display_order", "-created_at")
+        verbose_name = "landing page review image"
+        verbose_name_plural = "landing page review images"
+
+    def __str__(self):
+        return f"{self.title} ({self.detail})"
 
 
 class CourseImport(Program):

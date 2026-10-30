@@ -5,6 +5,7 @@ from .views import (
     DestinationCountryViewSet,
     FaqViewSet,
     InstitutionViewSet,
+    LandingReviewViewSet,
     OriginCountryViewSet,
     ProgramViewSet,
     exchange_rates,
@@ -17,6 +18,7 @@ router.register("destinations", DestinationCountryViewSet, basename="destination
 router.register("institutions", InstitutionViewSet, basename="institution")
 router.register("programs", ProgramViewSet, basename="program")
 router.register("faqs", FaqViewSet, basename="faq")
+router.register("landing-reviews", LandingReviewViewSet, basename="landing-review")
 
 urlpatterns = [
     path("fee-quote/", fee_quote, name="fee-quote"),

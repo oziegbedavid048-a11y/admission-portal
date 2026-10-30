@@ -55,6 +55,8 @@ export const catalog = {
   destinations: () => api.get('/catalog/destinations/'),
   institutions: (country) => api.get('/catalog/institutions/', { params: { country } }),
   faqs: () => api.get('/catalog/faqs/'),
+  // Visas and offer letters above the Google reviews (added in the admin).
+  landingReviews: () => api.get('/catalog/landing-reviews/'),
   programs: (params) => api.get('/catalog/programs/', { params }),
   programLevels: () => api.get('/catalog/programs/levels/'),
   exchangeRates: (base = 'NGN', refresh = false) =>

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { catalog } from '../../api/endpoints';
 import Icon from '../../lib/icons';
 
 /**
@@ -7,31 +8,13 @@ import Icon from '../../lib/icons';
  * reviews as one compact row of same-sized cards. Tapping a card opens it
  * larger, with previous and next.
  *
- * Every image in /public/reviews is cropped and redacted: names, addresses,
- * student IDs, passport and document numbers and the machine-readable lines
- * are blurred so they cannot be read. Never add an unredacted document here.
+ * The cards come from the admin ("Landing page review images"), where every
+ * upload goes through a blur tool: names, addresses, student IDs, passport and
+ * document numbers and the machine-readable lines are blurred before anything
+ * is stored. With none to show, the row is left out.
  */
-const PROOF = [
-  { src: '/reviews/office-1.webp', kind: 'visa', title: 'Visa collected', detail: 'Gabstep office, Nigeria', fit: 'center 58%' },
-  { src: '/reviews/visa-1.webp', kind: 'visa', title: 'Student visa', detail: 'Canada · 2023' },
-  { src: '/reviews/offer-1.webp', kind: 'offer', title: 'Welding and Fabrication', detail: 'Sheridan College, Canada · $2,000 scholarship' },
-  { src: '/reviews/visa-3.webp', kind: 'visa', title: 'Work permit visa', detail: 'Canada · 2023' },
-  { src: '/reviews/offer-5.webp', kind: 'offer', title: 'Interior Decorating', detail: 'Sheridan College, Canada · $3,000 scholarship' },
-  { src: '/reviews/visa-2.webp', kind: 'visa', title: 'Student visa', detail: 'Canada · 2023' },
-  { src: '/reviews/offer-2.webp', kind: 'offer', title: 'Healthcare Administration', detail: 'Sheridan College, Canada · $1,000 scholarship' },
-  { src: '/reviews/visa-5.webp', kind: 'visa', title: 'Student visa', detail: 'Canada · 2023' },
-  { src: '/reviews/offer-7.webp', kind: 'offer', title: 'Social Service Worker', detail: 'Sheridan College, Canada · $3,000 scholarship' },
-  { src: '/reviews/visa-4.webp', kind: 'visa', title: 'Visitor visa', detail: 'Canada · 2023' },
-  { src: '/reviews/offer-3.webp', kind: 'offer', title: 'Mechanical Technician', detail: 'Sheridan College, Canada · $2,000 scholarship' },
-  { src: '/reviews/visa-7.webp', kind: 'visa', title: 'Student visa', detail: 'Canada · 2023' },
-  { src: '/reviews/offer-4.webp', kind: 'offer', title: 'Supply Chain Management', detail: 'Sheridan College, Canada · $2,000 scholarship' },
-  { src: '/reviews/visa-6.webp', kind: 'visa', title: 'Student visa', detail: 'Canada · 2021' },
-  { src: '/reviews/offer-6.webp', kind: 'offer', title: 'Personal Support Worker', detail: 'Sheridan College, Canada · $2,000 scholarship' },
-  { src: '/reviews/visa-8.webp', kind: 'visa', title: 'Student visa', detail: 'Canada · 2023' },
-  { src: '/reviews/offer-8.webp', kind: 'offer', title: 'Healthcare Administration', detail: 'Sheridan College, Canada · $3,000 scholarship' },
-  { src: '/reviews/visa-9.webp', kind: 'visa', title: 'Student visa', detail: 'Canada · 2023' },
-  { src: '/reviews/offer-9.webp', kind: 'offer', title: 'Welding and Fabrication', detail: 'Sheridan College, Canada · $2,000 scholarship' },
-];
+// Which part of an image a card shows when it has to crop (set per image in the admin).
+const FOCUS = { top: 'center top', center: 'center 55%', bottom: 'center bottom' };
 
 const FILTERS = [
   { id: 'all', label: 'All' },
@@ -39,15 +22,32 @@ const FILTERS = [
   { id: 'offer', label: 'Offer letters' },
 ];
 
-const SLIDE_EVERY_MS = 4000;
+const SLIDE_EVERY_MS = 3000;
+
+// Photos (a visa collected at the office) count with the visas.
+const inFilter = (item, id) => id === 'all' || item.kind === id || (id === 'visa' && item.kind === 'photo');
 
 export default function ProofWall() {
   const track = useRef(null);
   const [filter, setFilter] = useState('all');
   const [open, setOpen] = useState(-1);
   const [paused, setPaused] = useState(false);
-  const items = useMemo(() => PROOF.filter((item) => filter === 'all' || item.kind === filter), [filter]);
-  const count = (id) => PROOF.filter((item) => id === 'all' || item.kind === id).length;
+  const [proof, setProof] = useState([]);
+  const items = useMemo(() => proof.filter((item) => inFilter(item, filter)), [proof, filter]);
+  const count = (id) => proof.filter((item) => inFilter(item, id)).length;
+
+  useEffect(() => {
+    let cancelled = false;
+    catalog
+      .landingReviews()
+      .then(({ data }) => {
+        if (!cancelled) setProof(Array.isArray(data) ? data : []);
+      })
+      .catch(() => null);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // One card's width plus the gap: how far the arrows and the timer move.
   const step = () => {
@@ -79,6 +79,8 @@ export default function ProofWall() {
   useEffect(() => {
     track.current?.scrollTo({ left: 0 });
   }, [filter]);
+
+  if (!proof.length) return null;
 
   return (
     <div className="lp-proof reveal">
@@ -113,14 +115,14 @@ export default function ProofWall() {
         </button>
         <ul ref={track} className="lp-proof-track">
           {items.map((item, index) => (
-            <li key={item.src} className={`lp-proof-card is-${item.kind}`}>
+            <li key={item.id} className={`lp-proof-card is-${item.kind}`}>
               <button type="button" onClick={() => setOpen(index)} aria-label={`View ${item.title}, ${item.detail}`}>
                 <img
-                  src={item.src}
+                  src={item.image}
                   alt=""
                   loading="lazy"
                   decoding="async"
-                  style={item.fit ? { objectPosition: item.fit } : undefined}
+                  style={item.kind === 'offer' ? undefined : { objectPosition: FOCUS[item.focus] || FOCUS.top }}
                 />
                 <span className="lp-proof-caption">
                   <span className="lp-proof-tag">{item.kind === 'offer' ? 'Offer letter' : 'Approved'}</span>
@@ -189,7 +191,7 @@ function ProofViewer({ items, index, onIndex, onClose }) {
         <Icon name="close" size={20} strokeWidth={2} interactive={false} />
       </button>
       <figure>
-        <img src={item.src} alt={`${item.title}, ${item.detail}`} />
+        <img src={item.image} alt={`${item.title}, ${item.detail}`} />
         <figcaption>
           <strong>{item.title}</strong>
           <span>{item.detail}</span>
