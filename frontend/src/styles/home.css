@@ -506,12 +506,16 @@
   white-space: nowrap;
 }
 
+/* Up to two lines, so the school, country and scholarship all fit on phones. */
 .lp-proof-caption small {
+  display: -webkit-box;
   overflow: hidden;
   font-size: 0.78rem;
+  line-height: 1.3;
   color: rgba(255, 255, 255, 0.78);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
 }
 
 .lp-proof-tag {

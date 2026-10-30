@@ -12,25 +12,25 @@ import Icon from '../../lib/icons';
  * are blurred so they cannot be read. Never add an unredacted document here.
  */
 const PROOF = [
-  { src: '/reviews/office-1.webp', kind: 'visa', title: 'Visa collected', detail: 'At the Gabstep office', fit: 'center 58%' },
+  { src: '/reviews/office-1.webp', kind: 'visa', title: 'Visa collected', detail: 'Gabstep office, Nigeria', fit: 'center 58%' },
   { src: '/reviews/visa-1.webp', kind: 'visa', title: 'Student visa', detail: 'Canada · 2023' },
-  { src: '/reviews/offer-1.webp', kind: 'offer', title: 'Welding and Fabrication', detail: 'Sheridan College · $2,000 scholarship' },
+  { src: '/reviews/offer-1.webp', kind: 'offer', title: 'Welding and Fabrication', detail: 'Sheridan College, Canada · $2,000 scholarship' },
   { src: '/reviews/visa-3.webp', kind: 'visa', title: 'Work permit visa', detail: 'Canada · 2023' },
-  { src: '/reviews/offer-5.webp', kind: 'offer', title: 'Interior Decorating', detail: 'Sheridan College · $3,000 scholarship' },
+  { src: '/reviews/offer-5.webp', kind: 'offer', title: 'Interior Decorating', detail: 'Sheridan College, Canada · $3,000 scholarship' },
   { src: '/reviews/visa-2.webp', kind: 'visa', title: 'Student visa', detail: 'Canada · 2023' },
-  { src: '/reviews/offer-2.webp', kind: 'offer', title: 'Healthcare Administration', detail: 'Sheridan College · $1,000 scholarship' },
+  { src: '/reviews/offer-2.webp', kind: 'offer', title: 'Healthcare Administration', detail: 'Sheridan College, Canada · $1,000 scholarship' },
   { src: '/reviews/visa-5.webp', kind: 'visa', title: 'Student visa', detail: 'Canada · 2023' },
-  { src: '/reviews/offer-7.webp', kind: 'offer', title: 'Social Service Worker', detail: 'Sheridan College · $3,000 scholarship' },
+  { src: '/reviews/offer-7.webp', kind: 'offer', title: 'Social Service Worker', detail: 'Sheridan College, Canada · $3,000 scholarship' },
   { src: '/reviews/visa-4.webp', kind: 'visa', title: 'Visitor visa', detail: 'Canada · 2023' },
-  { src: '/reviews/offer-3.webp', kind: 'offer', title: 'Mechanical Technician', detail: 'Sheridan College · $2,000 scholarship' },
+  { src: '/reviews/offer-3.webp', kind: 'offer', title: 'Mechanical Technician', detail: 'Sheridan College, Canada · $2,000 scholarship' },
   { src: '/reviews/visa-7.webp', kind: 'visa', title: 'Student visa', detail: 'Canada · 2023' },
-  { src: '/reviews/offer-4.webp', kind: 'offer', title: 'Supply Chain Management', detail: 'Sheridan College · $2,000 scholarship' },
+  { src: '/reviews/offer-4.webp', kind: 'offer', title: 'Supply Chain Management', detail: 'Sheridan College, Canada · $2,000 scholarship' },
   { src: '/reviews/visa-6.webp', kind: 'visa', title: 'Student visa', detail: 'Canada · 2021' },
-  { src: '/reviews/offer-6.webp', kind: 'offer', title: 'Personal Support Worker', detail: 'Sheridan College · $2,000 scholarship' },
+  { src: '/reviews/offer-6.webp', kind: 'offer', title: 'Personal Support Worker', detail: 'Sheridan College, Canada · $2,000 scholarship' },
   { src: '/reviews/visa-8.webp', kind: 'visa', title: 'Student visa', detail: 'Canada · 2023' },
-  { src: '/reviews/offer-8.webp', kind: 'offer', title: 'Healthcare Administration', detail: 'Sheridan College · $3,000 scholarship' },
+  { src: '/reviews/offer-8.webp', kind: 'offer', title: 'Healthcare Administration', detail: 'Sheridan College, Canada · $3,000 scholarship' },
   { src: '/reviews/visa-9.webp', kind: 'visa', title: 'Student visa', detail: 'Canada · 2023' },
-  { src: '/reviews/offer-9.webp', kind: 'offer', title: 'Welding and Fabrication', detail: 'Sheridan College · $2,000 scholarship' },
+  { src: '/reviews/offer-9.webp', kind: 'offer', title: 'Welding and Fabrication', detail: 'Sheridan College, Canada · $2,000 scholarship' },
 ];
 
 const FILTERS = [
