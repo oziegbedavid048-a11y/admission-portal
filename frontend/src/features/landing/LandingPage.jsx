@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import SiteHeader from '../../components/layout/SiteHeader';
 import SiteFooter from '../../components/layout/SiteFooter';
@@ -38,6 +38,74 @@ const AGENT_POINTS = [
   { icon: 'payout', title: 'Withdraw anytime', text: 'Straight to your bank account.' },
 ];
 
+/**
+ * A figure that counts up from zero the first time it scrolls into view and
+ * lands on exactly the published text ("500+" stays "500+"). Without motion
+ * (or JavaScript) it simply shows the figure.
+ */
+function CountUp({ value }) {
+  const match = /^(\d+)(.*)$/.exec(value);
+  const target = match ? Number(match[1]) : 0;
+  const suffix = match ? match[2] : '';
+  const node = useRef(null);
+  const [shown, setShown] = useState(value);
+
+  useEffect(() => {
+    const element = node.current;
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (!match || !element || reduced || !('IntersectionObserver' in window)) return undefined;
+    let frame = 0;
+    setShown(`0${suffix}`);
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry.isIntersecting) return;
+        observer.disconnect();
+        const start = performance.now();
+        const duration = 1400;
+        const tick = (now) => {
+          const progress = Math.min(1, (now - start) / duration);
+          const eased = 1 - (1 - progress) ** 3;
+          setShown(`${Math.round(target * eased)}${suffix}`);
+          if (progress < 1) frame = requestAnimationFrame(tick);
+        };
+        frame = requestAnimationFrame(tick);
+      },
+      { threshold: 0.6 },
+    );
+    observer.observe(element);
+    return () => {
+      observer.disconnect();
+      cancelAnimationFrame(frame);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
+
+  return (
+    <dd ref={node} aria-label={value}>
+      {shown}
+    </dd>
+  );
+}
+
+// Cards that a soft light follows under the pointer (home.css, "spotlight").
+const SPOTLIGHT = '.lp-service, .lp-step, .lp-review';
+
+/** Tells each card where the pointer is, so its spotlight can follow it. */
+function useSpotlight() {
+  useEffect(() => {
+    if (!window.matchMedia('(hover: hover)').matches) return undefined;
+    const move = (event) => {
+      const card = event.target.closest?.(SPOTLIGHT);
+      if (!card) return;
+      const box = card.getBoundingClientRect();
+      card.style.setProperty('--mx', `${event.clientX - box.left}px`);
+      card.style.setProperty('--my', `${event.clientY - box.top}px`);
+    };
+    document.addEventListener('pointermove', move, { passive: true });
+    return () => document.removeEventListener('pointermove', move);
+  }, []);
+}
+
 const SECTIONS = [
   { id: 'about', label: 'About' },
   ...(HAS_REVIEWS ? [{ id: 'reviews', label: 'Reviews' }] : []),
@@ -50,6 +118,7 @@ export default function LandingPage({ onOpenLogin }) {
   const location = useLocation();
   const { user, isAgent, isSupervisor } = useAuth();
   useReveal();
+  useSpotlight();
 
   // A guard that bounced someone here asks for the sign-in dialog.
   useEffect(() => {
@@ -109,7 +178,7 @@ export default function LandingPage({ onOpenLogin }) {
               {STATS.map((stat) => (
                 <div key={stat.label}>
                   <dt>{stat.label}</dt>
-                  <dd>{stat.value}</dd>
+                  <CountUp value={stat.value} />
                 </div>
               ))}
             </dl>

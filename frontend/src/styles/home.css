@@ -1245,3 +1245,414 @@
     flex-direction: column;
   }
 }
+
+/* ===================================================================
+   "Deep Forest": the home page's design layer
+   -------------------------------------------------------------------
+   Quiet by rule, bold in one place. White and a pale forest canvas
+   alternate so sections separate without lines; type, spacing and one
+   deep green do the rest. The one bold moment is the agents band, solid
+   forest green. No gradients, glows or glass in content, so nothing
+   reads as decoration. Same words and structure as above; this block
+   can be removed in one piece.
+
+   Motion is small and physical: cards lift 2px under the pointer,
+   buttons give slightly when pressed, arrows nudge forward. All of it
+   stops for people who ask for reduced motion.
+   =================================================================== */
+
+.landing {
+  --lp-canvas: #f5f7f4;
+  --lp-forest: #08211b;
+  --lp-forest-2: #0b5c43;
+  --lp-mint: #e1f6dd;
+  --lp-ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --lp-lift: 0 1px 2px rgba(8, 33, 27, 0.05), 0 12px 32px -12px rgba(8, 33, 27, 0.18);
+}
+
+/* Sections alternate white and canvas, so no hairline is needed between them. */
+.landing .lp-section {
+  padding: clamp(72px, 10vw, 136px) 0;
+}
+
+.landing .lp-section + .lp-section {
+  border-top: 0;
+}
+
+.landing #reviews {
+  background: var(--lp-canvas);
+}
+
+.landing .lp-head {
+  margin-bottom: clamp(40px, 6vw, 72px);
+}
+
+/* The label above a title: plain green text, a step smaller than before. */
+.landing .lp-eyebrow {
+  margin-bottom: 16px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  color: var(--lp-forest-2);
+}
+
+.landing .lp-title {
+  font-size: clamp(2.125rem, 5vw, 3.5rem);
+  letter-spacing: -0.04em;
+}
+
+.landing .lp-lede {
+  font-size: clamp(1.0625rem, 1.8vw, 1.25rem);
+}
+
+/* Hero buttons share the rounded shape of every other button on the page. */
+.landing .hero-cta-group .btn {
+  border-radius: var(--g-r-pill);
+}
+
+/* Buttons give a little when pressed. */
+.landing .lp-btn,
+.landing .hero-cta-group .btn {
+  transition: background-color 200ms ease, transform 160ms var(--lp-ease);
+}
+
+.landing .lp-btn:active,
+.landing .hero-cta-group .btn:active {
+  transform: scale(0.97);
+}
+
+/* About: the three figures share one surface, split by hairlines. */
+.landing .lp-stats {
+  gap: 0;
+  max-width: 920px;
+  margin-bottom: clamp(48px, 7vw, 88px);
+  padding: clamp(28px, 3.5vw, 40px) 0;
+  border-top: 1px solid var(--lp-hair);
+  border-bottom: 1px solid var(--lp-hair);
+}
+
+.landing .lp-stats > div {
+  padding: 0 16px;
+}
+
+.landing .lp-stats > div + div {
+  border-left: 1px solid var(--lp-hair);
+}
+
+.landing .lp-stats dd {
+  color: var(--lp-forest-2);
+}
+
+/* Services: one card style for all six, on a four-column grid where the
+   first and last span two, so the set reads as a composed block. */
+.landing .lp-services {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.landing .lp-service {
+  display: flex;
+  flex-direction: column;
+  min-height: 200px;
+  padding: clamp(24px, 2.6vw, 32px);
+  border: 1px solid var(--lp-hair);
+  border-radius: var(--g-r-xl);
+  background: var(--lp-bg);
+}
+
+.landing .lp-service:first-child,
+.landing .lp-service:last-child {
+  grid-column: span 2;
+}
+
+.landing .lp-service svg {
+  margin-bottom: auto;
+  color: var(--lp-forest-2);
+}
+
+.landing .lp-service h3 {
+  margin-top: 32px;
+}
+
+/* Steps: numbered discs on one hairline, each step on its own card. */
+.landing .lp-steps {
+  gap: 16px;
+}
+
+.landing .lp-steps::before {
+  top: calc(clamp(24px, 2.6vw, 32px) + 22px);
+  left: 12%;
+  right: 12%;
+}
+
+.landing .lp-step {
+  padding: clamp(24px, 2.6vw, 32px);
+  border: 1px solid var(--lp-hair);
+  border-radius: var(--g-r-xl);
+  background: var(--lp-bg);
+}
+
+.landing .lp-step-num {
+  border: 0;
+  background: var(--lp-forest-2);
+  color: #fff;
+  box-shadow: 0 0 0 6px var(--lp-bg);
+}
+
+/* Cards lift under the pointer. The fade-in's stagger delay is dropped
+   once a card is in place, so the lift answers at once. */
+.landing .lp-service,
+.landing .lp-step,
+.landing .lp-review {
+  transition:
+    opacity 800ms var(--lp-ease),
+    transform 300ms var(--lp-ease),
+    box-shadow 300ms var(--lp-ease),
+    border-color 300ms ease;
+}
+
+.landing .lp-service.is-visible,
+.landing .lp-step.is-visible {
+  transition-delay: 0s;
+}
+
+@media (hover: hover) {
+  .landing .lp-service:hover,
+  .landing .lp-step:hover,
+  .landing .lp-review:hover {
+    transform: translateY(-2px);
+    border-color: rgba(11, 92, 67, 0.22);
+    box-shadow: var(--lp-lift);
+  }
+}
+
+.landing .lp-review {
+  background: var(--lp-bg);
+}
+
+/* Agents: the page's one bold moment, solid forest green over a faint
+   technical grid that fades out towards the edges. */
+.landing #agents {
+  position: relative;
+  background: var(--lp-forest);
+  color: #fff;
+}
+
+.landing #agents::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.045) 1px, transparent 1px);
+  background-size: 48px 48px;
+  -webkit-mask-image: radial-gradient(ellipse 70% 80% at 50% 40%, #000 30%, transparent 100%);
+  mask-image: radial-gradient(ellipse 70% 80% at 50% 40%, #000 30%, transparent 100%);
+  pointer-events: none;
+}
+
+.landing #agents > .container {
+  position: relative;
+}
+
+.landing #agents .lp-eyebrow {
+  color: #8fd9b6;
+}
+
+.landing #agents .lp-title {
+  color: #fff;
+}
+
+.landing #agents .lp-lede {
+  color: rgba(255, 255, 255, 0.74);
+}
+
+.landing #agents .lp-btn {
+  background: #fff;
+  color: var(--lp-forest);
+}
+
+.landing #agents .lp-btn:hover {
+  background: var(--lp-mint);
+  color: var(--lp-forest);
+}
+
+.landing #agents .lp-btn:focus-visible {
+  outline-color: #8fd9b6;
+}
+
+.landing #agents .lp-points {
+  gap: 0;
+}
+
+.landing #agents .lp-points li {
+  padding: 22px 0;
+  border-radius: 0;
+  background: transparent;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.landing #agents .lp-points li:last-child {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.landing #agents .lp-point-icon {
+  background: rgba(255, 255, 255, 0.08);
+  color: #8fd9b6;
+  transition: background-color 250ms ease, transform 300ms var(--lp-ease);
+}
+
+@media (hover: hover) {
+  .landing #agents .lp-points li:hover .lp-point-icon {
+    background: rgba(143, 217, 182, 0.18);
+    transform: scale(1.06);
+  }
+}
+
+.landing #agents .lp-points h3 {
+  color: #fff;
+}
+
+.landing #agents .lp-points p {
+  color: rgba(255, 255, 255, 0.68);
+}
+
+/* The footer after the home page is light, so the forest band above it
+   stays the page's one dark moment and the two never run together. */
+.landing ~ .site-footer {
+  --sf-bg: #f5f5f7;
+  --sf-ink: #08211b; /* 15.6:1 on --sf-bg */
+  --sf-ink-2: #4b5a55; /* 6.9:1 on --sf-bg */
+  --sf-line: #e2e5e3;
+}
+
+/* ── Micro-interactions ────────────────────────────────────────────── */
+
+/* Spotlight: a soft green light follows the pointer across a card, and the
+   card's edge picks it up. The position comes from useSpotlight() in
+   LandingPage.jsx; without a pointer nothing shows. */
+.landing .lp-service,
+.landing .lp-step,
+.landing .lp-review {
+  position: relative;
+  isolation: isolate;
+  --mx: 50%;
+  --my: 50%;
+}
+
+.landing .lp-service::after,
+.landing .lp-step::after,
+.landing .lp-review::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  z-index: -1;
+  border-radius: inherit;
+  background: radial-gradient(260px circle at var(--mx) var(--my), rgba(11, 92, 67, 0.09), transparent 70%);
+  opacity: 0;
+  transition: opacity 300ms ease;
+  pointer-events: none;
+}
+
+@media (hover: hover) {
+  .landing .lp-service:hover::after,
+  .landing .lp-step:hover::after,
+  .landing .lp-review:hover::after {
+    opacity: 1;
+  }
+}
+
+/* Service icons rise a little as the card is approached. */
+.landing .lp-service svg {
+  transition: transform 300ms var(--lp-ease);
+}
+
+@media (hover: hover) {
+  .landing .lp-service:hover svg {
+    transform: translateY(-3px);
+  }
+}
+
+/* The line joining the steps draws itself, left to right, once they appear. */
+.landing .lp-steps::before {
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 1200ms var(--lp-ease) 300ms;
+}
+
+.landing .lp-steps:has(.is-visible)::before,
+html:not(.reveal-ready) .landing .lp-steps::before {
+  transform: scaleX(1);
+}
+
+/* The step numbers settle in with a small pop as their card arrives. */
+.reveal-ready .landing .lp-step .lp-step-num {
+  transform: scale(0.6);
+  transition: transform 500ms cubic-bezier(0.34, 1.56, 0.64, 1) 250ms;
+}
+
+.reveal-ready .landing .lp-step.is-visible .lp-step-num {
+  transform: none;
+}
+
+/* The figures count up (CountUp); fixed-width digits keep them from jittering. */
+.landing .lp-stats dd {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 960px) {
+  .landing .lp-services {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .landing .lp-steps::before {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  /* Two small cards a row on phones, the first and last full width, so
+     the six services take half the scrolling. */
+  .landing .lp-services {
+    gap: 10px;
+  }
+  .landing .lp-service {
+    min-height: 0;
+    padding: 18px;
+    border-radius: var(--g-r-lg);
+  }
+  .landing .lp-service h3 {
+    margin-top: 16px;
+    font-size: 1.0625rem;
+  }
+  .landing .lp-service p {
+    font-size: 0.9375rem;
+  }
+  .landing .lp-stats {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 0;
+  }
+  .landing .lp-stats > div {
+    padding: 24px 16px;
+  }
+  .landing .lp-stats > div + div {
+    border-left: 0;
+    border-top: 1px solid var(--lp-hair);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing .lp-steps::before,
+  .reveal-ready .landing .lp-step .lp-step-num,
+  .landing .lp-service:hover svg {
+    transform: none;
+    transition: none;
+  }
+  .landing .lp-btn:active,
+  .landing .hero-cta-group .btn:active,
+  .landing .lp-service:hover,
+  .landing .lp-step:hover,
+  .landing .lp-review:hover,
+  .landing #agents .lp-points li:hover .lp-point-icon {
+    transform: none;
+  }
+}
