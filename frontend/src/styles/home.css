@@ -354,6 +354,371 @@
   color: var(--g-ink-2);
 }
 
+/* Proof: visas and offer letters, above the Google reviews. One row of
+   same-sized cards (four on wide screens, three on tablets, one and a half
+   on phones so the next one peeks in), a caption laid over the blurred part
+   of each document, and a viewer for the full image. */
+.lp-proof {
+  --lp-proof-per-view: 4;
+  --lp-proof-gap: 16px;
+  margin-bottom: clamp(40px, 6vw, 64px);
+}
+
+.lp-proof-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 20px;
+  margin-bottom: 18px;
+}
+
+.lp-proof-title {
+  margin: 0;
+  font-size: clamp(1.0625rem, 2vw, 1.25rem);
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  color: var(--g-ink);
+}
+
+.lp-proof-filters {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 999px;
+  background: var(--lp-tile);
+}
+
+.lp-proof-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--g-ink-2);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s, box-shadow 0.2s;
+}
+
+.lp-proof-filter span {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--g-ink-3);
+}
+
+.lp-proof-filter.is-active {
+  background: var(--lp-bg);
+  color: var(--g-ink);
+  box-shadow: 0 1px 3px rgba(16, 24, 20, 0.12);
+}
+
+.lp-proof-filter.is-active span {
+  color: var(--g-accent);
+}
+
+.lp-proof-viewport {
+  position: relative;
+}
+
+.lp-proof-track {
+  display: flex;
+  gap: var(--lp-proof-gap);
+  margin: 0;
+  padding: 2px 0 6px;
+  list-style: none;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+}
+
+.lp-proof-track::-webkit-scrollbar {
+  display: none;
+}
+
+.lp-proof-card {
+  flex: 0 0 calc((100% - (var(--lp-proof-per-view) - 1) * var(--lp-proof-gap)) / var(--lp-proof-per-view));
+  scroll-snap-align: start;
+}
+
+.lp-proof-card button {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--lp-hair);
+  border-radius: var(--g-r-lg);
+  background: var(--lp-tile);
+  cursor: zoom-in;
+}
+
+.lp-proof-card img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center top;
+  transition: transform 0.5s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+/* Letters show their college logo and heading, from the left edge. */
+.lp-proof-card.is-offer img {
+  background: #fff;
+  object-position: left top;
+}
+
+.lp-proof-card button:hover img,
+.lp-proof-card button:focus-visible img {
+  transform: scale(1.04);
+}
+
+.lp-proof-card button:focus-visible {
+  outline: 2px solid var(--g-accent);
+  outline-offset: 2px;
+}
+
+.lp-proof-caption {
+  position: absolute;
+  inset: auto 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 40px 14px 12px;
+  background: linear-gradient(to top, rgba(8, 20, 14, 0.9) 0%, rgba(8, 20, 14, 0.72) 55%, rgba(8, 20, 14, 0) 100%);
+  color: #fff;
+  text-align: left;
+}
+
+.lp-proof-caption strong {
+  overflow: hidden;
+  font-size: 0.9375rem;
+  font-weight: 650;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lp-proof-caption small {
+  overflow: hidden;
+  font-size: 0.78rem;
+  color: rgba(255, 255, 255, 0.78);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lp-proof-tag {
+  align-self: flex-start;
+  margin-bottom: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--g-accent);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.lp-proof-card.is-offer .lp-proof-tag {
+  background: #fff;
+  color: var(--g-ink);
+}
+
+.lp-proof-arrow {
+  position: absolute;
+  top: 50%;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--lp-hair);
+  border-radius: 50%;
+  background: var(--lp-bg);
+  color: var(--g-ink);
+  box-shadow: 0 4px 14px rgba(16, 24, 20, 0.12);
+  cursor: pointer;
+  transform: translateY(-50%);
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.lp-proof-arrow:hover {
+  border-color: var(--g-accent);
+  color: var(--g-accent);
+}
+
+.lp-proof-arrow.is-prev {
+  left: -20px;
+}
+
+.lp-proof-arrow.is-next {
+  right: -20px;
+}
+
+.lp-proof-note {
+  margin: 10px 0 0;
+  font-size: 0.8125rem;
+  color: var(--g-ink-3);
+}
+
+/* The viewer: the full image on a dark backdrop, previous and next. */
+.lp-proof-viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 64px 72px 24px;
+  background: rgba(6, 14, 10, 0.92);
+  animation: lp-proof-in 0.2s ease-out;
+}
+
+@keyframes lp-proof-in {
+  from {
+    opacity: 0;
+  }
+}
+
+.lp-proof-viewer figure {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: min(960px, 100%);
+  max-height: 100%;
+  margin: 0;
+}
+
+.lp-proof-viewer img {
+  display: block;
+  max-width: 100%;
+  max-height: calc(100dvh - 180px);
+  border-radius: 12px;
+  background: #fff;
+  object-fit: contain;
+}
+
+.lp-proof-viewer figcaption {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  margin-top: 14px;
+  color: #fff;
+  text-align: center;
+}
+
+.lp-proof-viewer figcaption span {
+  font-size: 0.875rem;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.lp-proof-viewer figcaption small {
+  margin-top: 4px;
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.lp-proof-close,
+.lp-proof-nav {
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.lp-proof-close:hover,
+.lp-proof-nav:hover {
+  background: rgba(255, 255, 255, 0.24);
+}
+
+.lp-proof-close {
+  top: 14px;
+  right: 14px;
+}
+
+.lp-proof-nav {
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.lp-proof-nav.is-prev {
+  left: 14px;
+}
+
+.lp-proof-nav.is-next {
+  right: 14px;
+}
+
+@media (max-width: 960px) {
+  .lp-proof {
+    --lp-proof-per-view: 3;
+  }
+}
+
+@media (max-width: 1240px) {
+  .lp-proof-arrow.is-prev {
+    left: 8px;
+  }
+  .lp-proof-arrow.is-next {
+    right: 8px;
+  }
+}
+
+@media (max-width: 640px) {
+  .lp-proof {
+    --lp-proof-per-view: 1.6;
+    --lp-proof-gap: 12px;
+  }
+  .lp-proof-bar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  /* Phones swipe; the arrows would only cover the cards. */
+  .lp-proof-arrow {
+    display: none;
+  }
+  .lp-proof-viewer {
+    padding: 60px 12px 88px;
+  }
+  .lp-proof-nav {
+    top: auto;
+    bottom: 20px;
+    transform: none;
+  }
+  .lp-proof-nav.is-prev {
+    left: calc(50% - 56px);
+  }
+  .lp-proof-nav.is-next {
+    right: calc(50% - 56px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lp-proof-card img {
+    transition: none;
+  }
+  .lp-proof-viewer {
+    animation: none;
+  }
+}
+
 /* The link to Google sits close under the cards. */
 .lp-reviews + .lp-cta {
   margin-top: 24px;

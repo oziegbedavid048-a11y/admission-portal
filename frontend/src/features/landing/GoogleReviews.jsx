@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import Icon from '../../lib/icons';
+import ProofWall from './ProofWall';
 
 /**
  * Google reviews on the home page, laid out like a review widget: a sliding
@@ -115,6 +116,8 @@ export default function GoogleReviews() {
           <p className="lp-eyebrow">Reviews</p>
           <h2 id="lp-reviews-title" className="lp-title">Trusted by students and families.</h2>
         </header>
+
+        <ProofWall />
 
         <div
           className="lp-reviews reveal"
