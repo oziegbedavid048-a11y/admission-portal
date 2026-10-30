@@ -153,9 +153,9 @@ export default function AgentLoans() {
       } else if (data.status === 'sending') {
         toast.success('Payment to Meta is on its way. This page updates when it lands.');
       } else if (data.status === 'failed') {
-        toast.error('Paystack could not pay this Meta invoice. Nothing is owed.');
+        toast.error('We could not pay this Meta invoice. Nothing is owed.');
       } else if (data.awaiting_invoice) {
-        toast.error(data.failure_reason || 'Paystack did not send it. Check the invoice and try again.');
+        toast.error('The payment was not sent. Check the invoice details and try again.');
       } else {
         toast.success('Payment is queued and goes to Meta shortly.');
       }
@@ -262,7 +262,7 @@ export default function AgentLoans() {
             </div>
             {awaiting.failure_reason ? (
               <p className="meta-invoice-check is-other" role="alert">
-                The last attempt was not sent: {awaiting.failure_reason}
+                The last payment was not sent. Check the invoice details and try again.
               </p>
             ) : null}
             <MetaInvoiceFields value={invoice} onChange={setInvoice} amount={money(awaiting.approved_amount)} />

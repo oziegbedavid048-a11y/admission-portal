@@ -145,7 +145,7 @@ export default function MetaInvoiceFields({ value, onChange, amount }) {
       ) : check.state !== 'idle' ? (
         <p className={`meta-invoice-check is-${check.state}`} role="status">
           {check.state === 'checking'
-            ? 'Checking the account with Paystack…'
+            ? 'Checking account…'
             : check.state === 'other'
               ? 'This name does not have Meta in it. Use the account on your Meta invoice.'
               : 'The account could not be checked right now. Check the number and bank, then try again.'}
