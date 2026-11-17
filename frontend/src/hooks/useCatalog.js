@@ -1,6 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { catalog } from '../api/endpoints';
-import { getLocalInstitutions } from '../lib/catalogData';
 
 /**
  * Built-in fallback catalog data to ensure the application wizard works
@@ -109,10 +108,15 @@ export function useCatalog() {
   };
 }
 
-/** Partner institutions for one destination, refetched when it changes. */
+/**
+ * Partner institutions for one destination, refetched when it changes.
+ *
+ * Always read from the server, never from a copy built into the site: the
+ * server names schools by their code for applicants until they pay, and a
+ * built-in copy would have given every name away.
+ */
 export function useInstitutions(country) {
-  const localFallback = useMemo(() => getLocalInstitutions(country), [country]);
-  const [institutions, setInstitutions] = useState(localFallback);
+  const [institutions, setInstitutions] = useState([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -120,23 +124,15 @@ export function useInstitutions(country) {
       setInstitutions([]);
       return undefined;
     }
-
-    const fallback = getLocalInstitutions(country);
-    // Initialize immediately with local fallback so user NEVER waits or sees blank
-    if (fallback.length > 0) {
-      setInstitutions(fallback);
-    }
-
     let cancelled = false;
+    setLoading(true);
     catalog
       .institutions(country)
       .then(({ data }) => {
-        if (!cancelled && Array.isArray(data) && data.length > 0) {
-          setInstitutions(data);
-        }
+        if (!cancelled) setInstitutions(Array.isArray(data) ? data : []);
       })
       .catch(() => {
-        // Keep fallback on network error/timeout - never wipe out the courses
+        if (!cancelled) setInstitutions([]);
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -147,12 +143,5 @@ export function useInstitutions(country) {
     };
   }, [country]);
 
-  const resolved = Array.isArray(institutions) && institutions.length > 0
-    ? institutions
-    : localFallback;
-
-  return {
-    institutions: resolved,
-    loading: loading && resolved.length === 0,
-  };
+  return { institutions, loading };
 }

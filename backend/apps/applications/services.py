@@ -325,7 +325,13 @@ def mark_admitted(application):
     application.save(update_fields=["status", "updated_at"])
     advance_stages_to(application, STAGE_FOR_MILESTONE["admission"])
 
-    institution = application.institution.name if application.institution else "your institution"
+    from apps.catalog.school_privacy import application_reveals_school, school_label
+
+    institution = (
+        school_label(application.institution, application_reveals_school(application))
+        if application.institution
+        else "your institution"
+    )
     notify(application, f"Admission granted by {institution}. Your offer letter follows.")
     return True
 

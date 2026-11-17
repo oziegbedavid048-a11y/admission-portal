@@ -103,11 +103,39 @@ class DestinationCountry(models.Model):
         return self.name
 
 
+def new_school_code(country, taken=None):
+    """A school code applicants see instead of the name, e.g. "CA-418".
+
+    The country's two letters and a random number: nothing is taken from the
+    school's name, so the code cannot be worked back to it.
+    """
+    import secrets
+
+    prefix = "".join(ch for ch in (getattr(country, "code", "") or "").upper() if ch.isalpha())[:2]
+    if len(prefix) < 2:
+        prefix = "".join(ch for ch in (getattr(country, "name", "") or "").upper() if ch.isalpha())[:2] or "SC"
+    taken = set(taken) if taken is not None else set(Institution.objects.values_list("code", flat=True))
+    for _ in range(2000):
+        code = f"{prefix}-{secrets.randbelow(900) + 100}"
+        if code not in taken:
+            return code
+    return f"{prefix}-{secrets.randbelow(9000) + 1000}"
+
+
 class Institution(models.Model):
     """A partner university or business school."""
 
     slug = models.SlugField(max_length=60, unique=True)
     name = models.CharField(max_length=200)
+    # What applicants see in place of the name until they pay the application
+    # fee (see apps/catalog/school_privacy.py). Agents and staff see the name.
+    code = models.CharField(
+        "school code",
+        max_length=12,
+        unique=True,
+        blank=True,
+        help_text="Shown to applicants instead of the name until they pay, e.g. CA-418. Left blank, one is made.",
+    )
     country = models.ForeignKey(
         DestinationCountry, on_delete=models.CASCADE, related_name="institutions"
     )
@@ -201,6 +229,9 @@ class Institution(models.Model):
                 slug = f"{base_slug}-{counter}"
                 counter += 1
             self.slug = slug
+        self.code = (self.code or "").strip().upper()
+        if not self.code:
+            self.code = new_school_code(self.country)
         super().save(*args, **kwargs)
 
     @property

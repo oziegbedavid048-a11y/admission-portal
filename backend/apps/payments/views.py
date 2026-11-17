@@ -94,7 +94,11 @@ def quote_for(application):
 
     primary = application.fee_owner
     schools = plans.schools_on_fee(primary)
-    names = [app.institution.name if app.institution else app.custom_course_name for app in schools]
+    from apps.catalog.school_privacy import application_reveals_school, school_label
+
+    # Before the fee is paid an applicant sees school codes (school_privacy.py).
+    named = application_reveals_school(primary)
+    names = [school_label(app.institution, named) if app.institution else app.custom_course_name for app in schools]
     pricing = plans.pricing_application(primary)
     institution = pricing.institution if pricing is not None else primary.institution
     fee_currency = (
@@ -104,7 +108,7 @@ def quote_for(application):
     base = {
         "currency": fee_currency,
         "symbol": symbol,
-        "institution": institution.name if institution else "",
+        "institution": school_label(institution, named) if institution else "",
         "institution_fee_currency": fee_currency,
         "fee_reference": primary.reference,
         "schools": names,

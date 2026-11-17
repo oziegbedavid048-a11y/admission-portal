@@ -23,6 +23,11 @@ from .serializers import (
 
 
 class ReadOnlyPublicViewSet(viewsets.ReadOnlyModelViewSet):
+    def get_serializer_context(self):
+        from .school_privacy import hides_names
+
+        return {**super().get_serializer_context(), "hide_school_names": hides_names(self.request)}
+
     def list(self, request, *args, **kwargs):
         return cached_catalog(super().list)(request, *args, **kwargs)
 
@@ -53,8 +58,33 @@ class DestinationCountryViewSet(ReadOnlyPublicViewSet):
 class InstitutionViewSet(ReadOnlyPublicViewSet):
     serializer_class = InstitutionSerializer
     lookup_field = "slug"
-    search_fields = ("name", "location", "tagline", "programs__name")
     filterset_fields = {"country__name": ["exact", "iexact"]}
+
+    @property
+    def search_fields(self):
+        # Searching by a school's name would tell an applicant which code it is.
+        from .school_privacy import hides_names
+
+        if hides_names(self.request):
+            return ("programs__name",)
+        return ("name", "location", "tagline", "programs__name")
+
+    def get_object(self):
+        """A school by its code (applicants) or by its slug or code (agents, staff)."""
+        from django.http import Http404
+
+        from .school_privacy import hides_names
+
+        value = str(self.kwargs.get(self.lookup_url_kwarg or self.lookup_field) or "").strip()
+        queryset = self.get_queryset()
+        if hides_names(self.request):
+            school = queryset.filter(code__iexact=value).first()
+        else:
+            school = queryset.filter(code__iexact=value).first() or queryset.filter(slug=value).first()
+        if school is None:
+            raise Http404
+        self.check_object_permissions(self.request, school)
+        return school
 
     def get_queryset(self):
         queryset = (
@@ -65,6 +95,11 @@ class InstitutionViewSet(ReadOnlyPublicViewSet):
         country = self.request.query_params.get("country")
         if country:
             queryset = queryset.filter(country__name__iexact=country)
+        from .school_privacy import hides_names
+
+        if hides_names(self.request):
+            # Alphabetical order would hint at the names behind the codes.
+            queryset = queryset.order_by("display_order", "code")
         return queryset
 
 
@@ -105,8 +140,9 @@ def fee_quote(request):
         or OriginCountry.objects.filter(name__iexact="Nigeria").first()
     )
 
-    slug = (request.query_params.get("institution") or "").strip()
-    institution = Institution.objects.filter(slug=slug, is_active=True).first() if slug else None
+    from .school_privacy import find_school, hides_names, school_label
+
+    institution = find_school(request.query_params.get("institution"), by_code_only=hides_names(request))
 
     if institution is not None:
         fee_ngn = institution.application_fee_ngn
@@ -151,8 +187,8 @@ def fee_quote(request):
             "processing_fee": float(processing),
             "processing_fee_ngn": float(gateway_fee_ngn),
             "rate": float(rate),
-            "institution": institution.name if institution else "",
-            "institution_slug": institution.slug if institution else "",
+            "institution": school_label(institution, not hides_names(request)) if institution else "",
+            "institution_slug": (institution.code if hides_names(request) else institution.slug) if institution else "",
             # What the school itself charges, before any conversion.
             "institution_fee": float(institution.application_fee) if institution else None,
             "institution_fee_currency": institution.application_fee_currency if institution else "",
@@ -170,9 +206,31 @@ class ProgramViewSet(ReadOnlyPublicViewSet):
 
     serializer_class = ProgramCatalogSerializer
     pagination_class = PageNumberPagination
-    search_fields = ("name", "institution__name", "institution__location", "qualification_level")
-    ordering_fields = ("name", "tuition", "institution__name")
-    ordering = ("institution__name", "display_order", "name")
+
+    def _hides(self):
+        from .school_privacy import hides_names
+
+        return hides_names(self.request)
+
+    # Applicants cannot search or sort by a school's name or city: either would
+    # tell them which school a code stands for.
+    @property
+    def search_fields(self):
+        if self._hides():
+            return ("name", "qualification_level")
+        return ("name", "institution__name", "institution__location", "qualification_level")
+
+    @property
+    def ordering_fields(self):
+        if self._hides():
+            return ("name", "tuition", "institution__code")
+        return ("name", "tuition", "institution__name")
+
+    @property
+    def ordering(self):
+        if self._hides():
+            return ("institution__code", "display_order", "name")
+        return ("institution__name", "display_order", "name")
 
     def get_queryset(self):
         queryset = Program.objects.filter(institution__is_active=True).select_related(
@@ -190,7 +248,10 @@ class ProgramViewSet(ReadOnlyPublicViewSet):
         if level and level != "all":
             queryset = queryset.filter(level=level)
         if institution:
-            queryset = queryset.filter(institution__slug=institution)
+            if self._hides():
+                queryset = queryset.filter(institution__code__iexact=institution)
+            else:
+                queryset = queryset.filter(Q(institution__slug=institution) | Q(institution__code__iexact=institution))
         if fee_free == "true":
             queryset = queryset.filter(institution__application_fee=0)
 
@@ -272,8 +333,13 @@ def cached_catalog(view_func):
 
     @wraps(view_func)
     def wrapper(request, *args, **kwargs):
+        from .school_privacy import hides_names
+
         raw = getattr(request, "_request", request)
-        key = f"catalog:{catalog_version()}:{raw.get_full_path()}"
+        # Applicants and agents are answered differently (school codes or
+        # names), so each has its own cache entry.
+        audience = "codes" if hides_names(request) else "names"
+        key = f"catalog:{catalog_version()}:{audience}:{raw.get_full_path()}"
         hit = cache.get(key)
         if hit is not None:
             response = Response(hit)

@@ -83,6 +83,7 @@ class InstitutionSerializer(serializers.ModelSerializer):
             "id",
             "slug",
             "name",
+            "code",
             "country",
             "location",
             "cover_image",
@@ -106,6 +107,16 @@ class InstitutionSerializer(serializers.ModelSerializer):
             "features",
             "programs",
         )
+
+    def to_representation(self, instance):
+        # Applicants and visitors see the school's code, not its name
+        # (school_privacy.py). The view says which via the context.
+        data = super().to_representation(instance)
+        if self.context.get("hide_school_names"):
+            from .school_privacy import mask_school
+
+            data = mask_school(data, instance)
+        return data
 
 
 class InstitutionListSerializer(InstitutionSerializer):
@@ -183,3 +194,11 @@ class ProgramCatalogSerializer(serializers.ModelSerializer):
             "badge",
         )
         read_only_fields = fields
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if self.context.get("hide_school_names"):
+            from .school_privacy import mask_program_row
+
+            data = mask_program_row(data, instance.institution)
+        return data

@@ -206,17 +206,39 @@ class ApplicationSerializer(serializers.ModelSerializer):
         data["student_currency"] = for_application(obj)
         return data
 
+    def _shows_name(self, application):
+        """Whether this reader may see the school's real name on this file."""
+        from apps.catalog.school_privacy import application_reveals_school, sees_school_names
+
+        request = self.context.get("request")
+        return sees_school_names(getattr(request, "user", None)) or application_reveals_school(application)
+
     def get_fee_schools(self, obj):
+        from apps.catalog.school_privacy import school_label
+
         owner = obj.fee_owner
         schools = [owner, *sorted(owner.covered_applications.all(), key=lambda app: (app.choice_order, app.pk))]
         return [
             {
                 "reference": app.reference,
                 "choice_order": app.choice_order,
-                "institution": app.institution.name if app.institution else app.custom_course_name,
+                "institution": (
+                    school_label(app.institution, self._shows_name(app)) if app.institution else app.custom_course_name
+                ),
             }
             for app in schools
         ]
+
+    def to_representation(self, instance):
+        # Until the applicant pays, the school is shown by its code, and its
+        # name is taken out of the course text too (school_privacy.py).
+        data = super().to_representation(instance)
+        if instance.institution and not self._shows_name(instance):
+            from apps.catalog.school_privacy import _scrub, mask_school
+
+            data["institution"] = mask_school(data.get("institution"), instance.institution)
+            data["programs"] = _scrub(data.get("programs"), instance.institution)
+        return data
 
 
 class ApplicationContactSerializer(serializers.ModelSerializer):
@@ -334,7 +356,10 @@ class ApplicationCreateSerializer(serializers.Serializer):
     def validate_institution(self, value):
         if not value:
             return None
-        institution = Institution.objects.filter(slug=value, is_active=True).first()
+        from apps.catalog.school_privacy import find_school
+
+        # Applicants pick schools by code (they never see names before paying).
+        institution = find_school(value)
         if institution is None:
             raise serializers.ValidationError("Choose a partner institution.")
         return institution
@@ -402,7 +427,9 @@ class ApplicationCreateSerializer(serializers.Serializer):
         for position, raw in enumerate(chosen, start=2):
             label = "2nd" if position == 2 else "3rd"
             slug = str(raw.get("institution") or "").strip()
-            school = Institution.objects.filter(slug=slug, is_active=True).select_related("country").first()
+            from apps.catalog.school_privacy import find_school
+
+            school = find_school(slug)
             if school is None:
                 raise serializers.ValidationError({"extra_choices": f"Choose a partner institution for your {label} choice."})
             if school.pk in seen:
@@ -440,12 +467,15 @@ class ApplicationCreateSerializer(serializers.Serializer):
         applicant = validated_data.pop("applicant", user)
         agent = validated_data.pop("agent", agent_profile)
         extra = validated_data.pop("extra", [])
+        from apps.catalog.school_privacy import application_reveals_school, school_label
+
         for school in [validated_data.get("institution"), *(choice[0] for choice in extra)]:
             existing = open_application_at(applicant, school)
             if existing is not None:
+                shown = school_label(existing.institution, bool(agent) or application_reveals_school(existing))
                 raise serializers.ValidationError(
                     {
-                        "institution": f"An application to {existing.institution.name} already exists "
+                        "institution": f"An application to {shown} already exists "
                         f"({existing.reference}). Choose a different school."
                     }
                 )
@@ -504,13 +534,13 @@ class ApplicationCreateSerializer(serializers.Serializer):
             choice = "2nd" if order == 2 else "3rd"
             Notification.objects.create(
                 application=covered,
-                text=f"Application submitted for {school.name}, your {choice} choice, "
+                text=f"Application submitted for {school_label(school, bool(agent))}, your {choice} choice, "
                 f"under the fee for {application.reference}.",
                 send_email=False,
             )
 
         target_name = custom_name or (
-            application.institution.name
+            school_label(application.institution, bool(agent))
             if application.institution
             else application.destination_country.name
         )

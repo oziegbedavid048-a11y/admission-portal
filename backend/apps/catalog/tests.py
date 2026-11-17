@@ -66,8 +66,16 @@ class OmnesSchoolsMigrationTests(TestCase):
     def test_the_public_course_list_shows_them(self):
         response = self.client.get("/api/catalog/institutions/")
         self.assertEqual(response.status_code, 200)
-        slugs = {row["slug"] for row in (response.json() if isinstance(response.json(), list) else response.json()["results"])}
-        self.assertTrue({"ece-engineering-school", "esce", "inseec", "heip", "sup-de-pub"} <= slugs)
+        rows = response.json() if isinstance(response.json(), list) else response.json()["results"]
+        # Visitors see each school by its code, never its name or slug.
+        codes = {row["slug"] for row in rows}
+        expected = set(
+            Institution.objects.filter(
+                slug__in=["ece-engineering-school", "esce", "inseec", "heip", "sup-de-pub"]
+            ).values_list("code", flat=True)
+        )
+        self.assertEqual(len(expected), 5)
+        self.assertTrue(expected <= codes)
 
     def test_the_full_list_reads_as_supplied(self):
         from decimal import Decimal

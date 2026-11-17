@@ -158,7 +158,9 @@ class MultipleApplicationsTests(TestCase):
         self.assertEqual(listing.status_code, 200)
         self.assertEqual({row["reference"] for row in listing.data}, {first, second})
         row_a = next(row for row in listing.data if row["reference"] == first)
-        self.assertEqual(row_a["institution_slug"], "school-a")
+        # Unpaid, so the school is shown by its code, not its name.
+        self.assertEqual(row_a["institution_slug"], self.school_a.code)
+        self.assertEqual(row_a["institution"], self.school_a.code)
         self.assertEqual(sorted(row_a["courses"]), ["Course A1", "Course A2"])
 
         opened = self.client.get("/api/applications/mine/", {"reference": first})

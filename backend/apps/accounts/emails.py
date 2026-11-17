@@ -495,6 +495,16 @@ NEXT_STEP_BY_STAGE = {
 }
 
 
+def _school_for(application, to_agent):
+    """The school as this email may name it: an applicant sees its code until
+    they pay the application fee (apps/catalog/school_privacy.py)."""
+    from apps.catalog.school_privacy import application_reveals_school, school_label
+
+    if not application.institution:
+        return "To be confirmed"
+    return school_label(application.institution, to_agent or application_reveals_school(application))
+
+
 def _file_facts(application, *, include_student=False):
     """The facts every update about a file carries, in the same order each time."""
     stages = list(application.stages.all())
@@ -506,7 +516,7 @@ def _file_facts(application, *, include_student=False):
     if include_student:
         facts.append(("Student", application.full_name))
     facts.append(("Reference", application.reference))
-    facts.append(("University", application.institution.name if application.institution else "To be confirmed"))
+    facts.append(("University", _school_for(application, include_student)))
     if courses:
         facts.append(("Course", courses))
     facts.append(("Destination", application.destination_country.name))
@@ -590,7 +600,7 @@ def send_letter_issued_email(letter):
     if not to_agent and not application.email:
         return None
 
-    school = application.institution.name if application.institution else "The university"
+    school = _school_for(application, to_agent) if application.institution else "The university"
     courses = ", ".join(program.name for program in application.programs.all()) or application.custom_course_name
     celebrating = letter.kind in ("offer", "admission", "acceptance")
     headline = LETTER_HEADLINES.get(letter.kind, "a new letter is ready")
@@ -1082,7 +1092,7 @@ def send_application_received_email(application):
     if application.is_custom_course:
         facts.append(("Course requested", application.custom_course_name or "To be confirmed"))
     else:
-        facts.append(("University", institution.name if institution else "To be confirmed"))
+        facts.append(("University", _school_for(application, False)))
         if courses:
             facts.append(("Course", courses))
     facts.append(("Destination", application.destination_country.name))
@@ -1119,7 +1129,7 @@ def send_document_rejected_email(document):
         facts.append(("File", document.original_filename))
     facts += [
         ("Reference", application.reference),
-        ("University", application.institution.name if application.institution else "To be confirmed"),
+        ("University", _school_for(application, to_agent)),
     ]
 
     where = "the student's file in your partner portal" if to_agent else "Application in your dashboard"
@@ -1256,7 +1266,7 @@ def send_documents_verified_email(application):
         facts.append(("Student", application.full_name))
     facts += [
         ("Reference", application.reference),
-        ("University", application.institution.name if application.institution else "To be confirmed"),
+        ("University", _school_for(application, to_agent)),
         ("Documents verified", str(len(documents))),
     ]
     items = [(doc.name, "Verified") for doc in documents]

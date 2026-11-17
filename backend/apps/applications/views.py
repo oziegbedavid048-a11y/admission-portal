@@ -71,8 +71,16 @@ class ApplicationViewSet(viewsets.ModelViewSet):
     parser_classes = (JSONParser, MultiPartParser, FormParser)
     http_method_names = ("get", "post", "patch", "head", "options")
     lookup_field = "reference"
-    search_fields = ("reference", "full_name", "email", "institution__name")
     filterset_fields = ("status", "visa_status")
+
+    @property
+    def search_fields(self):
+        # A search by school name would tell an applicant which code it is.
+        from apps.catalog.school_privacy import sees_school_names
+
+        if sees_school_names(self.request.user):
+            return ("reference", "full_name", "email", "institution__name")
+        return ("reference", "full_name", "email")
 
     def get_queryset(self):
         return visible_applications(self.request.user)
@@ -172,14 +180,19 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             .select_related("institution", "payment", "fee_parent__payment")
             .prefetch_related("programs")
         )
+        from apps.catalog.school_privacy import application_reveals_school, school_label
+
         rows = []
         for application in own:
             payment = application.fee_payment
+            # The school's code until the fee is paid (school_privacy.py).
+            named = application_reveals_school(application)
+            school = application.institution
             rows.append(
                 {
                     "reference": application.reference,
-                    "institution": application.institution.name if application.institution else "",
-                    "institution_slug": application.institution.slug if application.institution else "",
+                    "institution": school_label(school, named) if school else "",
+                    "institution_slug": (school.slug if named else school.code) if school else "",
                     "courses": (
                         [application.custom_course_name]
                         if application.is_custom_course

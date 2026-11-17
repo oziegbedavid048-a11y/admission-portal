@@ -45,6 +45,7 @@ class ProgramInline(admin.TabularInline):
 class InstitutionAdmin(admin.ModelAdmin):
     list_display = (
         "name",
+        "code",
         "country",
         "location",
         "course_count",
@@ -57,14 +58,14 @@ class InstitutionAdmin(admin.ModelAdmin):
     # both are done from the list rather than one change page at a time.
     list_editable = ("display_order", "is_active")
     list_filter = ("country", "is_active")
-    search_fields = ("name", "location", "tagline")
+    search_fields = ("name", "code", "location", "tagline")
     prepopulated_fields = {"slug": ("name",)}
     inlines = (ProgramInline,)
     actions = ("action_activate", "action_deactivate")
     save_on_top = True
 
     fieldsets = (
-        (None, {"fields": ("name", "slug", "country", "location", "cover_image", "tagline", "badge")}),
+        (None, {"fields": ("name", "code", "slug", "country", "location", "cover_image", "tagline", "badge")}),
         (
             "Fees and tuition",
             {
